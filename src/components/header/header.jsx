@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const location = useLocation();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -17,50 +19,50 @@ const Header = () => {
         <div className="flex justify-between items-center">
           {/* Logo */}
           <div className="flex items-center">
-            <a href="#home" className="text-blue-800 font-bold text-2xl sm:text-3xl hover:text-blue-600 transition-colors">
+            <Link to="/" className="text-blue-800 font-bold text-2xl sm:text-3xl hover:text-blue-600 transition-colors">
               SCS Garage
-            </a>
+            </Link>
           </div>
 
           {/* Desktop Menu */}
           <nav className="hidden lg:block">
             <ul className="flex space-x-6 xl:space-x-8 text-gray-700 font-medium">
               <li>
-                <a href="#home" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/" className={`transition-colors duration-200 ${location.pathname === '/' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Trang chủ
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#warehouse" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/#warehouse" className="hover:text-blue-600 transition-colors duration-200">
                   Kho xe
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#management" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/#management" className="hover:text-blue-600 transition-colors duration-200">
                   Quản lý
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#about" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/about" className={`transition-colors duration-200 ${location.pathname === '/about' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Về chúng tôi
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#contact" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/contact" className={`transition-colors duration-200 ${location.pathname === '/contact' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Liên hệ
-                </a>
+                </Link>
               </li>
             </ul>
           </nav>
 
           {/* Desktop Login Button */}
           <div className="hidden lg:block">
-            <a
-              href="/auth/login"
+            <Link
+              to="/auth/login"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
             >
               Đăng Nhập
-            </a>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -87,58 +89,58 @@ const Header = () => {
             <nav className="pt-4">
               <ul className="space-y-3">
                 <li>
-                  <a 
-                    href="#home" 
-                    className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                  <Link 
+                    to="/" 
+                    className={`block px-3 py-2 rounded-md transition-colors duration-200 ${location.pathname === '/' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'}`}
                     onClick={closeMobileMenu}
                   >
                     Trang chủ
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a 
-                    href="#warehouse" 
+                  <Link 
+                    to="/#warehouse" 
                     className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
                     onClick={closeMobileMenu}
                   >
                     Kho xe
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a 
-                    href="#management" 
+                  <Link 
+                    to="/#management" 
                     className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
                     onClick={closeMobileMenu}
                   >
                     Quản lý
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a 
-                    href="#about" 
-                    className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                  <Link 
+                    to="/about" 
+                    className={`block px-3 py-2 rounded-md transition-colors duration-200 ${location.pathname === '/about' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'}`}
                     onClick={closeMobileMenu}
                   >
                     Về chúng tôi
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a 
-                    href="#contact" 
-                    className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                  <Link 
+                    to="/contact" 
+                    className={`block px-3 py-2 rounded-md transition-colors duration-200 ${location.pathname === '/contact' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'}`}
                     onClick={closeMobileMenu}
                   >
                     Liên hệ
-                  </a>
+                  </Link>
                 </li>
                 <li className="pt-2">
-                  <a
-                    href="/auth/login"
+                  <Link
+                    to="/auth/login"
                     className="block px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-center"
                     onClick={closeMobileMenu}
                   >
                     Đăng Nhập
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </nav>
