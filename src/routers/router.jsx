@@ -9,6 +9,7 @@ import MemberPage from "../pages/member/memberPage";
 // Guest pages
 const HomePage = lazy(() => import("../pages/guest/homePage"));
 const AboutPage = lazy(() => import("../pages/guest/aboutPage"));
+const ContactPage = lazy(() => import("../pages/guest/contactPage"));
 const LoginPage = lazy(() => import("../pages/guest/loginPage"));
 const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
@@ -59,6 +60,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <AboutPage />
+          </Suspense>
+        )
+      },
+      { 
+        path: "contact", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ContactPage />
           </Suspense>
         )
       },
