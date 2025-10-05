@@ -1,17 +1,17 @@
-import HeaderComponent from "../components/header/header";
-import FooterComponent from "../components/footer/footer";
+import Header from "../components/header/header";
+import Footer from "../components/footer/footer";
 import { Outlet } from "react-router-dom";
 
 function RootLayout() {
   return (
     <div>
-      <HeaderComponent />
+      <Header />
 
       <main className="flex-1 bg-[#eaf3fb]">
         <Outlet />
       </main>
 
-      <FooterComponent />
+      <Footer />
     </div>
   )
 }
