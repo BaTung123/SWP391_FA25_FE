@@ -148,9 +148,7 @@ const Footer = () => {
                   <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                 </svg>
                 <address className="text-gray-300 not-italic leading-relaxed">
-                  Số 7, đường Bằng Lăng 1,<br />
-                  Khu đô thị Vinhomes Riverside,<br />
-                  Long Biên, Hà Nội
+                  Số 290 Nơ Trang Long, Phường 12, Quận Bình Thạnh, TP.HCM
                 </address>
               </div>
             </div>

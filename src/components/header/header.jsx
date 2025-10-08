@@ -52,11 +52,33 @@ const Header = () => {
                   Liên hệ
                 </Link>
               </li>
+              <li>
+                <Link to="/member/calendar" className={`transition-colors duration-200 ${location.pathname === '/member/calendar' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
+                  Lịch
+                </Link>
+              </li>
             </ul>
           </nav>
 
-          {/* Desktop Login Button */}
-          <div className="hidden lg:block">
+          {/* Desktop Money & Login Section */}
+          <div className="hidden lg:flex items-center space-x-4">
+            {/* Money Section */}
+            <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+              </svg>
+              <span className="text-green-700 font-semibold">0 VNĐ</span>
+            </div>
+            
+            {/* Registration Button */}
+            <Link
+              to="/member/registercar"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
+            >
+              Đăng Ký Lịch
+            </Link>
+            
+            {/* Login Button */}
             <Link
               to="/auth/login"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
@@ -133,6 +155,37 @@ const Header = () => {
                     Liên hệ
                   </Link>
                 </li>
+                <li>
+                  <Link 
+                    to="/member/calendar" 
+                    className={`block px-3 py-2 rounded-md transition-colors duration-200 ${location.pathname === '/member/calendar' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'}`}
+                    onClick={closeMobileMenu}
+                  >
+                    Lịch
+                  </Link>
+                </li>
+                {/* Mobile Money Section */}
+                <li className="pt-2">
+                  <div className="flex items-center justify-center space-x-2 bg-green-50 px-3 py-2 rounded-lg border border-green-200 mx-3">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                    <span className="text-green-700 font-semibold">0 VNĐ</span>
+                  </div>
+                </li>
+                
+                {/* Mobile Registration Button */}
+                <li className="pt-2">
+                  <Link
+                    to="/member/registercar"
+                    className="block px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium text-center"
+                    onClick={closeMobileMenu}
+                  >
+                    Đăng Ký Lịch
+                  </Link>
+                </li>
+                
+                {/* Mobile Login Button */}
                 <li className="pt-2">
                   <Link
                     to="/auth/login"

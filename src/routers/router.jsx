@@ -3,8 +3,6 @@ import { lazy, Suspense } from "react";
 import RootLayout from "../layout/RootLayout";
 import AuthLayout from "../layout/AuthLayout";
 import SidebarLayout from "../layout/SidebarLayout";
-import AdminPage from "../pages/admin/adminPage";
-import MemberPage from "../pages/member/memberPage";
 
 // Guest pages
 const HomePage = lazy(() => import("../pages/guest/homePage"));
@@ -15,6 +13,7 @@ const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
 // Member pages
 const ProfilePage = lazy(() => import("../pages/member/profilePage"));
+const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 
 // Admin pages
 const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"));
@@ -29,7 +28,8 @@ const Loading = () => <div>Loading...</div>;
 
 // Route protection wrapper
 const ProtectedRoute = ({ children, roleAccount }) => {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const userData = localStorage.getItem("user");
+  const user = userData ? JSON.parse(userData) : null;
   const role = user?.role;
 
   if (!user) return <Navigate to="/auth/login" />;
@@ -115,28 +115,49 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Member routes
+  // Member routes without SidebarLayout
   {
     path: "/member",
-    element: <MemberPage />,
+    element: <RootLayout />,
     children: [
       { 
         path: "profile", 
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={["Customer", "Staff"]}>
+            <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
               <ProfilePage />
             </ProtectedRoute>
           </Suspense>
         )
       },
+      { 
+        path: "registercar", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
+              <RegistercarPage />
+            </ProtectedRoute>
+          </Suspense>
+        )
+      },
+      // Calendar route - component not implemented yet
+      // { 
+      //   path: "calendar", 
+      //   element: (
+      //     <Suspense fallback={<Loading />}>
+      //       <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
+      //         <CalendarPage />
+      //       </ProtectedRoute>
+      //     </Suspense>
+      //   )
+      // },
     ],
   },
 
-  // Admin routes
+  // Admin routes with SidebarLayout
   {
     path: "/admin",
-    element: <AdminPage />,
+    element: <SidebarLayout />,
     children: [
       { 
         path: "", 
