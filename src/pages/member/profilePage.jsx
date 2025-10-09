@@ -118,7 +118,7 @@ const ProfilePage = () => {
 
   return (
     <div className="w-full">
-      <div className="rounded-lg shadow-md bg-white p-6">
+      <div className="rounded-lg bg-white p-6">
         <h2 className="text-4xl font-bold text-indigo-900 mb-6">Thông tin thành viên EV Co-ownership</h2>
 
         <div className="flex border-b-2 border-indigo-100 mb-10">
