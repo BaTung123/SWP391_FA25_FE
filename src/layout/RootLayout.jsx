@@ -1,5 +1,4 @@
 import Header from "../components/header/header";
-import Footer from "../components/footer/footer";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 
@@ -25,7 +24,6 @@ function RootLayout() {
         <Outlet />
       </main>
 
-      <Footer />
     </div>
   )
 }
