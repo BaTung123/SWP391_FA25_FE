@@ -117,18 +117,6 @@ const Sidebar = () => {
       icon: <FaHome />,
       label: "Home",
       path: "/"
-    },
-    {
-      key: "/about",
-      icon: <FaInfoCircle />,
-      label: "About",
-      path: "/about"
-    },
-    {
-      key: "/contact",
-      icon: <FaPhone />,
-      label: "Contact",
-      path: "/contact"
     }
   ];
 
@@ -209,22 +197,6 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* User Info */}
-      {user && (
-        <div className="p-4 border-b border-indigo-800">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-indigo-700 rounded-full flex items-center justify-center mr-3">
-              <span className="text-sm font-medium text-white">
-                {user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">{user.name || 'User'}</p>
-              <p className="text-xs text-gray-300">{user.email}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Menu */}
       <nav className="mt-6">
