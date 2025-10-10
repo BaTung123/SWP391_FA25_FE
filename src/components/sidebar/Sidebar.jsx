@@ -15,7 +15,8 @@ import {
   FaCar,
   FaUser,
   FaChartLine,
-  FaClipboardList
+  FaClipboardList,
+  FaCreditCard
 } from 'react-icons/fa';
 
 const Sidebar = () => {
@@ -55,33 +56,6 @@ const Sidebar = () => {
     }
   ];
 
-  // --- MEMBER ---
-  const memberMenu = [
-    {
-      key: "/member",
-      icon: <FaUser />,
-      label: "Profile",
-      path: "/member/profile"
-    },
-    {
-      key: "/member/vehicles",
-      icon: <FaCar />,
-      label: "My Vehicles",
-      path: "/member/vehicles"
-    },
-    {
-      key: "/member/booking",
-      icon: <FaCalendarAlt />,
-      label: "Booking",
-      path: "/member/booking"
-    },
-    {
-      key: "/member/payments",
-      icon: <FaClipboardList />,
-      label: "Payments",
-      path: "/member/payments"
-    }
-  ];
 
   // --- STAFF ---
   const staffMenu = [
@@ -102,6 +76,12 @@ const Sidebar = () => {
       icon: <FaCog />,
       label: "Maintenance",
       path: "/staff/maintenance"
+    },
+    {
+      key: "/staff/payments",
+      icon: <FaCreditCard />,
+      label: "Payments",
+      path: "/staff/payments"
     },
     {
       key: "/staff/reports",
@@ -135,8 +115,6 @@ const Sidebar = () => {
     roleMenus = adminMenu;
   } else if (role === "Staff") {
     roleMenus = staffMenu;
-  } else if (role === "Member") {
-    roleMenus = memberMenu;
   }
 
   const allMenuItems = [
@@ -166,7 +144,6 @@ const Sidebar = () => {
         <div className="w-full">
           <div className="flex flex-col items-center justify-center h-16">
             <span className="text-2xl font-bold text-white text-center">EV Co-ownership</span>
-            <span className="text-sm text-gray-300 text-center mt-1">{role}</span>
           </div>
         </div>
       </div>

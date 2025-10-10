@@ -18,6 +18,15 @@ const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 // Admin pages
 const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"));
 const UserManagementPage = lazy(() => import("../pages/admin/userManagementPage"));
+const VehicleManagementPage = lazy(() => import("../pages/admin/vehicleManagementPage"));
+const ReportsPage = lazy(() => import("../pages/admin/reportsPage"));
+
+// Staff pages
+const StaffVehicleManagementPage = lazy(() => import("../pages/staff/vehicleManagementPage"));
+const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
+const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
+const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
+const StaffReportsPage = lazy(() => import("../pages/staff/reportsPage"));
 
 // Error pages
 const UnauthorizedPage = lazy(() => import("../pages/error/unauthorizedPage"));
@@ -140,17 +149,6 @@ export const router = createBrowserRouter([
           </Suspense>
         )
       },
-      // Calendar route - component not implemented yet
-      // { 
-      //   path: "calendar", 
-      //   element: (
-      //     <Suspense fallback={<Loading />}>
-      //       <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
-      //         <CalendarPage />
-      //       </ProtectedRoute>
-      //     </Suspense>
-      //   )
-      // },
     ],
   },
 
@@ -163,9 +161,9 @@ export const router = createBrowserRouter([
         path: "", 
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={["Admin"]}>
+            {/* <ProtectedRoute roleAccount={["Admin"]}> */}
               <AdminDashboardPage />
-            </ProtectedRoute>
+            {/* </ProtectedRoute> */}
           </Suspense>
         )
       },
@@ -173,9 +171,87 @@ export const router = createBrowserRouter([
         path: "user", 
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={["Admin"]}>
+            {/* <ProtectedRoute roleAccount={["Admin"]}> */}
               <UserManagementPage />
-            </ProtectedRoute>
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "vehicles", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Admin"]}> */}
+              <VehicleManagementPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "reports", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Admin"]}> */}
+              <ReportsPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+    ],
+  },
+
+  // Staff routes with SidebarLayout
+  {
+    path: "/staff",
+    element: <SidebarLayout />,
+    children: [
+      { 
+        path: "vehicles", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <StaffVehicleManagementPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "booking", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <BookingManagementPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "maintenance", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <MaintenancePage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "payments", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <PaymentPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "reports", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <StaffReportsPage />
+            {/* </ProtectedRoute> */}
           </Suspense>
         )
       },
