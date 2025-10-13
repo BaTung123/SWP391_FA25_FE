@@ -4,6 +4,7 @@ const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const [showCoOwnersModal, setShowCoOwnersModal] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
+  const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   
   const [user, setUser] = useState({
@@ -41,7 +42,19 @@ const ProfilePage = () => {
         { name: 'Nguyễn Văn A', email: 'nguyenvana@example.com', percentage: 30, phone: '0987654321' },
         { name: 'Trần Thị B', email: 'tranthib@example.com', percentage: 25, phone: '0912345678' },
         { name: 'Lê Văn C', email: 'levanc@example.com', percentage: 20, phone: '0923456789' }
-      ]
+      ],
+      insurance: {
+        provider: 'Bảo Việt',
+        policyNumber: 'BV-2024-001234',
+        startDate: '2024-01-15',
+        endDate: '2025-01-15',
+        premium: 4500000,
+        coverage: 'Toàn diện',
+        deductible: 500000,
+        monthlyPayment: 375000,
+        nextPayment: '2024-12-15',
+        status: 'Active'
+      }
     },
     {
       id: 2,
@@ -57,7 +70,19 @@ const ProfilePage = () => {
         { name: 'Phạm Văn D', email: 'phamvand@example.com', percentage: 35, phone: '0934567890' },
         { name: 'Hoàng Thị E', email: 'hoangthie@example.com', percentage: 30, phone: '0945678901' },
         { name: 'Vũ Văn F', email: 'vuvanf@example.com', percentage: 20, phone: '0956789012' }
-      ]
+      ],
+      insurance: {
+        provider: 'Prudential',
+        policyNumber: 'PRU-2024-005678',
+        startDate: '2024-03-20',
+        endDate: '2025-03-20',
+        premium: 3200000,
+        coverage: 'Cơ bản',
+        deductible: 300000,
+        monthlyPayment: 266667,
+        nextPayment: '2024-12-20',
+        status: 'Active'
+      }
     },
     {
       id: 3,
@@ -73,7 +98,19 @@ const ProfilePage = () => {
         { name: 'Đặng Văn G', email: 'dangvang@example.com', percentage: 25, phone: '0967890123' },
         { name: 'Bùi Thị H', email: 'buithih@example.com', percentage: 30, phone: '0978901234' },
         { name: 'Đinh Văn I', email: 'dinhvani@example.com', percentage: 25, phone: '0989012345' }
-      ]
+      ],
+      insurance: {
+        provider: 'Bảo Minh',
+        policyNumber: 'BM-2024-009012',
+        startDate: '2024-06-10',
+        endDate: '2025-06-10',
+        premium: 3800000,
+        coverage: 'Toàn diện',
+        deductible: 400000,
+        monthlyPayment: 316667,
+        nextPayment: '2024-12-10',
+        status: 'Active'
+      }
     }
   ];
 
@@ -112,6 +149,16 @@ const ProfilePage = () => {
     setSelectedVehicle(null);
   };
 
+  const handleViewInsurance = (vehicle) => {
+    setSelectedVehicle(vehicle);
+    setShowInsuranceModal(true);
+  };
+
+  const closeInsuranceModal = () => {
+    setShowInsuranceModal(false);
+    setSelectedVehicle(null);
+  };
+
   const handlePrintAgreement = () => {
     window.print();
   };
@@ -141,6 +188,16 @@ const ProfilePage = () => {
             onClick={() => setActiveTab('vehicles')}
           >
             SỞ HỮU XE
+          </div>
+          <div
+            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+              activeTab === 'insurance' 
+                ? 'text-indigo-900 border-b-3 border-indigo-900' 
+                : 'text-indigo-600 hover:text-indigo-800'
+            }`}
+            onClick={() => setActiveTab('insurance')}
+          >
+            BẢO HIỂM
           </div>
         </div>
 
@@ -333,12 +390,134 @@ const ProfilePage = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </button>
+                          <button 
+                            onClick={() => handleViewInsurance(vehicle)}
+                            className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                            title="Xem thông tin bảo hiểm"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                          </button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'insurance' && (
+          <div className="mb-8">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold text-indigo-900 mb-4">Thông tin bảo hiểm xe</h3>
+              <p className="text-gray-600">Quản lý và theo dõi các khoản chi phí bảo hiểm cho xe sở hữu chung</p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+              {vehicleData.map((vehicle) => (
+                <div key={vehicle.id} className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-lg font-semibold text-indigo-900">{vehicle.vehicleName}</h4>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        vehicle.insurance.status === 'Active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {vehicle.insurance.status === 'Active' ? 'Hoạt động' : 'Hết hạn'}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Nhà bảo hiểm:</span>
+                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.provider}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Số hợp đồng:</span>
+                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.policyNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Loại bảo hiểm:</span>
+                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.coverage}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Phí bảo hiểm/năm:</span>
+                        <span className="text-sm font-bold text-indigo-900">
+                          {vehicle.insurance.premium.toLocaleString('vi-VN')} VNĐ
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Chi phí/tháng:</span>
+                        <span className="text-sm font-bold text-green-600">
+                          {Math.round(vehicle.insurance.monthlyPayment).toLocaleString('vi-VN')} VNĐ
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Phần của bạn:</span>
+                        <span className="text-sm font-bold text-red-600">
+                          {Math.round(vehicle.insurance.monthlyPayment * vehicle.ownershipPercentage / 100).toLocaleString('vi-VN')} VNĐ
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="border-t border-gray-200 pt-4">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-600">Hạn thanh toán tiếp:</span>
+                        <span className="font-medium text-gray-900">
+                          {new Date(vehicle.insurance.nextPayment).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Hiệu lực:</span>
+                        <span className="font-medium text-gray-900">
+                          {new Date(vehicle.insurance.startDate).toLocaleDateString('vi-VN')} - {new Date(vehicle.insurance.endDate).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 flex space-x-2">
+                      <button 
+                        onClick={() => handleViewInsurance(vehicle)}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Xem chi tiết
+                      </button>
+                      <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors">
+                        Thanh toán
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Tổng kết chi phí */}
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-6">
+              <h4 className="text-xl font-bold text-indigo-900 mb-4">Tổng kết chi phí bảo hiểm</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-900">
+                    {vehicleData.reduce((sum, vehicle) => sum + Math.round(vehicle.insurance.monthlyPayment * vehicle.ownershipPercentage / 100), 0).toLocaleString('vi-VN')} VNĐ
+                  </div>
+                  <div className="text-sm text-gray-600">Tổng chi phí/tháng của bạn</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {vehicleData.reduce((sum, vehicle) => sum + Math.round(vehicle.insurance.monthlyPayment), 0).toLocaleString('vi-VN')} VNĐ
+                  </div>
+                  <div className="text-sm text-gray-600">Tổng chi phí/tháng tất cả xe</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {vehicleData.length}
+                  </div>
+                  <div className="text-sm text-gray-600">Số xe có bảo hiểm</div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -603,6 +782,183 @@ const ProfilePage = () => {
                       <p>Tổng tỷ lệ sở hữu: {selectedVehicle.coOwners.reduce((sum, owner) => sum + owner.percentage, 0)}%</p>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Insurance Details Modal */}
+        {showInsuranceModal && selectedVehicle && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold text-indigo-900">
+                    Chi tiết bảo hiểm - {selectedVehicle.vehicleName}
+                  </h3>
+                  <button
+                    onClick={closeInsuranceModal}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Insurance Header */}
+                <div className="mb-6 p-4 bg-indigo-50 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-indigo-600 font-medium">Nhà bảo hiểm</p>
+                      <p className="text-lg font-bold text-indigo-900">{selectedVehicle.insurance.provider}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-indigo-600 font-medium">Số hợp đồng</p>
+                      <p className="text-lg font-bold text-indigo-900">{selectedVehicle.insurance.policyNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-indigo-600 font-medium">Loại bảo hiểm</p>
+                      <p className="text-lg font-bold text-indigo-900">{selectedVehicle.insurance.coverage}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-indigo-600 font-medium">Trạng thái</p>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        selectedVehicle.insurance.status === 'Active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {selectedVehicle.insurance.status === 'Active' ? 'Hoạt động' : 'Hết hạn'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cost Breakdown */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-indigo-900 mb-4">Phân tích chi phí</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-semibold text-gray-900 mb-3">Chi phí tổng thể</h5>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Phí bảo hiểm/năm:</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {selectedVehicle.insurance.premium.toLocaleString('vi-VN')} VNĐ
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Chi phí/tháng:</span>
+                          <span className="text-sm font-bold text-green-600">
+                            {Math.round(selectedVehicle.insurance.monthlyPayment).toLocaleString('vi-VN')} VNĐ
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Mức khấu trừ:</span>
+                          <span className="text-sm font-bold text-orange-600">
+                            {selectedVehicle.insurance.deductible.toLocaleString('vi-VN')} VNĐ
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <h5 className="font-semibold text-gray-900 mb-3">Chi phí của bạn</h5>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Tỷ lệ sở hữu:</span>
+                          <span className="text-sm font-bold text-indigo-600">
+                            {selectedVehicle.ownershipPercentage}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Chi phí/tháng của bạn:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {Math.round(selectedVehicle.insurance.monthlyPayment * selectedVehicle.ownershipPercentage / 100).toLocaleString('vi-VN')} VNĐ
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Chi phí/năm của bạn:</span>
+                          <span className="text-sm font-bold text-red-600">
+                            {Math.round(selectedVehicle.insurance.premium * selectedVehicle.ownershipPercentage / 100).toLocaleString('vi-VN')} VNĐ
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Schedule */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-indigo-900 mb-4">Lịch thanh toán</h4>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-600 font-medium">Ngày bắt đầu</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          {new Date(selectedVehicle.insurance.startDate).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 font-medium">Ngày kết thúc</p>
+                        <p className="text-lg font-bold text-gray-900">
+                          {new Date(selectedVehicle.insurance.endDate).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 font-medium">Thanh toán tiếp theo</p>
+                        <p className="text-lg font-bold text-indigo-600">
+                          {new Date(selectedVehicle.insurance.nextPayment).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coverage Details */}
+                <div className="mb-6">
+                  <h4 className="text-lg font-semibold text-indigo-900 mb-4">Chi tiết bảo hiểm</h4>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Bảo hiểm thân vỏ</span>
+                        <span className="text-sm font-medium text-green-600">✓ Có</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Bảo hiểm trách nhiệm dân sự</span>
+                        <span className="text-sm font-medium text-green-600">✓ Có</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Bảo hiểm tai nạn người ngồi trên xe</span>
+                        <span className="text-sm font-medium text-green-600">✓ Có</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600">Bảo hiểm cháy nổ</span>
+                        <span className="text-sm font-medium text-green-600">✓ Có</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-sm text-gray-600">Bảo hiểm kéo xe</span>
+                        <span className="text-sm font-medium text-green-600">✓ Có</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-4">
+                  <button
+                    onClick={closeInsuranceModal}
+                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Đóng
+                  </button>
+                  <button className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                    Thanh toán ngay
+                  </button>
+                  <button className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                    Tải hợp đồng
+                  </button>
                 </div>
               </div>
             </div>
