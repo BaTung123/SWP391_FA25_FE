@@ -26,6 +26,15 @@ const Sidebar = () => {
   const user = JSON.parse(localStorage.getItem("user"));
   const role = user?.role || "Member";
   
+  // Debug: Log để kiểm tra role
+  console.log("User data:", user);
+  console.log("Current role:", role);
+  
+  // HƯỚNG DẪN TEST:
+  // 1. Để test Admin menu: localStorage.setItem("user", JSON.stringify({role: "Admin"}));
+  // 2. Để test Staff menu: localStorage.setItem("user", JSON.stringify({role: "Staff"}));
+  // 3. Để test tất cả menu: localStorage.removeItem("user") hoặc role khác
+  
   // Danh sách tất cả các menu item
   
   // --- ADMIN ---
@@ -37,16 +46,16 @@ const Sidebar = () => {
       path: "/admin"
     },
     {
-      key: "/admin/user",
+      key: "/admin/user-management",
       icon: <FaUsers />,
       label: "User Management",
-      path: "/admin/user"
+      path: "/admin/user-management"
     },
     {
-      key: "/admin/vehicles",
+      key: "/admin/vehicle-management",
       icon: <FaCar />,
       label: "Vehicle Management",
-      path: "/admin/vehicles"
+      path: "/admin/vehicle-management"
     },
     {
       key: "/admin/reports",
@@ -60,16 +69,16 @@ const Sidebar = () => {
   // --- STAFF ---
   const staffMenu = [
     {
-      key: "/staff/vehicles",
+      key: "/staff/vehicle-management",
       icon: <FaCar />,
       label: "Vehicle Management",
-      path: "/staff/vehicles"
+      path: "/staff/vehicle-management"
     },
     {
-      key: "/staff/booking",
+      key: "/staff/booking-management",
       icon: <FaCalendarAlt />,
       label: "Booking Management",
-      path: "/staff/booking"
+      path: "/staff/booking-management"
     },
     {
       key: "/staff/maintenance",
@@ -78,10 +87,10 @@ const Sidebar = () => {
       path: "/staff/maintenance"
     },
     {
-      key: "/staff/payments",
+      key: "/staff/payment",
       icon: <FaCreditCard />,
       label: "Payments",
-      path: "/staff/payments"
+      path: "/staff/payment"
     },
     {
       key: "/staff/reports",
@@ -110,11 +119,23 @@ const Sidebar = () => {
     isLogout: true
   };
 
+  // Hiển thị tất cả menu để test, không phân biệt role
   let roleMenus = [];
+  
+  // Test: Hiển thị cả Admin và Staff menu
+  const testMenu = [
+    ...adminMenu,
+    ...staffMenu
+  ];
+  
   if (role === "Admin") {
     roleMenus = adminMenu;
   } else if (role === "Staff") {
     roleMenus = staffMenu;
+  } else {
+    // Hiển thị tất cả menu để test khi chưa đăng nhập
+    console.log("Role:", role, "- Hiển thị tất cả menu để test");
+    roleMenus = testMenu;
   }
 
   const allMenuItems = [

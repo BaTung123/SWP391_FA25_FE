@@ -107,18 +107,17 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Information page with sidebar layout
+  // Profile page with sidebar layout
   {
-    path: "/information",
+    path: "/profile",
     element: <SidebarLayout />,
     children: [
       {
         path: "",
         element: (
-          <div className="information-dashboard">
-            <h1>Information Dashboard</h1>
-            <p>Welcome to the information section.</p>
-          </div>
+          <Suspense fallback={<Loading />}>
+            <ProfilePage />
+          </Suspense>
         )
       },
     ],
@@ -133,9 +132,9 @@ export const router = createBrowserRouter([
         path: "profile", 
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
+            {/* <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}> */}
               <ProfilePage />
-            </ProtectedRoute>
+            {/* </ProtectedRoute> */}
           </Suspense>
         )
       },
@@ -143,9 +142,9 @@ export const router = createBrowserRouter([
         path: "registercar", 
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}>
+            {/* <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}> */}
               <RegistercarPage />
-            </ProtectedRoute>
+            {/* </ProtectedRoute> */}
           </Suspense>
         )
       },
@@ -153,6 +152,8 @@ export const router = createBrowserRouter([
   },
 
   // Admin routes with SidebarLayout
+  // LƯU Ý: ProtectedRoute đã được comment để test không cần đăng nhập
+  // Khi deploy production, uncomment các ProtectedRoute và cấu hình role phù hợp
   {
     path: "/admin",
     element: <SidebarLayout />,
@@ -168,7 +169,7 @@ export const router = createBrowserRouter([
         )
       },
       { 
-        path: "user", 
+        path: "user-management", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Admin"]}> */}
@@ -178,7 +179,7 @@ export const router = createBrowserRouter([
         )
       },
       { 
-        path: "vehicles", 
+        path: "vehicle-management", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Admin"]}> */}
@@ -201,12 +202,13 @@ export const router = createBrowserRouter([
   },
 
   // Staff routes with SidebarLayout
+  // LƯU Ý: ProtectedRoute đã được comment để test không cần đăng nhập
   {
     path: "/staff",
     element: <SidebarLayout />,
     children: [
       { 
-        path: "vehicles", 
+        path: "vehicle-management", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
@@ -216,7 +218,7 @@ export const router = createBrowserRouter([
         )
       },
       { 
-        path: "booking", 
+        path: "booking-management", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
@@ -236,7 +238,7 @@ export const router = createBrowserRouter([
         )
       },
       { 
-        path: "payments", 
+        path: "payment", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
