@@ -24,7 +24,7 @@ const LoginPage = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center font-sans">
       {/* Main container with two sections */}
       <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex">
@@ -49,7 +49,7 @@ const LoginPage = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required 
                   />
                 </div>
@@ -59,7 +59,7 @@ const LoginPage = () => {
                     <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                       Password
                     </label>
-                    <a href="#" className="text-sm text-purple-600 hover:text-purple-700">
+                    <a href="#" className="text-sm text-blue-600 hover:text-blue-700">
                       Forgot Password?
                     </a>
                   </div>
@@ -71,7 +71,7 @@ const LoginPage = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Enter 6 character or more"
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required 
                     />
                     <button
@@ -101,7 +101,7 @@ const LoginPage = () => {
                     name="remember"
                     checked={formData.remember}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
                     Remember me
@@ -110,7 +110,7 @@ const LoginPage = () => {
                 
                 <button 
                   type="submit" 
-                  className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold uppercase tracking-wide hover:bg-purple-700 transition-colors duration-200"
+                  className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold uppercase tracking-wide hover:bg-blue-700 transition-colors duration-200"
                 >
                   Login
                 </button>
@@ -127,7 +127,7 @@ const LoginPage = () => {
 
                 <p className="text-gray-600 mb-8">
                 Doesn't have an account yet?{' '}
-                <a href="/auth/register" className="text-purple-600 hover:text-purple-700 font-medium">
+                <a href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign Up
                 </a>
               </p>
@@ -170,10 +170,10 @@ const LoginPage = () => {
               />
             </div>
               
-              <h3 className="text-xl font-semibold text-purple-800 mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-blue-800 mt-6 mb-2">
                 Welcome Back!
               </h3>
-              <p className="text-purple-600">
+              <p className="text-blue-600">
                 Sign in to continue to your account
               </p>
             </div>

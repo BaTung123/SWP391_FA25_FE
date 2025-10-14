@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { FaPlus, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const UserManagementPage = () => {
   const [users, setUsers] = useState([
     { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Member', status: 'Active' },
     { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Member', status: 'Active' },
     { id: 3, name: 'Bob Wilson', email: 'bob@example.com', role: 'Staff', status: 'Inactive' },
+    { id: 4, name: 'Alice Johnson', email: 'alice@example.com', role: 'Member', status: 'Active' },
+    { id: 5, name: 'Charlie Brown', email: 'charlie@example.com', role: 'Staff', status: 'Active' },
+    { id: 6, name: 'Diana Prince', email: 'diana@example.com', role: 'Member', status: 'Inactive' },
+    { id: 7, name: 'Eve Adams', email: 'eve@example.com', role: 'Staff', status: 'Active' },
+    { id: 8, name: 'Frank Miller', email: 'frank@example.com', role: 'Member', status: 'Active' },
+    { id: 9, name: 'Grace Lee', email: 'grace@example.com', role: 'Staff', status: 'Inactive' },
+    { id: 10, name: 'Henry Ford', email: 'henry@example.com', role: 'Member', status: 'Active' },
+    { id: 11, name: 'Ivy Chen', email: 'ivy@example.com', role: 'Staff', status: 'Active' },
+    { id: 12, name: 'Jack Wilson', email: 'jack@example.com', role: 'Member', status: 'Active' },
   ]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -15,6 +24,25 @@ const UserManagementPage = () => {
     password: ''
   });
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentUsers = users.slice(startIndex, endIndex);
+
+  // Pagination handlers
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
 
   const getStatusBadge = (status) => {
     return status === 'Active' 
@@ -81,7 +109,7 @@ const UserManagementPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map(user => (
+              {currentUsers.map(user => (
                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {user.id}
@@ -125,6 +153,79 @@ const UserManagementPage = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-center py-4">
+        <div className="flex justify-center sm:hidden">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        <div className="hidden sm:block">
+          <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaChevronLeft className="h-4 w-4" />
+              </button>
+              
+              {/* Page numbers */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                // Show first page, last page, current page, and pages around current page
+                if (
+                  page === 1 ||
+                  page === totalPages ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        page === currentPage
+                          ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                } else if (
+                  page === currentPage - 2 ||
+                  page === currentPage + 2
+                ) {
+                  return (
+                    <span key={page} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                      ...
+                    </span>
+                  );
+                }
+                return null;
+              })}
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaChevronRight className="h-4 w-4" />
+              </button>
+            </nav>
         </div>
       </div>
 
