@@ -235,28 +235,14 @@ const ProfilePage = () => {
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">SỐ BẰNG LÁI</label>
+                    <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">NGÀY SINH</label>
                     <input
-                      name="licenseNumber"
-                      value={form.licenseNumber || ''}
+                      name="dob"
+                      value={form.dob || ''}
+                      type="date"
                       onChange={handleChange}
-                      className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                      placeholder="Nhập số bằng lái xe"
+                      className="w-full py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
                     />
-                  </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">KINH NGHIỆM LÁI XE</label>
-                    <select
-                      name="drivingExperience"
-                      value={form.drivingExperience || ''}
-                      onChange={handleChange}
-                      className="py-3.5 px-4 border-2 border-indigo-100 rounded-lg text-lg bg-white transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    >
-                      <option value="">Chọn kinh nghiệm lái xe</option>
-                      {drivingExperienceOptions.map(exp => (
-                        <option key={exp} value={exp}>{exp}</option>
-                      ))}
-                    </select>
                   </div>
                 </div>
 
@@ -280,16 +266,6 @@ const ProfilePage = () => {
                       <option value="Female">Nữ</option>
                       <option value="Other">Khác</option>
                     </select>
-                  </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">NGÀY SINH</label>
-                    <input
-                      name="dob"
-                      value={form.dob || ''}
-                      type="date"
-                      onChange={handleChange}
-                      className="w-full py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    />
                   </div>
                   <div className="flex flex-col gap-1 w-full mb-3">
                     <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">ĐỊA CHỈ</label>
@@ -320,10 +296,8 @@ const ProfilePage = () => {
                     <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Tên xe</th>
                     <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Biển số</th>
                     <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">% Sở hữu</th>
-                    <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Ngày mua</th>
+                    <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Ngày sỡ hữu</th>
                     <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Trạng thái</th>
-                    <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Chi phí/tháng</th>
-                    <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Thanh toán tiếp</th>
                     <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Thao tác</th>
                   </tr>
                 </thead>
@@ -360,14 +334,6 @@ const ProfilePage = () => {
                         }`}>
                           {vehicle.status === 'Active' ? 'Hoạt động' : 'Bảo trì'}
                         </span>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <span className="font-medium text-gray-900">
-                          {vehicle.monthlyCost.toLocaleString('vi-VN')} VNĐ
-                        </span>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3 text-gray-700">
-                        {new Date(vehicle.nextPayment).toLocaleDateString('vi-VN')}
                       </td>
                       <td className="border border-indigo-200 px-4 py-3">
                         <div className="flex space-x-2">
@@ -451,12 +417,6 @@ const ProfilePage = () => {
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Chi phí/tháng:</span>
-                        <span className="text-sm font-bold text-green-600">
-                          {Math.round(vehicle.insurance.monthlyPayment).toLocaleString('vi-VN')} VNĐ
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Phần của bạn:</span>
                         <span className="text-sm font-bold text-red-600">
                           {Math.round(vehicle.insurance.monthlyPayment * vehicle.ownershipPercentage / 100).toLocaleString('vi-VN')} VNĐ
@@ -503,13 +463,11 @@ const ProfilePage = () => {
                   <div className="text-2xl font-bold text-indigo-900">
                     {vehicleData.reduce((sum, vehicle) => sum + Math.round(vehicle.insurance.monthlyPayment * vehicle.ownershipPercentage / 100), 0).toLocaleString('vi-VN')} VNĐ
                   </div>
-                  <div className="text-sm text-gray-600">Tổng chi phí/tháng của bạn</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600">
                     {vehicleData.reduce((sum, vehicle) => sum + Math.round(vehicle.insurance.monthlyPayment), 0).toLocaleString('vi-VN')} VNĐ
                   </div>
-                  <div className="text-sm text-gray-600">Tổng chi phí/tháng tất cả xe</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
@@ -685,8 +643,6 @@ const ProfilePage = () => {
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Họ và tên</th>
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Email</th>
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Số điện thoại</th>
-                          <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">% Sở hữu</th>
-                          <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Chi phí/tháng</th>
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Chữ ký</th>
                         </tr>
                       </thead>
@@ -849,7 +805,6 @@ const ProfilePage = () => {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Chi phí/tháng:</span>
                           <span className="text-sm font-bold text-green-600">
                             {Math.round(selectedVehicle.insurance.monthlyPayment).toLocaleString('vi-VN')} VNĐ
                           </span>
@@ -873,7 +828,6 @@ const ProfilePage = () => {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Chi phí/tháng của bạn:</span>
                           <span className="text-sm font-bold text-red-600">
                             {Math.round(selectedVehicle.insurance.monthlyPayment * selectedVehicle.ownershipPercentage / 100).toLocaleString('vi-VN')} VNĐ
                           </span>

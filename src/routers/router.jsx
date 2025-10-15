@@ -8,6 +8,7 @@ import SidebarLayout from "../layout/SidebarLayout";
 const HomePage = lazy(() => import("../pages/guest/homePage"));
 const AboutPage = lazy(() => import("../pages/guest/aboutPage"));
 const ContactPage = lazy(() => import("../pages/guest/contactPage"));
+const WarehousePage = lazy(() => import("../pages/guest/warehousePage"));
 const LoginPage = lazy(() => import("../pages/guest/loginPage"));
 const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
@@ -19,13 +20,13 @@ const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"));
 const UserManagementPage = lazy(() => import("../pages/admin/userManagementPage"));
 const VehicleManagementPage = lazy(() => import("../pages/admin/vehicleManagementPage"));
-const ReportsPage = lazy(() => import("../pages/admin/reportsPage"));
 
 // Staff pages
 const StaffVehicleManagementPage = lazy(() => import("../pages/staff/vehicleManagementPage"));
 const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
+const CoOwnershipRegistrationPage = lazy(() => import("../pages/staff/coOwnershipRegistrationPage"));
 const StaffReportsPage = lazy(() => import("../pages/staff/reportsPage"));
 
 // Error pages
@@ -77,6 +78,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <ContactPage />
+          </Suspense>
+        )
+      },
+      { 
+        path: "warehouse", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            <WarehousePage />
           </Suspense>
         )
       },
@@ -188,16 +197,6 @@ export const router = createBrowserRouter([
           </Suspense>
         )
       },
-      { 
-        path: "reports", 
-        element: (
-          <Suspense fallback={<Loading />}>
-            {/* <ProtectedRoute roleAccount={["Admin"]}> */}
-              <ReportsPage />
-            {/* </ProtectedRoute> */}
-          </Suspense>
-        )
-      },
     ],
   },
 
@@ -243,6 +242,16 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
               <PaymentPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "co-ownership-registration", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <CoOwnershipRegistrationPage />
             {/* </ProtectedRoute> */}
           </Suspense>
         )

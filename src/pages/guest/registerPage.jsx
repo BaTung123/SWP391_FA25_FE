@@ -27,7 +27,7 @@ const RegisterPage = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center font-sans">
       {/* Main container with two sections */}
       <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex">
@@ -52,7 +52,7 @@ const RegisterPage = () => {
                     value={formData.fullName}
                     onChange={handleInputChange}
                     placeholder="Enter your full name"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required 
                   />
                 </div>
@@ -70,7 +70,7 @@ const RegisterPage = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required 
                   />
                 </div>
@@ -89,7 +89,7 @@ const RegisterPage = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Enter 6 character or more"
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required 
                     />
                     <button
@@ -126,7 +126,7 @@ const RegisterPage = () => {
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
                       placeholder="Confirm your password"
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required 
                     />
                     <button
@@ -156,11 +156,11 @@ const RegisterPage = () => {
                     name="agreeTerms"
                     checked={formData.agreeTerms}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
                   <label htmlFor="agreeTerms" className="ml-2 block text-sm text-gray-700">
                     I agree to the{' '}
-                    <a href="#" className="text-purple-600 hover:text-purple-700">
+                    <a href="#" className="text-blue-600 hover:text-blue-700">
                       Terms and Conditions
                     </a>
                   </label>
@@ -168,7 +168,7 @@ const RegisterPage = () => {
                 
                 <button 
                   type="submit" 
-                  className="w-full bg-purple-600 text-white py-3 px-6 rounded-lg font-semibold uppercase tracking-wide hover:bg-purple-700 transition-colors duration-200"
+                  className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold uppercase tracking-wide hover:bg-blue-700 transition-colors duration-200"
                 >
                   Create Account
                 </button>
@@ -185,7 +185,7 @@ const RegisterPage = () => {
 
                 <p className="text-gray-600 mb-8">
                 Already have an account?{' '}
-                <a href="/auth/login" className="text-purple-600 hover:text-purple-700 font-medium">
+                <a href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign In
                 </a>
               </p>
@@ -228,10 +228,10 @@ const RegisterPage = () => {
               />
             </div>
               
-              <h3 className="text-xl font-semibold text-purple-800 mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-blue-800 mt-6 mb-2">
                 Join Us Today!
               </h3>
-              <p className="text-purple-600">
+              <p className="text-blue-600">
                 Create your account and start your journey with us
               </p>
             </div>

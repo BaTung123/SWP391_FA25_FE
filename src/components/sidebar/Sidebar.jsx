@@ -16,7 +16,8 @@ import {
   FaUser,
   FaChartLine,
   FaClipboardList,
-  FaCreditCard
+  FaCreditCard,
+  FaHandshake
 } from 'react-icons/fa';
 
 const Sidebar = () => {
@@ -56,12 +57,6 @@ const Sidebar = () => {
       icon: <FaCar />,
       label: "Vehicle Management",
       path: "/admin/vehicle-management"
-    },
-    {
-      key: "/admin/reports",
-      icon: <FaChartLine />,
-      label: "Reports",
-      path: "/admin/reports"
     }
   ];
 
@@ -91,6 +86,12 @@ const Sidebar = () => {
       icon: <FaCreditCard />,
       label: "Payments",
       path: "/staff/payment"
+    },
+    {
+      key: "/staff/co-ownership-registration",
+      icon: <FaHandshake />,
+      label: "Co-ownership Registration",
+      path: "/staff/co-ownership-registration"
     },
     {
       key: "/staff/reports",

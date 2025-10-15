@@ -33,7 +33,7 @@ const Header = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/#warehouse" className="hover:text-blue-600 transition-colors duration-200">
+                <Link to="/warehouse" className={`transition-colors duration-200 ${location.pathname === '/warehouse' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Kho xe
                 </Link>
               </li>
@@ -111,8 +111,8 @@ const Header = () => {
                 </li>
                 <li>
                   <Link 
-                    to="/#warehouse" 
-                    className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                    to="/warehouse" 
+                    className={`block px-3 py-2 rounded-md transition-colors duration-200 ${location.pathname === '/warehouse' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'}`}
                     onClick={closeMobileMenu}
                   >
                     Kho xe
