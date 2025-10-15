@@ -1,6 +1,6 @@
 import React from "react";
 import bgGarage from "../../assets/search-image.jpg";
-// import logoGarage from "../../assets/logo.png";
+import logoGarage from "../../assets/logo.png";
 
 export default function HomePage() {
   return (
@@ -754,7 +754,7 @@ export default function HomePage() {
           <div className="md:w-1/2 mb-8 md:mb-0">
             <div className="relative">
               <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIOOcA7LkLCgDlsqBCwUznUf34i7A9UrRWng&s"
+                src={logoGarage}
                 alt="EV Co-ownership service"
                 className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
                 loading="lazy"
