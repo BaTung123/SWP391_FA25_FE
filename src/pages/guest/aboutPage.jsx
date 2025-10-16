@@ -1,14 +1,7 @@
 import React from "react";
-import {
-  Layout,
-  Typography,
-  Row,
-  Col,
-  Card,
-  Button,
-  Divider,
-  theme,
-} from "antd";
+import Header from "../../components/header/header";
+import Footer from "../../components/footer/footer";
+import { Layout, Typography, Row, Col, Card, Button, Divider, theme } from "antd";
 import {
   BookOutlined,
   ThunderboltOutlined,
@@ -25,14 +18,8 @@ const AboutPage = () => {
 
   return (
     <Layout style={{ background: "#f5f7fa", minHeight: "100vh" }}>
-      {/* HERO */}
-      <section
-        style={{
-          background: "white",
-          padding: "80px 0 50px",
-          textAlign: "center",
-        }}
-      >
+      <Header />
+      <section id="about">
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
           <Title level={2} style={{ color: "#111", marginBottom: 12 }}>
             Đồng Sở Hữu Ô Tô Điện & Hệ Thống Chia Sẻ Chi Phí
@@ -221,6 +208,7 @@ const AboutPage = () => {
       </section>
 
       <Divider style={{ margin: "0" }} />
+      <Footer />
     </Layout>
   );
 };

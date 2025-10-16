@@ -9,12 +9,14 @@ const HomePage = lazy(() => import("../pages/guest/homePage"));
 const AboutPage = lazy(() => import("../pages/guest/aboutPage"));
 const ContactPage = lazy(() => import("../pages/guest/contactPage"));
 const WarehousePage = lazy(() => import("../pages/guest/warehousePage"));
+const DetailCarPage = lazy(() => import("../pages/guest/detailCarPage"));
 const LoginPage = lazy(() => import("../pages/guest/loginPage"));
 const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
 // Member pages
 const ProfilePage = lazy(() => import("../pages/member/profilePage"));
 const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
+const QRPage = lazy(() => import("../pages/member/qrPage"));
 
 // Admin pages
 const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"));
@@ -89,6 +91,14 @@ export const router = createBrowserRouter([
           </Suspense>
         )
       },
+      { 
+        path: "car/:id", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            <DetailCarPage />
+          </Suspense>
+        )
+      },
     ],
   },
 
@@ -153,6 +163,16 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}> */}
               <RegistercarPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "wallet", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Member", "Staff", "Admin"]}> */}
+              <QRPage />
             {/* </ProtectedRoute> */}
           </Suspense>
         )
