@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Header from "../../components/header/header";
+import Footer from "../../components/footer/footer";
 import {
   Card,
   Input,
@@ -23,6 +26,7 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 
 const WarehousePage = () => {
+  const navigate = useNavigate();
   const [vehicles] = useState([
     {
       id: 1,
@@ -131,9 +135,9 @@ const WarehousePage = () => {
       style={{
         minHeight: "100vh",
         background: "#f5f7fa",
-        padding: "80px 60px",
       }}
     >
+      <Header />
       <div style={{ textAlign: "center", marginBottom: 40 }}>
         <Title level={2} style={{ color: "#222", marginBottom: 4 }}>
           🚘 Kho xe đồng sở hữu
@@ -269,7 +273,10 @@ const WarehousePage = () => {
                     <Button type="primary" icon={<ShareAltOutlined />} />
                   </Tooltip>
                   <Tooltip title="Xem chi tiết">
-                    <Button icon={<EyeOutlined />} />
+                    <Button 
+                      icon={<EyeOutlined />} 
+                      onClick={() => navigate(`/car/${vehicle.id}`)}
+                    />
                   </Tooltip>
                   <Tooltip title="Tùy chọn khác">
                     <Button icon={<MoreOutlined />} />
@@ -282,7 +289,7 @@ const WarehousePage = () => {
       </Row>
 
       {/* Pagination */}
-      <div style={{ textAlign: "center", marginTop: 40 }}>
+      <div style={{ textAlign: "center", marginTop: 40, marginBottom: 40 }}>
         <Pagination
           current={page}
           total={filteredVehicles.length}
@@ -290,6 +297,7 @@ const WarehousePage = () => {
           onChange={setPage}
         />
       </div>
+      <Footer />
     </div>
   );
 };

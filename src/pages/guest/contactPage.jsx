@@ -1,9 +1,10 @@
 import React from 'react';
-
+import Header from "../../components/header/header";
+import Footer from "../../components/footer/footer";
 const ContactPage = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Top section: title + info + map */}
+      <Header />
       <section className="pt-24 pb-12">
         <div className="container mx-auto px-4">
           <h2 className="text-center text-2xl sm:text-3xl font-extrabold text-gray-900">Liên Hệ — EV Co-ownership & Cost-sharing</h2>
@@ -73,6 +74,7 @@ const ContactPage = () => {
           </form>
         </div>
       </section>
+      <Footer />
     </div>
   );
 };

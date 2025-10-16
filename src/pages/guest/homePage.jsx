@@ -1,11 +1,13 @@
 import React from "react";
 import bgGarage from "../../assets/search-image.jpg";
 import logoGarage from "../../assets/logo.png";
+import Header from "../../components/header/header";
+import Footer from "../../components/footer/footer";
 
 export default function HomePage() {
   return (
     <div className="font-sans min-h-screen">
-      {/* Hero Section */}
+      <Header />
       <section
         id="home"
         className="relative h-screen flex items-center justify-center text-center text-white bg-cover bg-center bg-no-repeat"
@@ -794,6 +796,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      <Footer />
     </div>
   );
 }
