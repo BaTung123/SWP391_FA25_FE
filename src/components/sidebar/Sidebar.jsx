@@ -14,7 +14,6 @@ import {
   FaSignOutAlt,
   FaCar,
   FaUser,
-  FaChartLine,
   FaClipboardList,
   FaCreditCard,
   FaHandshake
@@ -26,19 +25,11 @@ const Sidebar = () => {
 
   const user = JSON.parse(localStorage.getItem("user"));
   const role = user?.role || "Member";
-  
-  // Debug: Log để kiểm tra role
+
   console.log("User data:", user);
   console.log("Current role:", role);
-  
-  // HƯỚNG DẪN TEST:
-  // 1. Để test Admin menu: localStorage.setItem("user", JSON.stringify({role: "Admin"}));
-  // 2. Để test Staff menu: localStorage.setItem("user", JSON.stringify({role: "Staff"}));
-  // 3. Để test tất cả menu: localStorage.removeItem("user") hoặc role khác
-  
-  // Danh sách tất cả các menu item
-  
-  // --- ADMIN ---
+
+  // --- ADMIN MENU ---
   const adminMenu = [
     {
       key: "/admin",
@@ -60,14 +51,13 @@ const Sidebar = () => {
     }
   ];
 
-
-  // --- STAFF ---
+  // --- STAFF MENU ---
   const staffMenu = [
     {
-      key: "/staff/vehicle-management",
-      icon: <FaCar />,
-      label: "Vehicle Management",
-      path: "/staff/vehicle-management"
+      key: "/group-management",
+      icon: <FaUsers />, // ✅ sửa FaGroup thành FaUsers
+      label: "Group Management",
+      path: "/staff/group-management"
     },
     {
       key: "/staff/booking-management",
@@ -90,18 +80,12 @@ const Sidebar = () => {
     {
       key: "/staff/co-ownership-registration",
       icon: <FaHandshake />,
-      label: "Co-ownership Registration",
+      label: "Co-ownership",
       path: "/staff/co-ownership-registration"
-    },
-    {
-      key: "/staff/reports",
-      icon: <FaChartLine />,
-      label: "Reports",
-      path: "/staff/reports"
     }
   ];
 
-  // --- INFORMATION ---
+  // --- INFORMATION MENU ---
   const informationMenu = [
     {
       key: "/profile",
@@ -116,57 +100,46 @@ const Sidebar = () => {
     key: "logout",
     icon: <FaSignOutAlt />,
     label: "Logout",
-    path: "/logout",
+    path: "/",
     isLogout: true
   };
 
-  // Hiển thị tất cả menu để test, không phân biệt role
+  // Xác định menu dựa theo role
   let roleMenus = [];
-  
-  // Test: Hiển thị cả Admin và Staff menu
-  const testMenu = [
-    ...adminMenu,
-    ...staffMenu
-  ];
-  
+
   if (role === "Admin") {
     roleMenus = adminMenu;
   } else if (role === "Staff") {
     roleMenus = staffMenu;
   } else {
-    // Hiển thị tất cả menu để test khi chưa đăng nhập
+    // Nếu không có role cụ thể → hiển thị tất cả để test
     console.log("Role:", role, "- Hiển thị tất cả menu để test");
-    roleMenus = testMenu;
+    roleMenus = [...adminMenu, ...staffMenu];
   }
 
-  const allMenuItems = [
-    ...roleMenus,
-    ...informationMenu,
-    logoutItem
-  ];
+  const allMenuItems = [...roleMenus, ...informationMenu, logoutItem];
 
+  // Logout function
   const handleLogout = () => {
     localStorage.removeItem("user");
-    navigate("/login");
+    navigate("/");
   };
 
   const handleMenuClick = (item) => {
-    if (item.isLogout) {
-      handleLogout();
-    }
+    if (item.isLogout) handleLogout();
   };
 
   return (
-    <div 
+    <div
       className="fixed left-0 top-0 h-screen w-64 bg-indigo-900 text-white z-50 shadow-lg"
       style={{ backgroundColor: "#073a82" }}
     >
       {/* Header */}
       <div className="p-4 flex items-center justify-center border-b border-indigo-800">
-        <div className="w-full">
-          <div className="flex flex-col items-center justify-center h-16">
-            <span className="text-2xl font-bold text-white text-center">EV Co-ownership</span>
-          </div>
+        <div className="w-full text-center">
+          <span className="text-2xl font-bold text-white">
+            EV Co-ownership
+          </span>
         </div>
       </div>
 
@@ -179,8 +152,8 @@ const Sidebar = () => {
                 <button
                   onClick={() => handleMenuClick(item)}
                   className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 hover:bg-indigo-800 ${
-                    location.pathname === item.path 
-                      ? 'bg-indigo-800 text-white' 
+                    location.pathname === item.path
+                      ? 'bg-indigo-800 text-white'
                       : 'text-gray-300 hover:text-white'
                   }`}
                 >
@@ -191,8 +164,8 @@ const Sidebar = () => {
                 <Link
                   to={item.path}
                   className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 hover:bg-indigo-800 ${
-                    location.pathname === item.path 
-                      ? 'bg-indigo-800 text-white' 
+                    location.pathname === item.path
+                      ? 'bg-indigo-800 text-white'
                       : 'text-gray-300 hover:text-white'
                   }`}
                 >
