@@ -24,12 +24,11 @@ const UserManagementPage = lazy(() => import("../pages/admin/userManagementPage"
 const VehicleManagementPage = lazy(() => import("../pages/admin/vehicleManagementPage"));
 
 // Staff pages
-const StaffVehicleManagementPage = lazy(() => import("../pages/staff/vehicleManagementPage"));
+const StaffVehicleManagementPage = lazy(() => import("../pages/staff/groupPage"));
 const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
 const CoOwnershipRegistrationPage = lazy(() => import("../pages/staff/coOwnershipRegistrationPage"));
-const StaffReportsPage = lazy(() => import("../pages/staff/reportsPage"));
 
 // Error pages
 const UnauthorizedPage = lazy(() => import("../pages/error/unauthorizedPage"));
@@ -227,7 +226,7 @@ export const router = createBrowserRouter([
     element: <SidebarLayout />,
     children: [
       { 
-        path: "vehicle-management", 
+        path: "group-management", 
         element: (
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
@@ -272,16 +271,6 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
               <CoOwnershipRegistrationPage />
-            {/* </ProtectedRoute> */}
-          </Suspense>
-        )
-      },
-      { 
-        path: "reports", 
-        element: (
-          <Suspense fallback={<Loading />}>
-            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
-              <StaffReportsPage />
             {/* </ProtectedRoute> */}
           </Suspense>
         )

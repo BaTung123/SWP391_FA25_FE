@@ -9,17 +9,12 @@ import {
   Row,
   Col,
   Tag,
-  Button,
-  Space,
   Typography,
   Pagination,
-  Tooltip,
+  Space,
 } from "antd";
 import {
   SearchOutlined,
-  EyeOutlined,
-  ShareAltOutlined,
-  MoreOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -137,6 +132,7 @@ const WarehousePage = () => {
         background: "#f5f7fa",
       }}
     >
+ 
       <Header />
       <div style={{ textAlign: "center", marginBottom: 40 }}>
         <Title level={2} style={{ color: "#222", marginBottom: 4 }}>
@@ -217,6 +213,7 @@ const WarehousePage = () => {
                   "0 6px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.04)",
                 transform: "translateY(0)",
                 transition: "all 0.3s ease",
+                cursor: "pointer",
               }}
               cover={
                 <img
@@ -243,6 +240,7 @@ const WarehousePage = () => {
                 e.currentTarget.style.boxShadow =
                   "0 6px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.04)";
               }}
+              onClick={() => navigate(`/car/${vehicle.id}`)}
             >
               <div
                 style={{
@@ -267,22 +265,6 @@ const WarehousePage = () => {
                 </Text>
               </div>
 
-              <div style={{ marginTop: 16 }}>
-                <Space>
-                  <Tooltip title="Đề nghị đồng sở hữu">
-                    <Button type="primary" icon={<ShareAltOutlined />} />
-                  </Tooltip>
-                  <Tooltip title="Xem chi tiết">
-                    <Button 
-                      icon={<EyeOutlined />} 
-                      onClick={() => navigate(`/car/${vehicle.id}`)}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Tùy chọn khác">
-                    <Button icon={<MoreOutlined />} />
-                  </Tooltip>
-                </Space>
-              </div>
             </Card>
           </Col>
         ))}
