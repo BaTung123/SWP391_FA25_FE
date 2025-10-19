@@ -38,11 +38,6 @@ const Header = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/#management" className="hover:text-blue-600 transition-colors duration-200">
-                  Quản lý
-                </Link>
-              </li>
-              <li>
                 <Link to="/about" className={`transition-colors duration-200 ${location.pathname === '/about' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Về chúng tôi
                 </Link>
@@ -116,15 +111,6 @@ const Header = () => {
                     onClick={closeMobileMenu}
                   >
                     Kho xe
-                  </Link>
-                </li>
-                <li>
-                  <Link 
-                    to="/#management" 
-                    className="block px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
-                    onClick={closeMobileMenu}
-                  >
-                    Quản lý
                   </Link>
                 </li>
                 <li>

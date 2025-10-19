@@ -18,7 +18,7 @@ const ContactPage = () => {
               <ul className="space-y-3 text-sm text-gray-700">
                 <li className="flex items-center gap-3"><i className="fa-solid fa-location-dot text-blue-600"></i><span>Address: 290 Nơ Trang Long, Phường 12, Quận Bình Thạnh, TP.HCM</span></li>
                 <li className="flex items-center gap-3"><i className="fa-solid fa-phone text-blue-600"></i><span>Hotline EV: +84 0123456789</span></li>
-                <li className="flex items-center gap-3"><i className="fa-solid fa-envelope text-blue-600"></i><span>Email: ev-coownership@mail.com</span></li>
+                <li className="flex items-center gap-3"><i className="fa-solid fa-envelope text-blue-600"></i><span>Email: EVGarage-@mail.com</span></li>
               </ul>
               <div>
                 <p className="text-sm font-semibold text-gray-900">Theo Dõi Chúng Tôi</p>
@@ -46,7 +46,7 @@ const ContactPage = () => {
       </section>
 
       {/* Bottom section: title + form */}
-      <section className="py-12 bg-gray-50">
+      <section className="py-12 bg-white-50">
         <div className="container mx-auto px-4">
           <h3 className="text-center text-xl sm:text-2xl font-extrabold text-gray-900">Nhận Tư Vấn Cho Nhóm Đồng Sở Hữu EV</h3>
           <form className="mt-8 max-w-5xl mx-auto">
@@ -69,7 +69,7 @@ const ContactPage = () => {
               <textarea placeholder="Mô tả nhu cầu: số thành viên, tỉ lệ góp, tần suất sử dụng..." rows="6" className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="mt-6 flex justify-center">
-              <button type="button" className="px-6 py-2 rounded-md text-white" style={{ backgroundColor: '#cc1bcf' }}>Gửi Yêu Cầu</button>
+              <button type="button" className="px-6 py-2 rounded-md text-white" style={{ backgroundColor: '#1e7cd0' }}>Gửi Yêu Cầu</button>
             </div>
           </form>
         </div>

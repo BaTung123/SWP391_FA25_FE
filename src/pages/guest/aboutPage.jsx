@@ -1,5 +1,4 @@
 import React from "react";
-import Header from "../../components/header/header";
 import Footer from "../../components/footer/footer";
 import { Layout, Typography, Row, Col, Card, Button, Divider, theme } from "antd";
 import {
@@ -18,9 +17,9 @@ const AboutPage = () => {
 
   return (
     <Layout style={{ background: "#f5f7fa", minHeight: "100vh" }}>
-      <Header />
+      {/* ABOUT SECTION */}
       <section id="about">
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 40px" }}>
           <Title level={2} style={{ color: "#111", marginBottom: 12 }}>
             Đồng Sở Hữu Ô Tô Điện & Hệ Thống Chia Sẻ Chi Phí
           </Title>
@@ -39,7 +38,7 @@ const AboutPage = () => {
             <img
               src="https://media-cdn-v2.laodong.vn/storage/newsportal/2022/3/30/1029145/Anh-Chup-Man-Hinh-20.jpg?w=800&h=420&crop=auto&scale=both"
               alt="Xe điện và người dùng"
-              style={{ width: "100%", height: 420, objectFit: "cover" }}
+              style={{ width: "100%", height: 480, objectFit: "cover" }}
             />
           </div>
         </div>
@@ -47,7 +46,7 @@ const AboutPage = () => {
 
       {/* BODY */}
       <Content style={{ background: colorBgContainer, padding: "40px 0" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
+        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 40px" }}>
           <Typography>
             <Paragraph>
               Hệ thống <strong>Đồng Sở Hữu Ô Tô Điện (EV Co-ownership)</strong>{" "}
@@ -96,7 +95,7 @@ const AboutPage = () => {
               <img
                 src="https://png.pngtree.com/png-vector/20240203/ourlarge/pngtree-electric-car-charging-at-station-with-solar-panel-stand-street-lamps-png-image_11534831.png"
                 alt="Sạc xe điện và bảng điều khiển"
-                style={{ width: "100%", height: 360, objectFit: "cover" }}
+                style={{ width: "100%", height: 480, objectFit: "cover" }}
               />
             </div>
 
@@ -112,14 +111,13 @@ const AboutPage = () => {
 
       {/* POPULAR TOPICS */}
       <section style={{ background: "#fff", padding: "60px 0" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px" }}>
+        <div style={{ maxWidth: 1500, margin: "0 auto", padding: "0 40px" }}>
           <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
             <Col>
               <Title level={3} style={{ marginBottom: 0 }}>
                 Chủ đề nổi bật
               </Title>
             </Col>
-    
           </Row>
 
           <Row gutter={[24, 24]}>
@@ -130,7 +128,7 @@ const AboutPage = () => {
                   <img
                     alt="Mô hình chia sẻ chi phí"
                     src="https://base.vn/wp-content/uploads/2024/02/lean-la-gi.jpg"
-                    style={{ height: 180, objectFit: "cover" }}
+                    style={{ height: 200, objectFit: "cover" }}
                   />
                 }
               >
@@ -157,7 +155,7 @@ const AboutPage = () => {
                   <img
                     alt="Lập lịch dùng xe"
                     src="https://cdn.tgdd.vn/2020/10/campaign/thumb-640x360-12.jpg"
-                    style={{ height: 180, objectFit: "cover" }}
+                    style={{ height: 200, objectFit: "cover" }}
                   />
                 }
               >
@@ -184,7 +182,7 @@ const AboutPage = () => {
                   <img
                     alt="Sạc nhanh và chi phí"
                     src="https://sohanews.sohacdn.com/160588918557773824/2023/4/22/photo-3-168213013416868043325.jpg"
-                    style={{ height: 180, objectFit: "cover" }}
+                    style={{ height: 200, objectFit: "cover" }}
                   />
                 }
               >
