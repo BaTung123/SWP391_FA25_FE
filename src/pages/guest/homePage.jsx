@@ -3,10 +3,62 @@ import bgGarage from "../../assets/search-image.jpg";
 import logoGarage from "../../assets/logo.png";
 import Header from "../../components/header/header";
 import Footer from "../../components/footer/footer";
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation, Pagination, Autoplay } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
 
 export default function HomePage() {
   return (
     <div className="font-sans min-h-screen">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .car-swiper .swiper-button-prev,
+          .car-swiper .swiper-button-next {
+            position: absolute !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            z-index: 10 !important;
+            width: 36px !important;
+            height: 36px !important;
+            margin-top: 0 !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 50% !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+            transition: all 0.3s ease !important;
+          }
+          .car-swiper .swiper-button-prev {
+            left: -18px !important;
+          }
+          .car-swiper .swiper-button-next {
+            right: -18px !important;
+          }
+          .car-swiper .swiper-button-prev:hover,
+          .car-swiper .swiper-button-next:hover {
+            background-color: #2563eb !important;
+            color: white !important;
+            transform: translateY(-50%) scale(1.1) !important;
+          }
+          .car-swiper .swiper-button-prev:after,
+          .car-swiper .swiper-button-next:after {
+            font-size: 14px !important;
+            font-weight: bold !important;
+          }
+          .car-swiper .swiper-pagination {
+            position: relative !important;
+            margin-top: 32px !important;
+            text-align: center !important;
+          }
+          .car-swiper .swiper-pagination-bullet {
+            background-color: #2563eb !important;
+            opacity: 0.3 !important;
+          }
+          .car-swiper .swiper-pagination-bullet-active {
+            opacity: 1 !important;
+          }
+        `
+      }} />
       <Header />
       <section
         id="home"
@@ -44,12 +96,6 @@ export default function HomePage() {
             >
               Khám phá xe dùng chung
             </a>
-            <a
-              href="register"
-              className="px-6 py-3 border border-white rounded shadow hover:bg-gray-200 hover:text-gray-900"
-            >
-              Tạo nhóm đồng sở hữu
-            </a>
           </div>
         </div>
       </section>
@@ -68,40 +114,48 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Car Cards Grid */}
-          <div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            role="grid"
-            aria-label="Danh sách EV cho đồng sở hữu"
-          >
-            {/* VF 3 Card */}
-            <div
-              className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105"
-              role="gridcell"
+          {/* Car Cards Slider */}
+          <div className="relative">
+            <Swiper
+              modules={[Navigation, Pagination, Autoplay]}
+              spaceBetween={30}
+              slidesPerView={1}
+              centeredSlides={true}
+              loop={true}
+              navigation={{
+                nextEl: '.swiper-button-next',
+                prevEl: '.swiper-button-prev',
+              }}
+              pagination={{
+                clickable: true,
+                el: '.swiper-pagination',
+              }}
+              autoplay={{
+                delay: 4000,
+                disableOnInteraction: false,
+              }}
+              breakpoints={{
+                640: {
+                  slidesPerView: 1,
+                  spaceBetween: 20,
+                  centeredSlides: true,
+                },
+                1024: {
+                  slidesPerView: 1,
+                  spaceBetween: 30,
+                  centeredSlides: true,
+                },
+              }}
+              className="car-swiper"
             >
-              <div className="p-6">
-                {/* Status and ID */}
-                <div className="flex justify-between items-start mb-4">
-                  <span className="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                    Đề xuất cho nhóm nhỏ
-                  </span>
-                  <span className="text-sm text-gray-500">Mã xe: 006</span>
-                </div>
-
-                {/* Category and Power Type */}
-                <div className="flex gap-2 mb-4">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                    City EV
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                    Điện
-                  </span>
-                </div>
-
+              {/* VF 3 Card */}
+              <SwiperSlide>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 h-full">
+                  <div className="p-6 h-full flex flex-col">
                 {/* Car Image */}
-                <div className="w-full h-48 rounded-lg mb-4 overflow-hidden">
+                <div className="w-full h-170 rounded-lg mb-4 overflow-hidden">
                   <img
-                    src="https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
+                    src="https://i1-vnexpress.vnecdn.net/2024/08/01/VinFastVF3VnE9416JPG-1722500133.jpg?w=750&h=450&q=100&dpr=1&fit=crop&s=PqtpkmPPpczSND540feRFg"
                     alt="VF 3 - City EV"
                     className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                     loading="lazy"
@@ -112,18 +166,8 @@ export default function HomePage() {
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 3</h3>
                 <p className="text-gray-600 mb-4">Phù hợp 2–4 đồng sở hữu</p>
 
-                {/* Price */}
-                <div className="mb-4">
-                  <span className="text-2xl font-bold text-blue-600">
-                    235.000.000 VNĐ
-                  </span>
-                  <span className="text-sm text-gray-500 ml-2">
-                    (chia theo tỉ lệ góp vốn)
-                  </span>
-                </div>
-
                 {/* Specifications */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="grid grid-cols-2 gap-3 mb-4 flex-grow">
                   <div className="flex items-center gap-2">
                     <svg
                       className="w-4 h-4 text-gray-500"
@@ -174,84 +218,18 @@ export default function HomePage() {
                     <span className="text-sm">4 chỗ</span>
                   </div>
                 </div>
-
-                {/* Color Options */}
-                <div className="flex gap-2 mb-4">
-                  <div className="w-6 h-6 bg-black rounded-full border-2 border-white shadow"></div>
-                  <div className="w-6 h-6 bg-white rounded-full border border-gray-300"></div>
-                  <div className="w-6 h-6 bg-red-500 rounded-full"></div>
-                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
-                  <div className="w-6 h-6 bg-yellow-400 rounded-full"></div>
-                  <div className="w-6 h-6 bg-pink-400 rounded-full"></div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                    Đề nghị đồng sở hữu
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 6a2 2 0 110-4 2 2 0 000 4zM10 12a2 2 0 110-4 2 2 0 000 4zM10 18a2 2 0 110-4 2 2 0 000 4z" />
-                    </svg>
-                  </button>
-                </div>
               </div>
             </div>
+              </SwiperSlide>
 
             {/* VF 5 Card */}
-            <div
-              className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105"
-              role="gridcell"
-            >
-              <div className="p-6">
-                {/* Status and ID */}
-                <div className="flex justify-between items-start mb-4">
-                  <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
-                    Cân bằng chi phí/hiệu năng
-                  </span>
-                  <span className="text-sm text-gray-500">Mã xe: 005</span>
-                </div>
-
-                {/* Category and Power Type */}
-                <div className="flex gap-2 mb-4">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                    Hatchback EV
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                    Điện
-                  </span>
-                </div>
-
+              <SwiperSlide>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 h-full">
+                  <div className="p-6 h-full flex flex-col">
                 {/* Car Image */}
-                <div className="w-full h-48 rounded-lg mb-4 overflow-hidden">
+                <div className="w-full h-170 rounded-lg mb-4 overflow-hidden">
                   <img
-                    src="https://images.unsplash.com/photo-1549317331-15d33c1eef9e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
+                    src="https://drive.gianhangvn.com/image/vf-5-2684882j29551.jpg"
                     alt="VF 5 - Hatchback EV"
                     className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                     loading="lazy"
@@ -261,21 +239,11 @@ export default function HomePage() {
                 {/* Model */}
                 <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 5</h3>
                 <p className="text-gray-600 mb-4">
-                  Nhóm 3–5 người, sử dụng đa mục đích
+                  Phù hợp 3–6 đồng sở hữu
                 </p>
 
-                {/* Price */}
-                <div className="mb-4">
-                  <span className="text-2xl font-bold text-blue-600">
-                    548.000.000 VNĐ
-                  </span>
-                  <span className="text-sm text-gray-500 ml-2">
-                    (chia sẻ theo suất sử dụng)
-                  </span>
-                </div>
-
                 {/* Specifications */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="grid grid-cols-2 gap-3 mb-4 flex-grow">
                   <div className="flex items-center gap-2">
                     <svg
                       className="w-4 h-4 text-gray-500"
@@ -326,204 +294,249 @@ export default function HomePage() {
                     <span className="text-sm">5 chỗ</span>
                   </div>
                 </div>
-
-                {/* Color Options */}
-                <div className="flex gap-2 mb-4">
-                  <div className="w-6 h-6 bg-black rounded-full border-2 border-white shadow"></div>
-                  <div className="w-6 h-6 bg-white rounded-full border border-gray-300"></div>
-                  <div className="w-6 h-6 bg-red-500 rounded-full"></div>
-                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
-                  <div className="w-6 h-6 bg-yellow-400 rounded-full"></div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                    Đề nghị đồng sở hữu
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 6a2 2 0 110-4 2 2 0 000 4zM10 12a2 2 0 110-4 2 2 0 000 4zM10 18a2 2 0 110-4 2 2 0 000 4z" />
-                    </svg>
-                  </button>
-                </div>
               </div>
             </div>
+              </SwiperSlide>
 
-            {/* VF 6 Card */}
-            <div
-              className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105"
-              role="gridcell"
-            >
-              <div className="p-6">
-                {/* Status and ID */}
-                <div className="flex justify-between items-start mb-4">
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                    Phù hợp nhóm lớn
-                  </span>
-                  <span className="text-sm text-gray-500">Mã xe: 003</span>
-                </div>
-
-                {/* Category and Power Type */}
-                <div className="flex gap-2 mb-4">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                    SUV Compact EV
-                  </span>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                    Điện
-                  </span>
-                </div>
-
-                {/* Car Image */}
-                <div className="w-full h-48 rounded-lg mb-4 overflow-hidden">
-                  <img
-                    src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
-                    alt="VF 6 - SUV Compact EV"
-                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                </div>
-
-                {/* Model */}
-                <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 6</h3>
-                <p className="text-gray-600 mb-4">
-                  Tối ưu cho 5–7 đồng sở hữu, hành trình dài
-                </p>
-
-                {/* Price */}
-                <div className="mb-4">
-                  <span className="text-2xl font-bold text-blue-600">
-                    765.000.000 VNĐ
-                  </span>
-                  <span className="text-sm text-gray-500 ml-2">
-                    (linh hoạt theo tỉ lệ sở hữu)
-                  </span>
-                </div>
-
-                {/* Specifications */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 text-gray-500"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                      <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z" />
-                    </svg>
-                    <span className="text-sm">388 km</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 text-gray-500"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                        clipRule="evenodd"
+              {/* VF 6 Card */}
+              <SwiperSlide>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 h-full">
+                  <div className="p-6 h-full flex flex-col">
+                    {/* Car Image */}
+                    <div className="w-full h-170 rounded-lg mb-4 overflow-hidden">
+                      <img
+                        src="https://vinfastquangninh.com.vn/wp-content/uploads/2023/10/z5563076680315_20cc2d1649bda452c85db3f1af42a2b2-min.jpg"
+                        alt="VF 6 - SUV Compact EV"
+                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                        loading="lazy"
                       />
-                    </svg>
-                    <span className="text-sm">177 HP</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 text-gray-500"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <span className="text-sm">0–100 km/h: 8.9s</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4 text-gray-500"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                    </svg>
-                    <span className="text-sm">5 chỗ</span>
-                  </div>
-                </div>
+                    </div>
 
-                {/* Color Options */}
-                <div className="flex gap-2 mb-4">
-                  <div className="w-6 h-6 bg-black rounded-full border-2 border-white shadow"></div>
-                  <div className="w-6 h-6 bg-white rounded-full border border-gray-300"></div>
-                  <div className="w-6 h-6 bg-red-500 rounded-full"></div>
-                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
-                </div>
+                    {/* Model */}
+                    <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 6</h3>
+                    <p className="text-gray-600 mb-4">
+                      Phù hợp 5–7 đồng sở hữu
+                    </p>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                    Đề nghị đồng sở hữu
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                      <path
-                        fillRule="evenodd"
-                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  <button className="p-2 border border-gray-300 rounded hover:bg-gray-50">
-                    <svg
-                      className="w-4 h-4 text-gray-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M10 6a2 2 0 110-4 2 2 0 000 4zM10 12a2 2 0 110-4 2 2 0 000 4zM10 18a2 2 0 110-4 2 2 0 000 4z" />
-                    </svg>
-                  </button>
+                    {/* Specifications */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 flex-grow">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z" />
+                        </svg>
+                        <span className="text-sm">388 km</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">177 HP</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">0–100 km/h: 8.9s</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                        </svg>
+                        <span className="text-sm">5 chỗ</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </SwiperSlide>
+
+              {/* VF 8 Card */}
+              <SwiperSlide>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 h-full">
+                  <div className="p-6 h-full flex flex-col">
+                    {/* Car Image */}
+                    <div className="w-full h-170 rounded-lg mb-4 overflow-hidden">
+                      <img
+                        src="https://i-vnexpress.vnecdn.net/2022/11/03/DSC-4710-JPG-4434-1667458940.jpg"
+                        alt="VF 8 - Luxury SUV EV"
+                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Model */}
+                    <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 8</h3>
+                    <p className="text-gray-600 mb-4">
+                      Phù hợp 6–8 đồng sở hữu
+                    </p>
+
+                    {/* Specifications */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 flex-grow">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z" />
+                        </svg>
+                        <span className="text-sm">520 km</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">245 HP</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">0–100 km/h: 6.2s</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                        </svg>
+                        <span className="text-sm">7 chỗ</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </SwiperSlide>
+
+              {/* VF 9 Card */}
+              <SwiperSlide>
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:scale-105 h-full">
+                  <div className="p-6 h-full flex flex-col">
+                    {/* Car Image */}
+                    <div className="w-full h-170 rounded-lg mb-4 overflow-hidden">
+                      <img
+                        src="https://i1-vnexpress.vnecdn.net/2023/03/27/VF9thumjpg-1679907708.jpg?w=750&h=450&q=100&dpr=1&fit=crop&s=Swpqo7PubMKfM8H_JnC3Pw"
+                        alt="VF 9 - Premium Sedan EV"
+                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Model */}
+                    <h3 className="text-2xl font-bold text-gray-800 mb-1">VF 9</h3>
+                    <p className="text-gray-600 mb-4">
+                      Phù hợp 4–6 đồng sở hữu
+                    </p>
+
+                    {/* Specifications */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 flex-grow">
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                          <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z" />
+                        </svg>
+                        <span className="text-sm">650 km</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">320 HP</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        <span className="text-sm">0–100 km/h: 4.8s</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg
+                          className="w-4 h-4 text-gray-500"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                        </svg>
+                        <span className="text-sm">5 chỗ</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </SwiperSlide>
+            </Swiper>
+
+            {/* Navigation Buttons */}
+            <div className="swiper-button-prev"></div>
+            <div className="swiper-button-next"></div>
+            
+            {/* Pagination */}
+            <div className="swiper-pagination" style={{
+              position: 'relative',
+              marginTop: '32px',
+              textAlign: 'center'
+            }}></div>
           </div>
         </div>
       </section>
@@ -536,10 +549,6 @@ export default function HomePage() {
             <h2 className="text-4xl font-bold text-gray-800 mb-6">
               Tính năng cho nhóm đồng sở hữu
             </h2>
-            <p className="text-lg text-gray-600 max-w-4xl mx-auto">
-              Lập lịch dùng xe, sổ cái chi phí theo thời gian thực, phân bổ suất
-              sử dụng công bằng và báo cáo minh bạch.
-            </p>
           </div>
 
           {/* Features Grid */}
@@ -731,71 +740,122 @@ export default function HomePage() {
                 <div className="text-lg">Chia sẻ chi phí minh bạch</div>
               </div>
             </div>
-
-            {/* Call to Action Button */}
-            <div className="flex justify-center">
-              <button className="flex items-center gap-3 px-8 py-4 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                </svg>
-                Dùng thử Dashboard
-              </button>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* About Us */}
-      <section id="about" className="py-20 bg-gray-50">
-        <div className="container mx-auto px-6 md:flex md:items-center">
-          {/* Image */}
-          <div className="md:w-1/2 mb-8 md:mb-0">
-            <div className="relative">
-              <img
-                src={logoGarage}
-                alt="EV Co-ownership service"
-                className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-opacity-20 rounded-lg"></div>
-            </div>
-          </div>
-          {/* Text */}
-          <div className="md:w-1/2 md:pl-12">
-            <h2 className="text-3xl font-bold mb-4 text-gray-800">
-              Về nền tảng đồng sở hữu EV
-            </h2>
-            <p className="font-bold text-lg text-gray-700 mb-4">
-              Chúng tôi giúp các nhóm cùng góp vốn, quản lý lịch sử dụng, chia
-              sẻ chi phí và bảo trì EV một cách đơn giản, minh bạch và hiệu quả.
-            </p>
-            <p className="text-lg italic text-gray-700 mt-4">
-              Quản lý & theo dõi xe: thông tin phương tiện, lịch sử vận hành,
-              kWh tiêu thụ.
-            </p>
-            <p className="text-lg italic text-gray-700 ">
-              Đặt lịch dùng xe: quy tắc ưu tiên rõ ràng, hoán đổi suất và cảnh
-              báo xung đột.
-            </p>
-            <p className="text-lg italic text-gray-700 ">
-              Chia sẻ chi phí minh bạch: sổ cái theo thời gian thực, phân chia
-              theo tỉ lệ sở hữu và suất dùng.
-            </p>
-            <p className="text-lg italic text-gray-700 mb-4">
-              Hỗ trợ nhóm: báo cáo định kỳ, giới hạn ngân sách và cảnh báo thông
-              minh.
-            </p>
-            <p className="font-bold text-lg text-gray-700 mb-4">
-              Với hạ tầng hiện đại, chúng tôi đồng hành để nhóm của bạn khai
-              thác EV hiệu quả, an toàn và tiết kiệm.
-            </p>
-          </div>
-        </div>
-      </section>
+{/* About Us – Giới thiệu Nền tảng */}
+<section id="about" className="py-20 bg-gray-50">
+  <div className="container mx-auto px-6 md:flex md:items-center">
+    {/* Image */}
+    <div className="md:w-1/2 mb-8 md:mb-0">
+      <div className="relative">
+        <img
+          src={logoGarage}
+          alt="EV Co-ownership Platform"
+          className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-opacity-20 rounded-lg"></div>
+      </div>
+    </div>
+
+    {/* Text */}
+    <div className="md:w-1/2 md:pl-12">
+      <h2 className="text-3xl font-bold mb-4 text-gray-800">
+        Nền tảng đồng sở hữu xe điện (EV)
+      </h2>
+      <p className="font-bold text-lg text-gray-700 mb-4">
+        EV Co-ownership là giải pháp giúp cộng đồng cùng sở hữu, sử dụng và
+        quản lý xe điện một cách tiện lợi, minh bạch và tiết kiệm chi phí.
+      </p>
+      <p className="text-lg italic text-gray-700 mt-4">
+        Kết nối các thành viên có chung nhu cầu – từ việc góp vốn, đặt lịch
+        sử dụng cho đến theo dõi bảo trì, chi phí, và lịch sử vận hành.
+      </p>
+      <p className="font-bold text-lg text-gray-700 mt-4">
+        Giúp nhóm của bạn khai thác tối đa giá trị EV, giảm chi phí sở hữu,
+        đồng thời góp phần thúc đẩy giao thông xanh bền vững.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+      {/* About Us – Cách Hoạt Động */}
+<section id="how-it-works" className="py-20 bg-white">
+  <div className="container mx-auto px-6 md:flex md:items-center">
+    {/* Text */}
+    <div className="md:w-1/2 md:pr-12 mb-8 md:mb-0">
+      <h2 className="text-3xl font-bold mb-4 text-gray-800">
+        Cách nền tảng hoạt động
+      </h2>
+      <p className="text-lg text-gray-700 mb-4">
+        <span className="font-semibold">1. Góp vốn cùng nhau:</span> các thành viên đăng ký và chia sẻ chi phí đầu tư xe điện theo tỉ lệ sở hữu.
+      </p>
+      <p className="text-lg text-gray-700 mb-4">
+        <span className="font-semibold">2. Đặt lịch linh hoạt:</span> hệ thống hỗ trợ đặt lịch dùng xe, hoán đổi suất và cảnh báo trùng lịch tự động.
+      </p>
+      <p className="text-lg text-gray-700 mb-4">
+        <span className="font-semibold">3. Chia sẻ chi phí minh bạch:</span> bảng sổ cái tự động ghi nhận điện năng tiêu thụ, phí bảo trì và chia theo tỷ lệ thực tế.
+      </p>
+      <p className="font-bold text-lg text-gray-700">
+        Mọi dữ liệu được lưu trữ an toàn và có thể theo dõi theo thời gian thực.
+      </p>
+    </div>
+
+    {/* Image */}
+    <div className="md:w-1/2">
+      <div className="relative">
+        <img
+          src={logoGarage}
+          alt="How EV Co-ownership Works"
+          className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-opacity-20 rounded-lg"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{/* About Us – Tầm Nhìn & Sứ Mệnh */}
+<section id="vision" className="py-20 bg-gray-50">
+  <div className="container mx-auto px-6 md:flex md:items-center">
+    {/* Image */}
+    <div className="md:w-1/2 mb-8 md:mb-0">
+      <div className="relative">
+        <img
+          src={logoGarage}
+          alt="EV Co-ownership Vision"
+          className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-opacity-20 rounded-lg"></div>
+      </div>
+    </div>
+
+    {/* Text */}
+    <div className="md:w-1/2 md:pl-12">
+      <h2 className="text-3xl font-bold mb-4 text-gray-800">
+        Tầm nhìn & Sứ mệnh
+      </h2>
+      <p className="font-bold text-lg text-gray-700 mb-4">
+        Chúng tôi tin rằng việc đồng sở hữu EV không chỉ là cách chia sẻ tài
+        sản, mà còn là cách lan tỏa ý thức sống xanh và thông minh.
+      </p>
+      <p className="text-lg italic text-gray-700 mb-4">
+        Mục tiêu của chúng tôi là xây dựng cộng đồng bền vững, nơi mọi người
+        đều có thể tiếp cận xe điện dễ dàng, tiết kiệm và thân thiện với môi trường.
+      </p>
+      <p className="font-bold text-lg text-gray-700">
+        EV Co-ownership hướng tới tương lai – nơi mọi hành trình đều gắn liền
+        với công nghệ, sự tin cậy và giá trị chia sẻ.
+      </p>
+    </div>
+  </div>
+</section>
+
       <Footer />
     </div>
   );
