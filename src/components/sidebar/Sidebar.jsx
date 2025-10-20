@@ -54,10 +54,10 @@ const Sidebar = () => {
   // --- STAFF MENU ---
   const staffMenu = [
     {
-      key: "/group-management",
-      icon: <FaUsers />, // ✅ sửa FaGroup thành FaUsers
-      label: "Group Management",
-      path: "/staff/group-management"
+      key: "/staff/vehicle-management",
+      icon: <FaCar />,
+      label: "Vehicle Management",
+      path: "/staff/vehicle-management"
     },
     {
       key: "/staff/booking-management",
@@ -80,8 +80,20 @@ const Sidebar = () => {
     {
       key: "/staff/co-ownership-registration",
       icon: <FaHandshake />,
-      label: "Co-ownership",
+      label: "Co-ownership Registration",
       path: "/staff/co-ownership-registration"
+    },
+    {
+      key: "/staff/manage-ownership-groups",
+      icon: <FaUsers />,
+      label: "Manage Ownership Groups",
+      path: "/staff/manage-ownership-groups"
+    },
+    {
+      key: "/staff/reports",
+      icon: <FaFileAlt />,
+      label: "Reports",
+      path: "/staff/reports"
     }
   ];
 

@@ -96,6 +96,12 @@ export default function HomePage() {
             >
               Khám phá xe dùng chung
             </a>
+            <a
+              href="/staff/manage-ownership-groups"
+              className="px-6 py-3 border border-white rounded shadow hover:bg-gray-200 hover:text-gray-900"
+            >
+              Quản lý nhóm đồng sở hữu
+            </a>
           </div>
         </div>
       </section>

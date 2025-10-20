@@ -29,6 +29,10 @@ const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagemen
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
 const CoOwnershipRegistrationPage = lazy(() => import("../pages/staff/coOwnershipRegistrationPage"));
+const ManageOwnershipGroupsPage = lazy(() => import("../pages/staff/manageOwnershipGroups"));
+const GroupDetailPage = lazy(() => import("../pages/staff/groupDetailPage"));
+const MemberDetailPage = lazy(() => import("../pages/staff/memberDetailPage"));
+const VehicleDetailPage = lazy(() => import("../pages/staff/vehicleDetailPage"));
 
 // Error pages
 const UnauthorizedPage = lazy(() => import("../pages/error/unauthorizedPage"));
@@ -272,6 +276,40 @@ export const router = createBrowserRouter([
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
               <CoOwnershipRegistrationPage />
             {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      { 
+        path: "manage-ownership-groups", 
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
+              <ManageOwnershipGroupsPage />
+            {/* </ProtectedRoute> */}
+          </Suspense>
+        )
+      },
+      {
+        path: "manage-ownership-groups/:id",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <GroupDetailPage />
+          </Suspense>
+        )
+      },
+      {
+        path: "members/:groupId",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <MemberDetailPage />
+          </Suspense>
+        )
+      },
+      {
+        path: "vehicles/:groupId",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <VehicleDetailPage />
           </Suspense>
         )
       },
