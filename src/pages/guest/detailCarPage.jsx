@@ -7,8 +7,6 @@ import { FaCar, FaWrench, FaCheck, FaArrowLeft, FaShareAlt, FaHeart } from 'reac
 const DetailCarPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-
-  // Sample vehicle data - in real app, this would be fetched based on ID
   const vehicle = {
     id: parseInt(id) || 1,
     name: 'Tesla Model 3 2023',

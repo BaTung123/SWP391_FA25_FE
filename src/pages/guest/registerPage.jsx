@@ -30,15 +30,48 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (values) => {
-    setIsLoading(true);
     try {
-      const response = await api.post("/User/register", values);
-      toast.success("Registration successful!");
-      navigate("/auth/login");
-      console.log(response);
-    } catch (e) {
-      console.error(e);
-      message.error("Registration failed. Please try again.");
+      setIsLoading(true);
+
+      const response = await api.post("/User/register", {
+        userName: values.fullName, 
+        fullName: values.fullName,
+        email: values.email,
+        password: values.password,
+      });
+
+      message.success("Registration successful!");
+      setTimeout(() => navigate("/auth/login"), 800);
+    } catch (error) {
+      console.error("Error response:", error.response?.data || error.message);
+
+      // ✅ Nếu backend trả về lỗi 400
+      if (error.response && error.response.status === 400) {
+        const data = error.response.data;
+
+        const title = data.title?.toLowerCase() || "";
+        const messageFromApi =
+          data.message ||
+          Object.values(data.errors || {})
+            .flat()
+            .join(", ") ||
+          "";
+
+        if (
+          title.includes("exist") ||
+          messageFromApi.toLowerCase().includes("exist") ||
+          messageFromApi.toLowerCase().includes("already")
+        ) {
+          message.error("Tài khoản đã tồn tại. Vui lòng chọn email khác.");
+        } else {
+          message.error(
+            messageFromApi ||
+              "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin."
+          );
+        }
+      } else {
+        message.error("Đăng ký thất bại. Vui lòng thử lại sau.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -162,29 +195,6 @@ const RegisterPage = () => {
                       }
                     />
                   </Form.Item>
-
-                  <Form.Item
-                    name="agreeTerms"
-                    valuePropName="checked"
-                    rules={[
-                      {
-                        validator: (_, value) =>
-                          value
-                            ? Promise.resolve()
-                            : Promise.reject(
-                                new Error("You must agree to the terms!")
-                              ),
-                      },
-                    ]}
-                  >
-                    <Checkbox>
-                      I agree to the{" "}
-                      <a href="#" className="text-blue-600 hover:text-blue-700">
-                        Terms and Conditions
-                      </a>
-                    </Checkbox>
-                  </Form.Item>
-
                   <Form.Item>
                     <Button
                       type="primary"
@@ -197,30 +207,6 @@ const RegisterPage = () => {
                       Create Account
                     </Button>
                   </Form.Item>
-
-                  <Divider plain>or register with</Divider>
-
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Button
-                        block
-                        icon={<GoogleOutlined />}
-                        className="border-gray-300"
-                      >
-                        Google
-                      </Button>
-                    </Col>
-                    <Col span={12}>
-                      <Button
-                        block
-                        icon={<FacebookFilled />}
-                        style={{ backgroundColor: "#1877F2", color: "white" }}
-                      >
-                        Facebook
-                      </Button>
-                    </Col>
-                  </Row>
-
                   <div className="text-center mt-6">
                     <Text type="secondary">
                       Already have an account?{" "}

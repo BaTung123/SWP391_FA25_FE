@@ -1,6 +1,21 @@
 import React, { useState } from "react";
-import { Form, Input, Button, Checkbox, Row, Col, Typography, Divider, message } from "antd";
-import { EyeInvisibleOutlined, EyeTwoTone, GoogleOutlined, FacebookFilled } from "@ant-design/icons";
+import {
+  Form,
+  Input,
+  Button,
+  Checkbox,
+  Row,
+  Col,
+  Typography,
+  Divider,
+  message,
+} from "antd";
+import {
+  EyeInvisibleOutlined,
+  EyeTwoTone,
+  GoogleOutlined,
+  FacebookFilled,
+} from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import logoGarage from "../../assets/logo.png";
 import bgImage from "../../assets/3408105.jpg";
@@ -16,15 +31,26 @@ const LoginPage = () => {
 
   const handleSubmit = async (values) => {
     setIsLoading(true);
-    try{
-        const response = await api.post("/User/register", values);
+    try {
+      const response = await api.post("/User/login", {
+        userName: values.userName,
+        password: values.password,
+      });
+
       toast.success("Login successful!");
+      console.log("Response:", response.data);
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
+
       navigate("/admin");
-      console.log(response);
-    }
-    catch (e){
-        console.error(e);
-        message.error("Login failed. Please try again.");
+    } catch (e) {
+      console.error("Login error:", e.response?.data || e.message);
+      if (e.response?.status === 400) {
+        message.error("Tên đăng nhập hoặc mật khẩu không đúng!");
+      } else {
+        message.error("Đăng nhập thất bại. Vui lòng thử lại sau.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -74,20 +100,25 @@ const LoginPage = () => {
                   }}
                 >
                   <Form.Item
-                    label="Email Address"
-                    name="email"
+                    label="User Name"
+                    name="userName"
                     rules={[
                       { required: true, message: "Please enter your email!" },
-                      { type: "email", message: "Invalid email format!" },
+                      { type: "name", message: "Invalid email format!" },
                     ]}
                   >
-                    <Input placeholder="you@example.com" />
+                    <Input placeholder="Enter your user name" />
                   </Form.Item>
 
                   <Form.Item
                     label="Password"
                     name="password"
-                    rules={[{ required: true, message: "Please enter your password!" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter your password!",
+                      },
+                    ]}
                   >
                     <Input.Password
                       placeholder="Enter your password"
@@ -113,26 +144,6 @@ const LoginPage = () => {
                       Login
                     </Button>
                   </Form.Item>
-
-                  <Divider plain>or login with</Divider>
-
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Button block icon={<GoogleOutlined />} className="border-gray-300">
-                        Google
-                      </Button>
-                    </Col>
-                    <Col span={12}>
-                      <Button
-                        block
-                        icon={<FacebookFilled />}
-                        style={{ backgroundColor: "#1877F2", color: "white" }}
-                      >
-                        Facebook
-                      </Button>
-                    </Col>
-                  </Row>
-
                   <div className="text-center mt-6">
                     <Text type="secondary">
                       Don’t have an account?{" "}
