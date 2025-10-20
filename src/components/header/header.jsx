@@ -52,12 +52,9 @@ const Header = () => {
 
           {/* Desktop Money & Login Section */}
           <div className="hidden lg:flex items-center space-x-4">
-            {/* Compact Wallet Placeholder */}
-            <div className="flex items-center space-x-2 px-3 py-2 rounded-lg text-gray-700">
-              <svg className="w-5 h-5 text-green-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 6a2 2 0 012-2h10a2 2 0 012 2v2h1a1 1 0 011 1v6a2 2 0 01-2 2H3a2 2 0 01-2-2V7a1 1 0 011-1h0zM14 9a1 1 0 100-2 1 1 0 000 2z" />
-              </svg>
-              <span className="text-sm font-medium">Ví</span>
+            {/* Money Section */}
+            <div className="flex items-center space-x-2  px-3 py-2 rounded-lg">
+              <span className="text-green-700 font-semibold">0 VNĐ</span>
             </div>
             
             {/* Registration Button */}
@@ -134,13 +131,10 @@ const Header = () => {
                     Liên hệ
                   </Link>
                 </li>
-                {/* Mobile Wallet Placeholder */}
+                {/* Mobile Money Section */}
                 <li className="pt-2">
-                  <div className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg mx-3 text-gray-700">
-                    <svg className="w-5 h-5 text-green-700" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M2 6a2 2 0 012-2h10a2 2 0 012 2v2h1a1 1 0 011 1v6a2 2 0 01-2 2H3a2 2 0 01-2-2V7a1 1 0 011-1h0zM14 9a1 1 0 100-2 1 1 0 000 2z" />
-                    </svg>
-                    <span className="text-sm font-medium">Ví</span>
+                  <div className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg mx-3">
+                    <span className="text-green-700 font-semibold">0 VNĐ</span>
                   </div>
                 </li>
                 
