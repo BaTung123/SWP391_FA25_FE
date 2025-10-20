@@ -233,34 +233,38 @@ const VehicleManagementPage = () => {
       </div>
 
       {/* Phân trang */}
-      <div className="flex justify-center py-4 space-x-2">
-        <button
-          onClick={() => handlePageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="p-2 border rounded-md text-gray-600 disabled:opacity-50"
-        >
-          <FaChevronLeft />
-        </button>
-        {Array.from({ length: totalPages }, (_, i) => (
+     <div className="flex items-center justify-center py-4">
+        <nav className="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
           <button
-            key={i + 1}
-            onClick={() => handlePageChange(i + 1)}
-            className={`px-3 py-1 rounded-md border ${
-              i + 1 === currentPage
-                ? 'bg-blue-500 text-white border-blue-600'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
-            }`}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 rounded-l-md hover:bg-gray-50 disabled:opacity-50"
           >
-            {i + 1}
+            <FaChevronLeft className="h-4 w-4" />
           </button>
-        ))}
-        <button
-          onClick={() => handlePageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="p-2 border rounded-md text-gray-600 disabled:opacity-50"
-        >
-          <FaChevronRight />
-        </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+            <button
+              key={page}
+              onClick={() => handlePageChange(page)}
+              className={`px-4 py-2 border text-sm font-medium ${
+                page === currentPage
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
+                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 rounded-r-md hover:bg-gray-50 disabled:opacity-50"
+          >
+            <FaChevronRight className="h-4 w-4" />
+          </button>
+        </nav>
       </div>
 
       {/* Modal thêm xe */}

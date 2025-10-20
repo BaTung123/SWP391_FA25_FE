@@ -17,11 +17,10 @@ const WarehousePage = () => {
       license: "ABC-123",
       type: "Sedan",
       location: "Garage A",
-      mileage: 15000,
+   
       fuelType: "Gasoline",
       transmission: "Automatic",
       color: "White",
-      year: 2023,
     },
     {
       id: 3,
@@ -29,11 +28,11 @@ const WarehousePage = () => {
       license: "DEF-456",
       type: "Electric",
       location: "Garage B",
-      mileage: 8000,
+  
       fuelType: "Electric",
       transmission: "Automatic",
       color: "Black",
-      year: 2023,
+
     },
     {
       id: 4,
@@ -41,11 +40,11 @@ const WarehousePage = () => {
       license: "GHI-789",
       type: "SUV",
       location: "Service Bay 1",
-      mileage: 18000,
+  
       fuelType: "Gasoline",
       transmission: "Automatic",
       color: "Blue",
-      year: 2023,
+  
     },
     {
       id: 7,
@@ -53,11 +52,11 @@ const WarehousePage = () => {
       license: "PQR-678",
       type: "Sedan",
       location: "Service Bay 3",
-      mileage: 14000,
+
       fuelType: "Gasoline",
       transmission: "Automatic",
       color: "White",
-      year: 2023,
+   
     },
     {
       id: 8,
@@ -65,11 +64,10 @@ const WarehousePage = () => {
       license: "STU-901",
       type: "Hatchback",
       location: "Garage B",
-      mileage: 16000,
       fuelType: "Gasoline",
       transmission: "Manual",
       color: "Yellow",
-      year: 2023,
+
     },
   ]);
 
@@ -146,11 +144,6 @@ const WarehousePage = () => {
               <Text type="secondary">
                 {vehicle.type} • {vehicle.fuelType} • {vehicle.color}
               </Text>
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">
-                  {vehicle.year} • {vehicle.mileage.toLocaleString()} km
-                </Text>
-              </div>
             </Card>
           </Col>
         ))}

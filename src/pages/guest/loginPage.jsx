@@ -1,18 +1,33 @@
-import React from "react";
+import React, { useState } from "react";
 import { Form, Input, Button, Checkbox, Row, Col, Typography, Divider, message } from "antd";
 import { EyeInvisibleOutlined, EyeTwoTone, GoogleOutlined, FacebookFilled } from "@ant-design/icons";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import logoGarage from "../../assets/logo.png";
 import bgImage from "../../assets/3408105.jpg";
+import { toast } from "react-toastify";
+import api from "../../config/axios";
 
 const { Title, Text } = Typography;
 
 const LoginPage = () => {
   const [form] = Form.useForm();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (values) => {
-    console.log("Form submitted:", values);
-    message.success("Login successful!");
+  const handleSubmit = async (values) => {
+    setIsLoading(true);
+    try{
+        const response = await api.post("/User/register", values);
+      toast.success("Login successful!");
+      navigate("/admin");
+      console.log(response);
+    }
+    catch (e){
+        console.error(e);
+        message.error("Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,6 +108,7 @@ const LoginPage = () => {
                       block
                       size="large"
                       className="font-semibold"
+                      loading={isLoading}
                     >
                       Login
                     </Button>

@@ -1,5 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Form,
   Input,
@@ -19,15 +19,29 @@ import {
 } from "@ant-design/icons";
 import logoGarage from "../../assets/logo.png";
 import bgImage from "../../assets/3408105.jpg";
+import api from "../../config/axios";
+import { toast } from "react-toastify";
 
 const { Title, Text } = Typography;
 
 const RegisterPage = () => {
   const [form] = Form.useForm();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (values) => {
-    console.log("Form submitted:", values);
-    message.success("Registration successful!");
+  const handleSubmit = async (values) => {
+    setIsLoading(true);
+    try {
+      const response = await api.post("/User/register", values);
+      toast.success("Registration successful!");
+      navigate("/auth/login");
+      console.log(response);
+    } catch (e) {
+      console.error(e);
+      message.error("Registration failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -77,7 +91,10 @@ const RegisterPage = () => {
                     label="Full Name"
                     name="fullName"
                     rules={[
-                      { required: true, message: "Please enter your full name!" },
+                      {
+                        required: true,
+                        message: "Please enter your full name!",
+                      },
                     ]}
                   >
                     <Input placeholder="Enter your full name" />
@@ -98,7 +115,10 @@ const RegisterPage = () => {
                     label="Password"
                     name="password"
                     rules={[
-                      { required: true, message: "Please enter your password!" },
+                      {
+                        required: true,
+                        message: "Please enter your password!",
+                      },
                       {
                         min: 6,
                         message: "Password must be at least 6 characters",
@@ -172,6 +192,7 @@ const RegisterPage = () => {
                       block
                       size="large"
                       className="font-semibold"
+                      loading={isLoading}
                     >
                       Create Account
                     </Button>
@@ -181,7 +202,11 @@ const RegisterPage = () => {
 
                   <Row gutter={16}>
                     <Col span={12}>
-                      <Button block icon={<GoogleOutlined />} className="border-gray-300">
+                      <Button
+                        block
+                        icon={<GoogleOutlined />}
+                        className="border-gray-300"
+                      >
                         Google
                       </Button>
                     </Col>

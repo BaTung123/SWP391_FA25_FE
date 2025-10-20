@@ -21,7 +21,6 @@ const DetailCarPage = () => {
     transmission: 'Automatic',
     color: 'Pearl White',
     year: 2023,
-    price: 1200000000,
     images: [
       'https://images.unsplash.com/photo-1555215695-3004980ad54e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
       'https://images.unsplash.com/photo-1549317331-15d33c1eef9e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80',
@@ -115,14 +114,6 @@ const DetailCarPage = () => {
                   alt={vehicle.name}
                   className="w-full h-96 object-cover"
                 />
-                <div className="absolute top-4 right-4 flex space-x-2">
-                  <button className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-full transition-all">
-                    <FaHeart className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <button className="bg-white bg-opacity-80 hover:bg-opacity-100 p-2 rounded-full transition-all">
-                    <FaShareAlt className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
               </div>
               
               {/* Image Thumbnails */}

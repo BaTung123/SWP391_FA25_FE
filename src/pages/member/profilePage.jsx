@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -7,7 +7,7 @@ const ProfilePage = () => {
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   
-  const [user, setUser] = useState({
+  const [user] = useState({
     email: 'john.doe@example.com',
     avatarImageUrl: null
   });
@@ -16,6 +16,7 @@ const ProfilePage = () => {
     name: 'John Doe',
     fullName: 'John Doe',
     phone: '',
+    nationalId: '',
     licenseNumber: '',
     gender: '',
     dob: '',
@@ -24,7 +25,7 @@ const ProfilePage = () => {
     drivingExperience: ''
   });
 
-  const drivingExperienceOptions = ['Dưới 1 năm', '1-3 năm', '3-5 năm', '5-10 năm', 'Trên 10 năm'];
+  // const drivingExperienceOptions = ['Dưới 1 năm', '1-3 năm', '3-5 năm', '5-10 năm', 'Trên 10 năm'];
 
   // Sample vehicle ownership data
   const vehicleData = [
@@ -149,10 +150,10 @@ const ProfilePage = () => {
     setSelectedVehicle(null);
   };
 
-  const handleViewInsurance = (vehicle) => {
-    setSelectedVehicle(vehicle);
-    setShowInsuranceModal(true);
-  };
+  // const handleViewInsurance = (vehicle) => {
+  //   setSelectedVehicle(vehicle);
+  //   setShowInsuranceModal(true);
+  // };
 
   const closeInsuranceModal = () => {
     setShowInsuranceModal(false);
@@ -232,6 +233,16 @@ const ProfilePage = () => {
                       value={form.phone || ''}
                       onChange={handleChange}
                       className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-full mb-3">
+                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">Bằng lái xe</label>
+                    <input
+                      name="lisenseNumber"
+                      value={form.licenseNumber || ''}
+                      onChange={handleChange}
+                      className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
+                      placeholder="Nhập bằng lái xe"
                     />
                   </div>
                   <div className="flex flex-col gap-1 w-full mb-3">
@@ -430,14 +441,10 @@ const ProfilePage = () => {
                       </div>
                     </div>
                     
-                    <div className="mt-4 flex space-x-2">
+                    <div className="mt-4 flex justify-center">
                       <button 
-                        onClick={() => handleViewInsurance(vehicle)}
-                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                        className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-sm text-sm font-medium transition-colors"
                       >
-                        Xem chi tiết
-                      </button>
-                      <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors">
                         Thanh toán
                       </button>
                     </div>
@@ -585,18 +592,6 @@ const ProfilePage = () => {
                       <p className="text-sm text-indigo-600 font-medium">Biển số xe</p>
                       <p className="text-lg font-bold text-indigo-900">{selectedVehicle.licensePlate}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-indigo-600 font-medium">Ngày mua</p>
-                      <p className="text-lg font-bold text-indigo-900">
-                        {new Date(selectedVehicle.purchaseDate).toLocaleDateString('vi-VN')}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-indigo-600 font-medium">Chi phí hàng tháng</p>
-                      <p className="text-lg font-bold text-indigo-900">
-                        {selectedVehicle.monthlyCost.toLocaleString('vi-VN')} VNĐ
-                      </p>
-                    </div>
                   </div>
                 </div>
 
@@ -611,7 +606,7 @@ const ProfilePage = () => {
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Họ và tên</th>
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Email</th>
                           <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Số điện thoại</th>
-                          <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">Chữ ký</th>
+                          <th className="border border-indigo-200 px-4 py-3 text-left font-semibold text-indigo-900">% Sở hữu</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -652,14 +647,7 @@ const ProfilePage = () => {
                                 <span className="font-medium text-indigo-900">{owner.percentage}%</span>
                               </div>
                             </td>
-                            <td className="border border-indigo-200 px-4 py-3">
-                              <span className="font-medium text-gray-900">
-                                {Math.round((selectedVehicle.monthlyCost * owner.percentage) / 100).toLocaleString('vi-VN')} VNĐ
-                              </span>
-                            </td>
-                            <td className="border border-indigo-200 px-4 py-3">
-                              <div className="h-8 border-b border-gray-400"></div>
-                            </td>
+
                           </tr>
                         ))}
                       </tbody>
@@ -871,14 +859,14 @@ const ProfilePage = () => {
                 <div className="flex justify-end space-x-4">
                   <button
                     onClick={closeInsuranceModal}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm"
                   >
                     Đóng
                   </button>
-                  <button className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                  <button className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm">
                     Thanh toán ngay
                   </button>
-                  <button className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors">
+                  <button className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors text-sm">
                     Tải hợp đồng
                   </button>
                 </div>
