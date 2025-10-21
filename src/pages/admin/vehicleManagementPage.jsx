@@ -1,337 +1,163 @@
-import React, { useState } from 'react';
-import {
-  FaCar,
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaEye,
-  FaChevronLeft,
-  FaChevronRight,
-  FaTimes,
-} from 'react-icons/fa';
+import React, { useEffect, useState } from "react";
+import { Table, Button, Modal, Form, Input, Select, message, Space } from "antd";
+import api from "../../config/axios.js";
 
-const VehicleManagementPage = () => {
-  const [vehicles, setVehicles] = useState([
-    {
-      id: 1,
-      name: 'VinFast VF8 2023',
-      licensePlate: 'VN-001',
-      type: 'Điện',
-      status: 'Sẵn sàng',
-      owners: [
-        { name: 'Nguyễn Văn A', percentage: 60 },
-        { name: 'Trần Thị B', percentage: 40 },
-      ],
-    },
-    {
-      id: 2,
-      name: 'Tesla Model Y',
-      licensePlate: 'VN-002',
-      type: 'Điện',
-      status: 'Đang sử dụng',
-      owners: [{ name: 'Lê Hoàng', percentage: 100 }],
-    },
-    {
-      id: 3,
-      name: 'Kia EV6',
-      licensePlate: 'VN-003',
-      type: 'Điện',
-      status: 'Bảo trì',
-      owners: [
-        { name: 'Phạm Hương', percentage: 70 },
-        { name: 'Võ Tấn', percentage: 30 },
-      ],
-    },
-    {
-      id: 4,
-      name: 'Hyundai Ioniq 5',
-      licensePlate: 'VN-004',
-      type: 'Điện',
-      status: 'Sẵn sàng',
-      owners: [{ name: 'Đặng Hà', percentage: 100 }],
-    },
-    {
-      id: 5,
-      name: 'BYD Atto 3',
-      licensePlate: 'VN-005',
-      type: 'Điện',
-      status: 'Sẵn sàng',
-      owners: [
-        { name: 'Hoàng Minh', percentage: 80 },
-        { name: 'Lê Mai', percentage: 20 },
-      ],
-    },
-  ]);
+export default function VehicleManagementPage() {
+  const [vehicles, setVehicles] = useState([]);
+  const [openModal, setOpenModal] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [form] = Form.useForm();
 
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
-
-  const [newVehicle, setNewVehicle] = useState({
-    name: '',
-    licensePlate: '',
-    type: 'Điện',
-  });
-
-  // Phân trang
-  const totalPages = Math.ceil(vehicles.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentVehicles = vehicles.slice(startIndex, startIndex + itemsPerPage);
-
-  const handlePageChange = (page) => setCurrentPage(page);
-
-  // Thêm xe
-  const handleAddVehicle = () => {
-    if (newVehicle.name && newVehicle.licensePlate) {
-      const vehicle = {
-        id: Math.max(...vehicles.map((v) => v.id)) + 1,
-        ...newVehicle,
-        status: 'Sẵn sàng',
-        owners: [],
-      };
-      setVehicles([...vehicles, vehicle]);
-      setNewVehicle({
-        name: '',
-        licensePlate: '',
-        type: 'Điện',
-      });
-      setIsAddModalOpen(false);
-    } else {
-      alert('Vui lòng nhập đủ thông tin xe.');
+  // --- Lấy danh sách xe ---
+  const fetchVehicles = async () => {
+    try {
+      const res = await api.get("/Car");
+      setVehicles(Array.isArray(res.data) ? res.data : res.data?.data || []);
+    } catch {
+      message.error("Không thể tải danh sách xe.");
     }
   };
 
-  const handleInputChange = (e) => {
-    setNewVehicle({
-      ...newVehicle,
-      [e.target.name]: e.target.value,
-    });
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  // --- Mở modal thêm/sửa ---
+  const openAddModal = () => {
+    setEditingVehicle(null);
+    form.resetFields();
+    setOpenModal(true);
   };
 
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      'Sẵn sàng': 'bg-green-100 text-green-800',
-      'Đang sử dụng': 'bg-yellow-100 text-yellow-800',
-      'Bảo trì': 'bg-red-100 text-red-800',
-    };
-    return (
-      <span
-        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[status]}`}
-      >
-        {status}
-      </span>
-    );
+  const openEditModal = (record) => {
+    setEditingVehicle(record);
+    form.setFieldsValue(record);
+    setOpenModal(true);
   };
+
+  // --- Thêm/Sửa xe ---
+  const handleSubmit = async (values) => {
+    try {
+      const payload = {
+        ...values,
+        status: Number(values.status),
+        batteryCapacity: Number(values.batteryCapacity),
+        id: editingVehicle ? editingVehicle.id : undefined,
+      };
+
+      await api.post("/Car", payload);
+      message.success(editingVehicle ? "Cập nhật xe thành công!" : "Thêm xe thành công!");
+      setOpenModal(false);
+      form.resetFields();
+      fetchVehicles();
+    } catch {
+      message.error("Không thể lưu xe. Vui lòng thử lại.");
+    }
+  };
+
+  const columns = [
+    { title: "Tên xe", dataIndex: "carName", key: "carName" },
+    { title: "Hãng", dataIndex: "brand", key: "brand" },
+    { title: "Biển số", dataIndex: "plateNumber", key: "plateNumber" },
+    { title: "Màu", dataIndex: "color", key: "color" },
+    { title: "Pin (kWh)", dataIndex: "batteryCapacity", key: "batteryCapacity" },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      render: (value) =>
+        value === 1 ? (
+          <span style={{ color: "green" }}>Đang hoạt động</span>
+        ) : (
+          <span style={{ color: "gray" }}>Không hoạt động</span>
+        ),
+    },
+    {
+      title: "Hành động",
+      key: "action",
+      render: (_, record) => (
+        <Space>
+          <Button type="link" onClick={() => openEditModal(record)}>
+            Sửa
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Tiêu đề và nút thêm */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Quản lý xe điện đồng sở hữu
-        </h1>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
-        >
-          <FaPlus className="mr-2" />
-          Thêm xe mới
-        </button>
-      </div>
+    <div style={{ padding: 20 }}>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={openAddModal}>
+          + Thêm xe
+        </Button>
+      </Space>
 
-      {/* Bảng danh sách xe */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-center">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">
-                Tên xe
-              </th>
-              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">
-                Trạng thái
-              </th>
-              <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">
-                Hành động
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {currentVehicles.map((vehicle) => (
-              <tr key={vehicle.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {vehicle.name}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Biển số: {vehicle.licensePlate}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">{getStatusBadge(vehicle.status)}</td>
-                <td className="px-6 py-4">
-                  <div className="flex justify-center space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedVehicle(vehicle);
-                        setIsDetailModalOpen(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <FaEye />
-                    </button>
-                    <button className="text-indigo-600 hover:text-indigo-900">
-                      <FaEdit />
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      <FaTrash />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table columns={columns} dataSource={vehicles} rowKey="id" />
 
-      {/* Phân trang */}
-      <div className="flex items-center justify-center py-4">
-        <nav
-          className="inline-flex rounded-md shadow-sm -space-x-px"
-          aria-label="Pagination"
-        >
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 rounded-l-md hover:bg-gray-50 disabled:opacity-50"
+      <Modal
+        title={editingVehicle ? "Sửa thông tin xe" : "Thêm xe mới"}
+        open={openModal}
+        onCancel={() => setOpenModal(false)}
+        onOk={() => form.submit()}
+        okText="Lưu"
+        cancelText="Hủy"
+      >
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+          <Form.Item
+            name="brand"
+            label="Hãng xe"
+            rules={[{ required: true, message: "Vui lòng nhập hãng xe" }]}
           >
-            <FaChevronLeft className="h-4 w-4" />
-          </button>
+            <Input placeholder="VD: VinFast" />
+          </Form.Item>
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <button
-              key={page}
-              onClick={() => handlePageChange(page)}
-              className={`px-4 py-2 border text-sm font-medium ${
-                page === currentPage
-                  ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
-                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              {page}
-            </button>
-          ))}
-
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-3 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 rounded-r-md hover:bg-gray-50 disabled:opacity-50"
+          <Form.Item
+            name="carName"
+            label="Tên xe"
+            rules={[{ required: true, message: "Vui lòng nhập tên xe" }]}
           >
-            <FaChevronRight className="h-4 w-4" />
-          </button>
-        </nav>
-      </div>
+            <Input placeholder="VD: VF e34" />
+          </Form.Item>
 
-      {/* Modal thêm xe */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Thêm xe điện mới</h2>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FaTimes />
-              </button>
-            </div>
+          <Form.Item
+            name="plateNumber"
+            label="Biển số"
+            rules={[{ required: true, message: "Vui lòng nhập biển số" }]}
+          >
+            <Input placeholder="VD: 51H-123.45" />
+          </Form.Item>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-left font-medium text-gray-700 mb-2">
-                  Tên xe
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={newVehicle.name}
-                  onChange={handleInputChange}
-                  placeholder="Nhập tên xe"
-                  className="w-full border px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-left font-medium text-gray-700 mb-2">
-                  Biển số xe
-                </label>
-                <input
-                  type="text"
-                  name="licensePlate"
-                  value={newVehicle.licensePlate}
-                  onChange={handleInputChange}
-                  placeholder="Nhập biển số xe"
-                  className="w-full border px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+          <Form.Item name="color" label="Màu xe">
+            <Input placeholder="VD: Trắng, Đen, Đỏ..." />
+          </Form.Item>
 
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={handleAddVehicle}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Thêm xe
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          <Form.Item
+            name="batteryCapacity"
+            label="Dung lượng pin (kWh)"
+            rules={[{ required: true, message: "Nhập dung lượng pin" }]}
+          >
+            <Input type="number" placeholder="VD: 42" />
+          </Form.Item>
 
-      {/* Modal chi tiết xe */}
-      {isDetailModalOpen && selectedVehicle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Chi tiết xe</h2>
-              <button
-                onClick={() => setIsDetailModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FaTimes />
-              </button>
-            </div>
-            <div className="space-y-4 text-sm">
-              <div className="flex items-center justify-center">
-                <FaCar className="text-blue-600 w-8 h-8 mr-2" />
-                <div>
-                  <div className="text-lg font-semibold">
-                    {selectedVehicle.name}
-                  </div>
-                  <div className="text-gray-500">
-                    Biển số: {selectedVehicle.licensePlate}
-                  </div>
-                </div>
-              </div>
-              <div className="text-center">
-                {getStatusBadge(selectedVehicle.status)}
-              </div>
-            </div>
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setIsDetailModalOpen(false)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          <Form.Item name="image" label="Ảnh xe">
+            <Input placeholder="URL ảnh xe (nếu có)" />
+          </Form.Item>
+
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
+          >
+            <Select
+              options={[
+                { label: "Không hoạt động", value: 0 },
+                { label: "Đang hoạt động", value: 1 },
+              ]}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
-};
-
-export default VehicleManagementPage;
+}
