@@ -9,7 +9,6 @@ const HomePage = lazy(() => import("../pages/guest/homePage"));
 const AboutPage = lazy(() => import("../pages/guest/aboutPage"));
 const ContactPage = lazy(() => import("../pages/guest/contactPage"));
 const WarehousePage = lazy(() => import("../pages/guest/warehousePage"));
-const DetailCarPage = lazy(() => import("../pages/guest/detailCarPage"));
 const LoginPage = lazy(() => import("../pages/guest/loginPage"));
 const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
@@ -28,7 +27,6 @@ const StaffVehicleManagementPage = lazy(() => import("../pages/staff/groupPage")
 const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
-const CoOwnershipRegistrationPage = lazy(() => import("../pages/staff/coOwnershipRegistrationPage"));
 
 // Error pages
 const UnauthorizedPage = lazy(() => import("../pages/error/unauthorizedPage"));
@@ -87,14 +85,6 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <WarehousePage />
-          </Suspense>
-        )
-      },
-      { 
-        path: "car/:id", 
-        element: (
-          <Suspense fallback={<Loading />}>
-            <DetailCarPage />
           </Suspense>
         )
       },
@@ -261,16 +251,6 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             {/* <ProtectedRoute roleAccount={["Staff"]}> */}
               <PaymentPage />
-            {/* </ProtectedRoute> */}
-          </Suspense>
-        )
-      },
-      { 
-        path: "co-ownership-registration", 
-        element: (
-          <Suspense fallback={<Loading />}>
-            {/* <ProtectedRoute roleAccount={["Staff"]}> */}
-              <CoOwnershipRegistrationPage />
             {/* </ProtectedRoute> */}
           </Suspense>
         )

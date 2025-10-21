@@ -81,7 +81,7 @@ const UserManagementPage = () => {
           className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
         >
           <FaPlus className="w-4 h-4 mr-2" />
-          Thêm mới
+          Thêm thành viên
         </button>
       </div>
 

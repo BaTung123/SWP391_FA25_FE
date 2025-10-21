@@ -77,12 +77,6 @@ const Sidebar = () => {
       label: "Payments",
       path: "/staff/payment"
     },
-    {
-      key: "/staff/co-ownership-registration",
-      icon: <FaHandshake />,
-      label: "Co-ownership",
-      path: "/staff/co-ownership-registration"
-    }
   ];
 
   // --- INFORMATION MENU ---

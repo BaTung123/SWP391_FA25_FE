@@ -2,7 +2,6 @@ import React from 'react';
 import {
   FaUsers,
   FaChartLine,
-  FaDownload,
   FaCalendarAlt,
   FaCar
 } from 'react-icons/fa';
@@ -47,18 +46,9 @@ const AdminDashboardPage = () => {
     <div className="space-y-6">
       {/* Tiêu đề */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển quản trị</h1>
-        <div className="flex gap-2">
-          <select className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-            <option>30 ngày gần đây</option>
-            <option>3 tháng gần đây</option>
-            <option>Năm nay</option>
-          </select>
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center">
-            <FaDownload className="mr-2" />
-            Xuất báo cáo
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold text-gray-900">
+          Bảng điều khiển quản trị
+        </h1>
       </div>
 
       {/* Thống kê nhanh */}
@@ -69,7 +59,9 @@ const AdminDashboardPage = () => {
               <FaUsers className="w-6 h-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Tổng số người dùng</p>
+              <p className="text-sm font-medium text-gray-600">
+                Tổng số người dùng
+              </p>
               <p className="text-2xl font-bold text-gray-900">1,234</p>
             </div>
           </div>
@@ -81,7 +73,9 @@ const AdminDashboardPage = () => {
               <FaCar className="w-6 h-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Xe đang hoạt động</p>
+              <p className="text-sm font-medium text-gray-600">
+                Xe đang hoạt động
+              </p>
               <p className="text-2xl font-bold text-gray-900">89</p>
             </div>
           </div>
@@ -93,7 +87,9 @@ const AdminDashboardPage = () => {
               <FaChartLine className="w-6 h-6 text-purple-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Phí dịch vụ</p>
+              <p className="text-sm font-medium text-gray-600">
+                Phí dịch vụ
+              </p>
               <p className="text-2xl font-bold text-gray-900">45,678₫</p>
             </div>
           </div>
@@ -105,7 +101,9 @@ const AdminDashboardPage = () => {
               <FaCalendarAlt className="w-6 h-6 text-yellow-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Lịch đặt xe</p>
+              <p className="text-sm font-medium text-gray-600">
+                Lịch đặt xe
+              </p>
               <p className="text-2xl font-bold text-gray-900">456</p>
             </div>
           </div>
@@ -116,7 +114,9 @@ const AdminDashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Biểu đồ xu hướng phí dịch vụ */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Xu hướng phí dịch vụ</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Xu hướng phí dịch vụ
+          </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={serviceFeeData}>
@@ -124,7 +124,12 @@ const AdminDashboardPage = () => {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-                <Line type="monotone" dataKey="fee" stroke="#8b5cf6" strokeWidth={3} />
+                <Line
+                  type="monotone"
+                  dataKey="fee"
+                  stroke="#8b5cf6"
+                  strokeWidth={3}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -132,7 +137,9 @@ const AdminDashboardPage = () => {
 
         {/* Biểu đồ sử dụng xe */}
         <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Tình trạng sử dụng xe</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Tình trạng sử dụng xe
+          </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -145,7 +152,10 @@ const AdminDashboardPage = () => {
                   label
                 >
                   {vehicleData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -158,22 +168,34 @@ const AdminDashboardPage = () => {
 
       {/* Hoạt động gần đây */}
       <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Hoạt động gần đây</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Hoạt động gần đây
+        </h3>
         <div className="space-y-3">
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
-            <span className="text-gray-700">Thêm xe mới: Tesla Model 3</span>
-            <span className="ml-auto text-sm text-gray-500">2 giờ trước</span>
+            <span className="text-gray-700">
+              Thêm xe mới: Tesla Model 3
+            </span>
+            <span className="ml-auto text-sm text-gray-500">
+              2 giờ trước
+            </span>
           </div>
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
-            <span className="text-gray-700">Người dùng John Doe hoàn tất đặt xe</span>
-            <span className="ml-auto text-sm text-gray-500">4 giờ trước</span>
+            <span className="text-gray-700">
+              Người dùng John Doe hoàn tất đặt xe
+            </span>
+            <span className="ml-auto text-sm text-gray-500">
+              4 giờ trước
+            </span>
           </div>
           <div className="flex items-center p-3 bg-gray-50 rounded-lg">
             <div className="w-2 h-2 bg-yellow-500 rounded-full mr-3"></div>
             <span className="text-gray-700">Đã lên lịch bảo trì xe</span>
-            <span className="ml-auto text-sm text-gray-500">6 giờ trước</span>
+            <span className="ml-auto text-sm text-gray-500">
+              6 giờ trước
+            </span>
           </div>
         </div>
       </div>

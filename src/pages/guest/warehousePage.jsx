@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import Header from "../../components/header/header";
 import Footer from "../../components/footer/footer";
 import { Card, Row, Col, Typography, Pagination } from "antd";
@@ -7,8 +6,6 @@ import { Card, Row, Col, Typography, Pagination } from "antd";
 const { Title, Text } = Typography;
 
 const WarehousePage = () => {
-  const navigate = useNavigate();
-
   // Danh sách xe cố định
   const [vehicles] = useState([
     {
@@ -16,63 +13,69 @@ const WarehousePage = () => {
       name: "Toyota Camry 2023",
       license: "ABC-123",
       type: "Sedan",
-      location: "Garage A",
-   
       fuelType: "Gasoline",
-      transmission: "Automatic",
       color: "White",
     },
     {
-      id: 3,
+      id: 2,
       name: "Tesla Model 3 2023",
       license: "DEF-456",
       type: "Electric",
-      location: "Garage B",
-  
       fuelType: "Electric",
-      transmission: "Automatic",
       color: "Black",
-
     },
     {
-      id: 4,
+      id: 3,
       name: "BMW X5 2023",
       license: "GHI-789",
       type: "SUV",
-      location: "Service Bay 1",
-  
       fuelType: "Gasoline",
-      transmission: "Automatic",
       color: "Blue",
-  
     },
     {
-      id: 7,
+      id: 4,
       name: "Mercedes C-Class 2023",
       license: "PQR-678",
       type: "Sedan",
-      location: "Service Bay 3",
-
       fuelType: "Gasoline",
-      transmission: "Automatic",
       color: "White",
-   
     },
     {
-      id: 8,
+      id: 5,
       name: "Volkswagen Golf 2023",
       license: "STU-901",
       type: "Hatchback",
-      location: "Garage B",
       fuelType: "Gasoline",
-      transmission: "Manual",
       color: "Yellow",
-
+    },
+    {
+      id: 6,
+      name: "VinFast VF8",
+      license: "VIN-888",
+      type: "Electric",
+      fuelType: "Electric",
+      color: "Silver",
+    },
+    {
+      id: 7,
+      name: "Hyundai Ioniq 5",
+      license: "HYN-505",
+      type: "Electric",
+      fuelType: "Electric",
+      color: "Gray",
+    },
+    {
+      id: 8,
+      name: "Kia EV6",
+      license: "KIA-606",
+      type: "Electric",
+      fuelType: "Electric",
+      color: "Red",
     },
   ]);
 
   const [page, setPage] = useState(1);
-  const pageSize = 6;
+  const pageSize = 8;
 
   // Tính toán danh sách xe cho từng trang
   const startIndex = (page - 1) * pageSize;
@@ -95,7 +98,7 @@ const WarehousePage = () => {
       {/* Danh sách xe */}
       <Row gutter={[24, 24]} style={{ padding: "0 40px" }}>
         {currentVehicles.map((vehicle) => (
-          <Col xs={24} sm={12} md={8} key={vehicle.id}>
+          <Col xs={24} sm={12} md={12} lg={6} key={vehicle.id}>
             <Card
               hoverable
               style={{
@@ -103,9 +106,8 @@ const WarehousePage = () => {
                 overflow: "hidden",
                 boxShadow:
                   "0 6px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.04)",
-                transform: "translateY(0)",
                 transition: "all 0.3s ease",
-                cursor: "pointer",
+                cursor: "default", // bỏ con trỏ click
               }}
               cover={
                 <img
@@ -126,17 +128,6 @@ const WarehousePage = () => {
                   }
                 />
               }
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-6px)";
-                e.currentTarget.style.boxShadow =
-                  "0 12px 24px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0,0,0,0.04)";
-              }}
-              onClick={() => navigate(`/car/${vehicle.id}`)}
             >
               <Title level={4} style={{ marginBottom: 4 }}>
                 {vehicle.name}
