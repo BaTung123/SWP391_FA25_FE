@@ -17,7 +17,7 @@ const PaymentPage = () => {
       paymentId: '#PAY001',
       vehicle: { name: 'Toyota Camry 2023', license: 'ABC-123' },
       serviceType: 'Sửa động cơ',
-      amount: 450.0,
+      amount: 11500000,
       status: 'Đã thanh toán',
       date: '2024-02-14',
     },
@@ -26,7 +26,7 @@ const PaymentPage = () => {
       paymentId: '#PAY002',
       vehicle: { name: 'Honda Civic 2023', license: 'XYZ-789' },
       serviceType: 'Bảo dưỡng định kỳ',
-      amount: 120.0,
+      amount: 3000000,
       status: 'Chờ thanh toán',
       date: '2024-02-15',
     },
@@ -35,8 +35,8 @@ const PaymentPage = () => {
       paymentId: '#PAY003',
       vehicle: { name: 'Tesla Model 3 2023', license: 'DEF-456' },
       serviceType: 'Thay pin',
-      amount: 1200.0,
-      status: 'Thất bại',
+      amount: 28000000,
+      status: 'Hủy',
       date: '2024-02-13',
     },
     {
@@ -44,7 +44,7 @@ const PaymentPage = () => {
       paymentId: '#PAY004',
       vehicle: { name: 'BMW X5 2023', license: 'GHI-789' },
       serviceType: 'Sửa chữa khẩn cấp',
-      amount: 800.0,
+      amount: 20000000,
       status: 'Đã thanh toán',
       date: '2024-02-12',
     },
@@ -53,7 +53,7 @@ const PaymentPage = () => {
       paymentId: '#PAY005',
       vehicle: { name: 'Ford F-150 2023', license: 'JKL-012' },
       serviceType: 'Sửa hộp số',
-      amount: 650.0,
+      amount: 16000000,
       status: 'Đã thanh toán',
       date: '2024-02-11',
     },
@@ -62,7 +62,7 @@ const PaymentPage = () => {
       paymentId: '#PAY006',
       vehicle: { name: 'Audi A4 2023', license: 'MNO-345' },
       serviceType: 'Thay phanh',
-      amount: 320.0,
+      amount: 8500000,
       status: 'Chờ thanh toán',
       date: '2024-02-10',
     },
@@ -71,8 +71,8 @@ const PaymentPage = () => {
       paymentId: '#PAY007',
       vehicle: { name: 'Mercedes C-Class 2023', license: 'PQR-678' },
       serviceType: 'Thay dầu',
-      amount: 85.0,
-      status: 'Hoàn tiền',
+      amount: 2200000,
+      status: 'Hủy',
       date: '2024-02-09',
     },
     {
@@ -80,7 +80,7 @@ const PaymentPage = () => {
       paymentId: '#PAY008',
       vehicle: { name: 'Volkswagen Golf 2023', license: 'STU-901' },
       serviceType: 'Thay lốp',
-      amount: 400.0,
+      amount: 10000000,
       status: 'Đã thanh toán',
       date: '2024-02-08',
     },
@@ -89,8 +89,8 @@ const PaymentPage = () => {
       paymentId: '#PAY009',
       vehicle: { name: 'Nissan Altima 2023', license: 'VWX-234' },
       serviceType: 'Sửa điều hòa',
-      amount: 280.0,
-      status: 'Thất bại',
+      amount: 7000000,
+      status: 'Hủy',
       date: '2024-02-07',
     },
     {
@@ -98,7 +98,7 @@ const PaymentPage = () => {
       paymentId: '#PAY010',
       vehicle: { name: 'Hyundai Sonata 2023', license: 'YZA-567' },
       serviceType: 'Kiểm tra tổng quát',
-      amount: 150.0,
+      amount: 4000000,
       status: 'Đã thanh toán',
       date: '2024-02-06',
     },
@@ -117,12 +117,15 @@ const PaymentPage = () => {
     setCurrentPage(page);
   };
 
+  // Hàm định dạng tiền VND
+  const formatCurrency = (amount) =>
+    amount.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
   const getStatusBadge = (status) => {
     const statusClasses = {
       'Đã thanh toán': 'bg-green-100 text-green-800',
       'Chờ thanh toán': 'bg-yellow-100 text-yellow-800',
-      'Thất bại': 'bg-red-100 text-red-800',
-      'Hoàn tiền': 'bg-gray-100 text-gray-800',
+      'Hủy': 'bg-red-100 text-red-800',
     };
     return (
       <span
@@ -138,21 +141,10 @@ const PaymentPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Quản lý thanh toán</h1>
-        <div className="flex gap-2">
-          <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center">
-            <FaDownload className="mr-2" />
-            Xuất báo cáo
-          </button>
-        </div>
       </div>
 
       {/* Bảng thanh toán */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Danh sách giao dịch
-          </h3>
-        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -200,7 +192,7 @@ const PaymentPage = () => {
                     {payment.serviceType}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">
-                    ${payment.amount.toFixed(2)}
+                    {formatCurrency(payment.amount)}
                   </td>
                   <td className="px-6 py-4 text-center">
                     {getStatusBadge(payment.status)}
@@ -226,7 +218,7 @@ const PaymentPage = () => {
                           </button>
                         </>
                       )}
-                      {payment.status === 'Thất bại' && (
+                      {payment.status === 'Hủy' && (
                         <button className="text-indigo-600 hover:text-indigo-900 p-1">
                           Thử lại
                         </button>

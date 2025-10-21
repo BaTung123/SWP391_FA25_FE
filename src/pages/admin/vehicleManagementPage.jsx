@@ -74,7 +74,6 @@ const VehicleManagementPage = () => {
     name: '',
     licensePlate: '',
     type: 'Điện',
-    owners: [{ name: '', percentage: 100 }],
   });
 
   // Phân trang
@@ -86,29 +85,22 @@ const VehicleManagementPage = () => {
 
   // Thêm xe
   const handleAddVehicle = () => {
-    const totalPercentage = newVehicle.owners.reduce(
-      (sum, owner) => sum + (owner.percentage || 0),
-      0
-    );
-    if (totalPercentage !== 100) {
-      alert('Tổng phần trăm sở hữu phải bằng 100%');
-      return;
-    }
-
     if (newVehicle.name && newVehicle.licensePlate) {
       const vehicle = {
         id: Math.max(...vehicles.map((v) => v.id)) + 1,
         ...newVehicle,
         status: 'Sẵn sàng',
+        owners: [],
       };
       setVehicles([...vehicles, vehicle]);
       setNewVehicle({
         name: '',
         licensePlate: '',
         type: 'Điện',
-        owners: [{ name: '', percentage: 100 }],
       });
       setIsAddModalOpen(false);
+    } else {
+      alert('Vui lòng nhập đủ thông tin xe.');
     }
   };
 
@@ -117,33 +109,6 @@ const VehicleManagementPage = () => {
       ...newVehicle,
       [e.target.name]: e.target.value,
     });
-  };
-
-  const handleOwnerChange = (index, field, value) => {
-    const newOwners = [...newVehicle.owners];
-    newOwners[index][field] =
-      field === 'percentage' ? parseInt(value) || 0 : value;
-    setNewVehicle({
-      ...newVehicle,
-      owners: newOwners,
-    });
-  };
-
-  const addOwner = () => {
-    setNewVehicle({
-      ...newVehicle,
-      owners: [...newVehicle.owners, { name: '', percentage: 0 }],
-    });
-  };
-
-  const removeOwner = (index) => {
-    if (newVehicle.owners.length > 1) {
-      const newOwners = newVehicle.owners.filter((_, i) => i !== index);
-      setNewVehicle({
-        ...newVehicle,
-        owners: newOwners,
-      });
-    }
   };
 
   const getStatusBadge = (status) => {
@@ -233,8 +198,11 @@ const VehicleManagementPage = () => {
       </div>
 
       {/* Phân trang */}
-     <div className="flex items-center justify-center py-4">
-        <nav className="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+      <div className="flex items-center justify-center py-4">
+        <nav
+          className="inline-flex rounded-md shadow-sm -space-x-px"
+          aria-label="Pagination"
+        >
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
@@ -243,7 +211,7 @@ const VehicleManagementPage = () => {
             <FaChevronLeft className="h-4 w-4" />
           </button>
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
             <button
               key={page}
               onClick={() => handlePageChange(page)}
@@ -270,11 +238,9 @@ const VehicleManagementPage = () => {
       {/* Modal thêm xe */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
-                Thêm xe điện mới
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900">Thêm xe điện mới</h2>
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -285,7 +251,7 @@ const VehicleManagementPage = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-left font-medium text-gray-700 mb-2">
                   Tên xe
                 </label>
                 <input
@@ -298,7 +264,7 @@ const VehicleManagementPage = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-left font-medium text-gray-700 mb-2">
                   Biển số xe
                 </label>
                 <input
@@ -309,62 +275,6 @@ const VehicleManagementPage = () => {
                   placeholder="Nhập biển số xe"
                   className="w-full border px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-
-              {/* Thông tin đồng sở hữu */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Thông tin chủ sở hữu
-                </label>
-                <div className="space-y-3">
-                  {newVehicle.owners.map((owner, index) => (
-                    <div key={index} className="flex items-center space-x-3">
-                      <input
-                        type="text"
-                        value={owner.name}
-                        onChange={(e) =>
-                          handleOwnerChange(index, 'name', e.target.value)
-                        }
-                        placeholder="Tên chủ sở hữu"
-                        className="flex-1 border px-3 py-2 rounded-md focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input
-                        type="number"
-                        value={owner.percentage}
-                        onChange={(e) =>
-                          handleOwnerChange(index, 'percentage', e.target.value)
-                        }
-                        className="w-20 border px-3 py-2 rounded-md"
-                        placeholder="%"
-                        min="0"
-                        max="100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeOwner(index)}
-                        disabled={newVehicle.owners.length === 1}
-                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addOwner}
-                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
-                  >
-                    <FaPlus className="mr-1" /> Thêm chủ sở hữu
-                  </button>
-                </div>
-                <div className="mt-2 text-sm text-gray-600">
-                  Tổng phần trăm:{" "}
-                  {newVehicle.owners.reduce(
-                    (sum, owner) => sum + (owner.percentage || 0),
-                    0
-                  )}
-                  %
-                </div>
               </div>
             </div>
 
@@ -385,9 +295,7 @@ const VehicleManagementPage = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
-                Chi tiết xe
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900">Chi tiết xe</h2>
               <button
                 onClick={() => setIsDetailModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -409,22 +317,6 @@ const VehicleManagementPage = () => {
               </div>
               <div className="text-center">
                 {getStatusBadge(selectedVehicle.status)}
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-700 mb-2">Chủ sở hữu:</h4>
-                <div className="space-y-2">
-                  {selectedVehicle.owners.map((o, i) => (
-                    <div
-                      key={i}
-                      className="flex justify-between bg-gray-50 px-3 py-2 rounded"
-                    >
-                      <span>{o.name}</span>
-                      <span className="font-medium text-blue-600">
-                        {o.percentage}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
             <div className="flex justify-end mt-6">

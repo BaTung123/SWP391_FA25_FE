@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from "react";
-import { Card, Row, Col, Statistic, Typography } from "antd";
+import { FaUsers, FaCar, FaCheckCircle, FaClock } from "react-icons/fa";
+import { Card } from "antd";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-
-const { Title } = Typography;
 
 const GroupVehicleBookingDashboard = () => {
   const [groupMembers] = useState([
@@ -86,33 +85,59 @@ const GroupVehicleBookingDashboard = () => {
   }, {});
 
   return (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>Bảng điều khiển đặt lịch xe đồng sở hữu</Title>
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">
+        Bảng điều khiển đặt lịch xe đồng sở hữu
+      </h1>
 
-      {/* Thẻ thống kê tổng quan */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card style={{ textAlign: "center" }}>
-            <Statistic title="Tổng số thành viên" value={groupMembers.length} valueStyle={{ color: "green" }} />
-          </Card>
-        </Col>
+      {/* --- THỐNG KÊ NHANH --- */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Tổng thành viên */}
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 flex items-center">
+          <div className="p-3 rounded-full bg-blue-100">
+            <FaUsers className="w-6 h-6 text-blue-600" />
+          </div>
+          <div className="ml-4">
+            <p className="text-sm font-medium text-gray-600">Tổng số thành viên</p>
+            <p className="text-2xl font-bold text-gray-900">{groupMembers.length}</p>
+          </div>
+        </div>
 
-        <Col xs={24} sm={12} md={6}>
-          <Card style={{ textAlign: "center" }}>
-            <Statistic title="Tổng số lượt đặt xe" value={totalBookings} />
-          </Card>
-        </Col>
+        {/* Tổng lượt đặt */}
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 flex items-center">
+          <div className="p-3 rounded-full bg-green-100">
+            <FaCar className="w-6 h-6 text-green-600" />
+          </div>
+          <div className="ml-4">
+            <p className="text-sm font-medium text-gray-600">Tổng lượt đặt xe</p>
+            <p className="text-2xl font-bold text-gray-900">{totalBookings}</p>
+          </div>
+        </div>
 
-        {Object.entries(statusCounts).map(([status, count]) => (
-          <Col xs={24} sm={12} md={6} key={status}>
-            <Card style={{ textAlign: "center" }}>
-              <Statistic title={status} value={count} valueStyle={{ color: statusColors[status] }} />
-            </Card>
-          </Col>
-        ))}
-      </Row>
+        {/* Hoàn tất */}
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 flex items-center">
+          <div className="p-3 rounded-full bg-purple-100">
+            <FaCheckCircle className="w-6 h-6 text-purple-600" />
+          </div>
+          <div className="ml-4">
+            <p className="text-sm font-medium text-gray-600">Hoàn tất</p>
+            <p className="text-2xl font-bold text-gray-900">{statusCounts["Hoàn tất"] || 0}</p>
+          </div>
+        </div>
 
-      {/* Lịch đặt xe */}
+        {/* Chờ duyệt */}
+        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 flex items-center">
+          <div className="p-3 rounded-full bg-yellow-100">
+            <FaClock className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div className="ml-4">
+            <p className="text-sm font-medium text-gray-600">Chờ duyệt</p>
+            <p className="text-2xl font-bold text-gray-900">{statusCounts["Chờ duyệt"] || 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* --- LỊCH ĐẶT XE NHÓM (GIỮ NGUYÊN STYLE CŨ) --- */}
       <Card title="Lịch đặt xe nhóm" style={{ marginBottom: 16 }}>
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -131,7 +156,9 @@ const GroupVehicleBookingDashboard = () => {
               }}
             >
               <div style={{ fontWeight: "bold" }}>{eventInfo.event.extendedProps.member}</div>
-              <div style={{ fontSize: "10px", opacity: 0.8 }}>{eventInfo.event.extendedProps.time}</div>
+              <div style={{ fontSize: "10px", opacity: 0.8 }}>
+                {eventInfo.event.extendedProps.time}
+              </div>
             </div>
           )}
           eventMouseEnter={(info) => {
