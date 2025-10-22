@@ -1,89 +1,163 @@
-import React, { useState } from 'react';
-import { FaPlus, FaTimes, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from "react";
+import { FaPlus, FaTimes, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import api from "../../config/axios";
 
-const UserManagementPage = () => {
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Nguyễn Văn A', email: 'a@example.com', role: 'Thành viên', status: 'Hoạt động' },
-    { id: 2, name: 'Trần Thị B', email: 'b@example.com', role: 'Thành viên', status: 'Hoạt động' },
-    { id: 3, name: 'Lê Văn C', email: 'c@example.com', role: 'Nhân viên', status: 'Ngừng hoạt động' },
-    { id: 4, name: 'Phạm Thị D', email: 'd@example.com', role: 'Thành viên', status: 'Hoạt động' },
-    { id: 5, name: 'Hoàng Văn E', email: 'e@example.com', role: 'Nhân viên', status: 'Hoạt động' },
-    { id: 6, name: 'Võ Thị F', email: 'f@example.com', role: 'Thành viên', status: 'Ngừng hoạt động' },
-    { id: 7, name: 'Đặng Văn G', email: 'g@example.com', role: 'Nhân viên', status: 'Hoạt động' },
-    { id: 8, name: 'Phan Thị H', email: 'h@example.com', role: 'Thành viên', status: 'Hoạt động' },
-    { id: 9, name: 'Trương Văn I', email: 'i@example.com', role: 'Nhân viên', status: 'Ngừng hoạt động' },
-    { id: 10, name: 'Đỗ Văn K', email: 'k@example.com', role: 'Thành viên', status: 'Hoạt động' },
-  ]);
+const roleLabel = (roleNumber) => (roleNumber === 1 ? "Nhân viên" : "Thành viên");
+const statusLabel = (deleteAt) => (deleteAt ? "Ngừng hoạt động" : "Hoạt động");
 
+export default function UserManagementPage() {
+  const [usersRaw, setUsersRaw] = useState([]);     // dữ liệu gốc từ API
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+
+  // Modal thêm người dùng (giữ nguyên UI, hiện chưa gọi API tạo mới)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    password: ''
+    name: "",
+    email: "",
+    password: "",
   });
 
-  // Pagination
+  // Pagination (giữ nguyên)
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage] = useState(5);
 
-  const totalPages = Math.ceil(users.length / itemsPerPage);
+  // Gọi API lấy danh sách user
+  const fetchUsers = async () => {
+    setLoading(true);
+    setErrMsg("");
+    try {
+      const res = await api.get("/User");
+      const list = Array.isArray(res.data) ? res.data : [res.data];
+
+      // Map về cấu trúc hiển thị
+      const mapped = list.map((u) => ({
+        id: u.userId ?? u.id ?? 0,
+        name: u.fullName ?? u.userName ?? "",
+        email: u.email ?? "",
+        roleNumber: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
+        roleText:
+          typeof u.role === "number" ? roleLabel(u.role) : roleLabel(Number(u.role ?? 0)),
+        statusText: statusLabel(u.deleteAt),
+        deleteAt: u.deleteAt ?? null,
+        raw: u,
+      }));
+
+      setUsersRaw(mapped);
+      setCurrentPage(1);
+    } catch (e) {
+      console.error("Fetch /User error:", e?.response?.data || e?.message);
+      setErrMsg("Không tải được danh sách người dùng. Vui lòng thử lại!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Tính toán phân trang trên mảng đã map
+  const totalPages = useMemo(
+    () => Math.ceil(usersRaw.length / itemsPerPage) || 1,
+    [usersRaw.length, itemsPerPage]
+  );
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentUsers = users.slice(startIndex, endIndex);
+  const currentUsers = useMemo(
+    () => usersRaw.slice(startIndex, endIndex),
+    [usersRaw, startIndex, endIndex]
+  );
 
   const handlePageChange = (page) => {
+    if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   };
 
   const getStatusBadge = (status) => {
-    return status === 'Hoạt động'
-      ? <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Hoạt động</span>
-      : <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Ngừng hoạt động</span>;
+    return status === "Hoạt động" ? (
+      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+        Hoạt động
+      </span>
+    ) : (
+      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+        Ngừng hoạt động
+      </span>
+    );
   };
 
+  // Toggle trạng thái: hiện tại đổi local hiển thị (nếu muốn call API, mình thêm sau)
   const toggleUserStatus = (userId) => {
-    setUsers(users.map(user =>
-      user.id === userId
-        ? { ...user, status: user.status === 'Hoạt động' ? 'Ngừng hoạt động' : 'Hoạt động' }
-        : user
-    ));
+    setUsersRaw((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              statusText: u.statusText === "Hoạt động" ? "Ngừng hoạt động" : "Hoạt động",
+            }
+          : u
+      )
+    );
   };
 
+  // Modal thêm người dùng (hiện vẫn thêm local; nếu muốn gọi API: POST /User/register)
   const handleAddUser = () => {
-    if (newUser.name && newUser.email && newUser.password) {
-      const user = {
-        id: Math.max(...users.map(u => u.id)) + 1,
-        name: newUser.name,
-        email: newUser.email,
-        role: 'Nhân viên',
-        status: 'Hoạt động'
-      };
-      setUsers([...users, user]);
-      setNewUser({ name: '', email: '', password: '' });
-      setIsModalOpen(false);
-    }
+    if (!newUser.name || !newUser.email || !newUser.password) return;
+
+    const nextId =
+      usersRaw.length > 0 ? Math.max(...usersRaw.map((u) => Number(u.id))) + 1 : 1;
+    const row = {
+      id: nextId,
+      name: newUser.name,
+      email: newUser.email,
+      roleNumber: 1,
+      roleText: "Nhân viên",
+      statusText: "Hoạt động",
+      deleteAt: null,
+      raw: null,
+    };
+
+    setUsersRaw((prev) => [...prev, row]);
+    setNewUser({ name: "", email: "", password: "" });
+    setIsModalOpen(false);
+
+    // TODO (nếu cần): gọi api.post("/User/register", { userName, fullName, email, password, role: 1 }).then(fetchUsers)
   };
 
   const handleInputChange = (e) => {
-    setNewUser({
-      ...newUser,
-      [e.target.name]: e.target.value
-    });
+    setNewUser((s) => ({ ...s, [e.target.name]: e.target.value }));
   };
 
   return (
     <div className="space-y-6">
-      {/* Tiêu đề */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Quản lý người dùng</h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <FaPlus className="w-4 h-4 mr-2" />
-          Thêm thành viên
-        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchUsers}
+            disabled={loading}
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            {loading ? "Đang tải..." : "Làm mới"}
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <FaPlus className="w-4 h-4 mr-2" />
+            Thêm thành viên
+          </button>
+        </div>
       </div>
+
+      {/* Thông báo lỗi */}
+      {errMsg && (
+        <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+          {errMsg}
+        </div>
+      )}
 
       {/* Bảng danh sách người dùng */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
@@ -91,38 +165,58 @@ const UserManagementPage = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tên người dùng</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Vai trò</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Hành động</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  ID
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Tên người dùng
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Vai trò
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Trạng thái
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                  Hành động
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentUsers.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors text-center">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.id}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{user.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{user.email}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900">{user.role}</td>
-                  <td className="px-6 py-4">{getStatusBadge(user.status)}</td>
+              {currentUsers.map((u) => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors text-center">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{u.id}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{u.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{u.email}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900">{u.roleText}</td>
+                  <td className="px-6 py-4">{getStatusBadge(u.statusText)}</td>
                   <td className="px-6 py-4">
                     <button
-                      onClick={() => toggleUserStatus(user.id)}
+                      onClick={() => toggleUserStatus(u.id)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:ring-2 focus:ring-indigo-500 ${
-                        user.status === 'Hoạt động' ? 'bg-indigo-600' : 'bg-gray-300'
+                        u.statusText === "Hoạt động" ? "bg-indigo-600" : "bg-gray-300"
                       }`}
                     >
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          user.status === 'Hoạt động' ? 'translate-x-6' : 'translate-x-1'
+                          u.statusText === "Hoạt động" ? "translate-x-6" : "translate-x-1"
                         }`}
                       />
                     </button>
                   </td>
                 </tr>
               ))}
+
+              {!loading && currentUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-gray-500">
+                    Không có người dùng nào.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -139,14 +233,14 @@ const UserManagementPage = () => {
             <FaChevronLeft className="h-4 w-4" />
           </button>
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
             <button
               key={page}
               onClick={() => handlePageChange(page)}
               className={`px-4 py-2 border text-sm font-medium ${
                 page === currentPage
-                  ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
-                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                  ? "bg-indigo-50 border-indigo-500 text-indigo-600"
+                  : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
               }`}
             >
               {page}
@@ -163,7 +257,7 @@ const UserManagementPage = () => {
         </nav>
       </div>
 
-      {/* Modal thêm người dùng */}
+      {/* Modal thêm người dùng (hiện thêm local) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
@@ -234,6 +328,4 @@ const UserManagementPage = () => {
       )}
     </div>
   );
-};
-
-export default UserManagementPage;
+}

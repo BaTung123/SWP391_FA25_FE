@@ -1,30 +1,23 @@
 import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Form,
   Input,
   Button,
-  Checkbox,
   Row,
   Col,
   Typography,
-  Divider,
+  Radio,
   message,
 } from "antd";
-import {
-  EyeInvisibleOutlined,
-  EyeTwoTone,
-  GoogleOutlined,
-  FacebookFilled,
-} from "@ant-design/icons";
-import { Link, useNavigate } from "react-router-dom";
+import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
 import logoGarage from "../../assets/logo.png";
 import bgImage from "../../assets/3408105.jpg";
-import { toast } from "react-toastify";
 import api from "../../config/axios";
 
 const { Title, Text } = Typography;
 
-const LoginPage = () => {
+const RegisterPage = () => {
   const [form] = Form.useForm();
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -32,24 +25,33 @@ const LoginPage = () => {
   const handleSubmit = async (values) => {
     setIsLoading(true);
     try {
-      const response = await api.post("/User/login", {
+      // Ép role sang số để backend nhận đúng (0 = Member, 1 = Staff/Admin)
+      const payload = {
         userName: values.userName,
+        fullName: values.fullName,
+        email: values.email,
         password: values.password,
-      });
+        role: Number(values.role),
+      };
 
-      toast.success("Login successful!");
-      console.log("Response:", response.data);
-      if (response.data?.token) {
-        localStorage.setItem("token", response.data.token);
-      }
+      await api.post("/User/register", payload);
+      message.success("Registration successful!");
+      navigate("/auth/login", { replace: true });
+    } catch (error) {
+      console.error("Register error:", error?.response?.data || error?.message);
+      const data = error?.response?.data || {};
+      const msg =
+        data.message ||
+        (data.errors ? Object.values(data.errors).flat().join(", ") : "") ||
+        error.message;
 
-      navigate("/admin");
-    } catch (e) {
-      console.error("Login error:", e.response?.data || e.message);
-      if (e.response?.status === 400) {
-        message.error("Tên đăng nhập hoặc mật khẩu không đúng!");
+      if (
+        (data.title || "").toLowerCase().includes("exist") ||
+        /exist|already/i.test(msg)
+      ) {
+        message.error("Tài khoản đã tồn tại. Vui lòng chọn userName/email khác.");
       } else {
-        message.error("Đăng nhập thất bại. Vui lòng thử lại sau.");
+        message.error(msg || "Đăng ký thất bại. Vui lòng thử lại sau.");
       }
     } finally {
       setIsLoading(false);
@@ -79,57 +81,105 @@ const LoginPage = () => {
       >
         <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
           <Row className="min-h-[600px]">
-            {/* LEFT: LOGIN FORM */}
+            {/* LEFT: REGISTER FORM */}
             <Col xs={24} lg={12} className="p-10 flex items-center">
               <div className="w-full max-w-md mx-auto">
                 <Title level={2} className="text-gray-800 mb-2">
-                  Welcome Back
+                  Create Account
                 </Title>
-                <Text type="secondary" className="block mb-8">
-                  Please sign in to your account
-                </Text>
 
                 <Form
                   form={form}
                   layout="vertical"
                   onFinish={handleSubmit}
                   initialValues={{
+                    fullName: "",
+                    userName: "",
                     email: "",
                     password: "",
-                    remember: true,
+                    confirmPassword: "",
+                    role: 0, // default Member
                   }}
                 >
                   <Form.Item
+                    label="Full Name"
+                    name="fullName"
+                    rules={[{ required: true, message: "Please enter your full name!" }]}
+                  >
+                    <Input placeholder="Enter your full name" />
+                  </Form.Item>
+
+                  <Form.Item
                     label="User Name"
                     name="userName"
+                    rules={[{ required: true, message: "Please enter your user name!" }]}
+                  >
+                    <Input placeholder="Choose a username" />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="Email Address"
+                    name="email"
                     rules={[
                       { required: true, message: "Please enter your email!" },
-                      { type: "name", message: "Invalid email format!" },
+                      { type: "email", message: "Invalid email format!" },
                     ]}
                   >
-                    <Input placeholder="Enter your user name" />
+                    <Input placeholder="you@example.com" />
                   </Form.Item>
 
                   <Form.Item
                     label="Password"
                     name="password"
                     rules={[
-                      {
-                        required: true,
-                        message: "Please enter your password!",
-                      },
+                      { required: true, message: "Please enter your password!" },
+                      { min: 6, message: "Password must be at least 6 characters" },
                     ]}
                   >
                     <Input.Password
-                      placeholder="Enter your password"
+                      placeholder="Enter 6 characters or more"
                       iconRender={(visible) =>
                         visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
                       }
                     />
                   </Form.Item>
 
-                  <Form.Item name="remember" valuePropName="checked">
-                    <Checkbox>Remember me</Checkbox>
+                  <Form.Item
+                    label="Confirm Password"
+                    name="confirmPassword"
+                    dependencies={["password"]}
+                    hasFeedback
+                    rules={[
+                      { required: true, message: "Please confirm your password!" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value || getFieldValue("password") === value) return Promise.resolve();
+                          return Promise.reject(new Error("Passwords do not match!"));
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password
+                      placeholder="Confirm your password"
+                      iconRender={(visible) =>
+                        visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
+                      }
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="Role"
+                    name="role"
+                    rules={[{ required: true, message: "Please choose a role!" }]}
+                  >
+                    <Radio.Group
+                      onChange={(e) =>
+                        form.setFieldValue("role", Number(e.target.value))
+                      }
+                    >
+                      <Radio value={0}>Member</Radio>
+                      <Radio value={1}>Staff / Admin</Radio>
+                    </Radio.Group>
                   </Form.Item>
 
                   <Form.Item>
@@ -141,17 +191,18 @@ const LoginPage = () => {
                       className="font-semibold"
                       loading={isLoading}
                     >
-                      Login
+                      Create Account
                     </Button>
                   </Form.Item>
+
                   <div className="text-center mt-6">
                     <Text type="secondary">
-                      Don’t have an account?{" "}
+                      Already have an account?{" "}
                       <Link
-                        to="/auth/register"
+                        to="/auth/login"
                         className="text-blue-600 hover:text-blue-700 font-medium"
                       >
-                        Sign Up
+                        Sign In
                       </Link>
                     </Text>
                   </div>
@@ -168,7 +219,7 @@ const LoginPage = () => {
               </div>
             </Col>
 
-            {/* RIGHT: LOGO (with CSS animation) */}
+            {/* RIGHT: LOGO */}
             <Col
               xs={24}
               lg={12}
@@ -192,4 +243,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default RegisterPage;

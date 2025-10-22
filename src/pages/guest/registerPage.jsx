@@ -4,23 +4,16 @@ import {
   Form,
   Input,
   Button,
-  Checkbox,
   Row,
   Col,
   Typography,
-  Divider,
+  Radio,
   message,
 } from "antd";
-import {
-  EyeInvisibleOutlined,
-  EyeTwoTone,
-  GoogleOutlined,
-  FacebookFilled,
-} from "@ant-design/icons";
+import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
 import logoGarage from "../../assets/logo.png";
 import bgImage from "../../assets/3408105.jpg";
 import api from "../../config/axios";
-import { toast } from "react-toastify";
 
 const { Title, Text } = Typography;
 
@@ -30,47 +23,33 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (values) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-
-      const response = await api.post("/User/register", {
-        userName: values.fullName, 
+      // Gọi API đăng ký, kèm role
+      await api.post("/User/register", {
+        userName: values.userName,   // KHÔNG dùng fullName làm userName
         fullName: values.fullName,
         email: values.email,
         password: values.password,
+        role: values.role,           // 0 = Member, 1 = Staff/Admin
       });
 
       message.success("Registration successful!");
-      setTimeout(() => navigate("/auth/login"), 800);
+      navigate("/auth/login", { replace: true });
     } catch (error) {
-      console.error("Error response:", error.response?.data || error.message);
+      const data = error?.response?.data || {};
+      const msg =
+        data.message ||
+        (data.errors ? Object.values(data.errors).flat().join(", ") : "") ||
+        error.message;
 
-      // ✅ Nếu backend trả về lỗi 400
-      if (error.response && error.response.status === 400) {
-        const data = error.response.data;
-
-        const title = data.title?.toLowerCase() || "";
-        const messageFromApi =
-          data.message ||
-          Object.values(data.errors || {})
-            .flat()
-            .join(", ") ||
-          "";
-
-        if (
-          title.includes("exist") ||
-          messageFromApi.toLowerCase().includes("exist") ||
-          messageFromApi.toLowerCase().includes("already")
-        ) {
-          message.error("Tài khoản đã tồn tại. Vui lòng chọn email khác.");
-        } else {
-          message.error(
-            messageFromApi ||
-              "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin."
-          );
-        }
+      if (
+        (data.title || "").toLowerCase().includes("exist") ||
+        /exist|already/i.test(msg)
+      ) {
+        message.error("Tài khoản đã tồn tại. Vui lòng chọn userName/email khác.");
       } else {
-        message.error("Đăng ký thất bại. Vui lòng thử lại sau.");
+        message.error(msg || "Đăng ký thất bại. Vui lòng thử lại sau.");
       }
     } finally {
       setIsLoading(false);
@@ -79,7 +58,6 @@ const RegisterPage = () => {
 
   return (
     <>
-      {/* CSS Animation cho logo */}
       <style>{`
         @keyframes fadeZoom {
           0% { opacity: 0; transform: scale(1.08); }
@@ -101,7 +79,7 @@ const RegisterPage = () => {
       >
         <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
           <Row className="min-h-[600px]">
-            {/* LEFT SIDE: REGISTER FORM */}
+            {/* LEFT: REGISTER FORM */}
             <Col xs={24} lg={12} className="p-10 flex items-center">
               <div className="w-full max-w-md mx-auto">
                 <Title level={2} className="text-gray-800 mb-2">
@@ -114,23 +92,27 @@ const RegisterPage = () => {
                   onFinish={handleSubmit}
                   initialValues={{
                     fullName: "",
+                    userName: "",
                     email: "",
                     password: "",
                     confirmPassword: "",
-                    agreeTerms: false,
+                    role: 0, // default Member
                   }}
                 >
                   <Form.Item
                     label="Full Name"
                     name="fullName"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter your full name!",
-                      },
-                    ]}
+                    rules={[{ required: true, message: "Please enter your full name!" }]}
                   >
                     <Input placeholder="Enter your full name" />
+                  </Form.Item>
+
+                  <Form.Item
+                    label="User Name"
+                    name="userName"
+                    rules={[{ required: true, message: "Please enter your user name!" }]}
+                  >
+                    <Input placeholder="Choose a username" />
                   </Form.Item>
 
                   <Form.Item
@@ -148,14 +130,8 @@ const RegisterPage = () => {
                     label="Password"
                     name="password"
                     rules={[
-                      {
-                        required: true,
-                        message: "Please enter your password!",
-                      },
-                      {
-                        min: 6,
-                        message: "Password must be at least 6 characters",
-                      },
+                      { required: true, message: "Please enter your password!" },
+                      { min: 6, message: "Password must be at least 6 characters" },
                     ]}
                   >
                     <Input.Password
@@ -172,18 +148,11 @@ const RegisterPage = () => {
                     dependencies={["password"]}
                     hasFeedback
                     rules={[
-                      {
-                        required: true,
-                        message: "Please confirm your password!",
-                      },
+                      { required: true, message: "Please confirm your password!" },
                       ({ getFieldValue }) => ({
                         validator(_, value) {
-                          if (!value || getFieldValue("password") === value) {
-                            return Promise.resolve();
-                          }
-                          return Promise.reject(
-                            new Error("Passwords do not match!")
-                          );
+                          if (!value || getFieldValue("password") === value) return Promise.resolve();
+                          return Promise.reject(new Error("Passwords do not match!"));
                         },
                       }),
                     ]}
@@ -195,6 +164,18 @@ const RegisterPage = () => {
                       }
                     />
                   </Form.Item>
+
+                  <Form.Item
+                    label="Role"
+                    name="role"
+                    rules={[{ required: true, message: "Please choose a role!" }]}
+                  >
+                    <Radio.Group>
+                      <Radio value={0}>Member</Radio>
+                      <Radio value={1}>Staff / Admin</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+
                   <Form.Item>
                     <Button
                       type="primary"
@@ -207,6 +188,7 @@ const RegisterPage = () => {
                       Create Account
                     </Button>
                   </Form.Item>
+
                   <div className="text-center mt-6">
                     <Text type="secondary">
                       Already have an account?{" "}
@@ -231,7 +213,7 @@ const RegisterPage = () => {
               </div>
             </Col>
 
-            {/* RIGHT SIDE: LOGO (CSS animation) */}
+            {/* RIGHT: LOGO */}
             <Col
               xs={24}
               lg={12}
