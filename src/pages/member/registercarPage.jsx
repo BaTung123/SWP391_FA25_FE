@@ -4128,3 +4128,102 @@
 // };
 
 // export default RegistercarPage;
+
+
+
+// const RegistercarPage = () => {
+//   const [formData, setFormData] = useState({
+//     vehicleId: '',
+//     startDate: '',
+//     endDate: '',
+//     startTime: '',
+//     endTime: '',
+//     purpose: '',
+//     destination: '',
+//     estimatedDistance: '',
+//     notes: ''
+//   });
+
+//   // const [isSubmitting, setIsSubmitting] = useState(false);
+//   // const [selectedTemplate, setSelectedTemplate] = useState('');
+//   const [currentDate, setCurrentDate] = useState(new Date());
+//   const [selectedDates, setSelectedDates] = useState([]);
+//   const [showTimeModal, setShowTimeModal] = useState(false);
+//   const [selectedDateForTime, setSelectedDateForTime] = useState(null);
+//   const [timeSlots, setTimeSlots] = useState([]);
+//   const [userOwnershipPercentage] = useState(25); // Example: 25% ownership = 6 hours max per day
+//   const [registeredTimeSlots, setRegisteredTimeSlots] = useState({}); // Store registered time slots by date
+
+//   // Sample vehicle data (in real app, this would come from API)
+//   const availableVehicles = [
+//     { id: 1, name: 'Tesla Model 3', licensePlate: '30A-12345', status: 'Available' },
+//     { id: 2, name: 'BYD Atto 3', licensePlate: '29B-67890', status: 'Available' },
+//     { id: 3, name: 'VinFast VF8', licensePlate: '30C-11111', status: 'Maintenance' }
+//   ];
+
+//   // Appointment scheduling templates
+//   const schedulingTemplates = [
+//     {
+//       id: 'morning_commute',
+//       name: 'Đi làm buổi sáng',
+//       icon: '🌅',
+//       description: '8:00 - 9:00, Thứ 2-6',
+//       purpose: 'business',
+//       startTime: '08:00',
+//       endTime: '09:00',
+//       estimatedDistance: '15',
+//       notes: 'Đi làm buổi sáng'
+//     },
+//     {
+//       id: 'evening_commute',
+//       name: 'Về nhà buổi tối',
+//       icon: '🌆',
+//       description: '17:30 - 18:30, Thứ 2-6',
+// const RegistercarPage = () => {
+//   const [formData, setFormData] = useState({
+//     vehicleId: '',
+//     startDate: '',
+//     endDate: '',
+//     startTime: '',
+//     endTime: '',
+//     purpose: '',
+//     destination: '',
+//     estimatedDistance: '',
+//     notes: ''
+//   });
+
+//   // const [isSubmitting, setIsSubmitting] = useState(false);
+//   // const [selectedTemplate, setSelectedTemplate] = useState('');
+//   const [currentDate, setCurrentDate] = useState(new Date());
+//   const [selectedDates, setSelectedDates] = useState([]);
+//   const [showTimeModal, setShowTimeModal] = useState(false);
+//   const [selectedDateForTime, setSelectedDateForTime] = useState(null);
+//   const [timeSlots, setTimeSlots] = useState([]);
+//   const [userOwnershipPercentage] = useState(25); // Example: 25% ownership = 6 hours max per day
+//   const [registeredTimeSlots, setRegisteredTimeSlots] = useState({}); // Store registered time slots by date
+
+//   // Sample vehicle data (in real app, this would come from API)
+//   const availableVehicles = [
+//     { id: 1, name: 'Tesla Model 3', licensePlate: '30A-12345', status: 'Available' },
+//     { id: 2, name: 'BYD Atto 3', licensePlate: '29B-67890', status: 'Available' },
+//     { id: 3, name: 'VinFast VF8', licensePlate: '30C-11111', status: 'Maintenance' }
+//   ];
+
+//   // Appointment scheduling templates
+//   const schedulingTemplates = [
+//     {
+//       id: 'morning_commute',
+//       name: 'Đi làm buổi sáng',
+//       icon: '🌅',
+//       description: '8:00 - 9:00, Thứ 2-6',
+//       purpose: 'business',
+//       startTime: '08:00',
+//       endTime: '09:00',
+//       estimatedDistance: '15',
+//       notes: 'Đi làm buổi sáng'
+//     },
+//     {
+//       id: 'evening_commute',
+//       name: 'Về nhà buổi tối',
+//       icon: '🌆',
+//       description: '17:30 - 18:30, Thứ 2-6',
