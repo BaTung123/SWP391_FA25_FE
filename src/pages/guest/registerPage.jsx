@@ -7,7 +7,6 @@ import {
   Row,
   Col,
   Typography,
-  Radio,
   message,
 } from "antd";
 import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
@@ -25,16 +24,15 @@ const RegisterPage = () => {
   const handleSubmit = async (values) => {
     setIsLoading(true);
     try {
-      // Gọi API đăng ký, kèm role
       await api.post("/User/register", {
         userName: values.userName,   // KHÔNG dùng fullName làm userName
         fullName: values.fullName,
         email: values.email,
         password: values.password,
-        role: values.role,           // 0 = Member, 1 = Staff/Admin
+        role: 0,                     // ✅ mặc định Member
       });
 
-      message.success("Registration successful!");
+      message.success("Đăng ký thành công!");
       navigate("/auth/login", { replace: true });
     } catch (error) {
       const data = error?.response?.data || {};
@@ -47,7 +45,7 @@ const RegisterPage = () => {
         (data.title || "").toLowerCase().includes("exist") ||
         /exist|already/i.test(msg)
       ) {
-        message.error("Tài khoản đã tồn tại. Vui lòng chọn userName/email khác.");
+        message.error("Tài khoản đã tồn tại. Vui lòng chọn tên đăng nhập/email khác.");
       } else {
         message.error(msg || "Đăng ký thất bại. Vui lòng thử lại sau.");
       }
@@ -79,12 +77,15 @@ const RegisterPage = () => {
       >
         <div className="w-full max-w-6xl bg-white rounded-2xl shadow-2xl overflow-hidden">
           <Row className="min-h-[600px]">
-            {/* LEFT: REGISTER FORM */}
+            {/* TRÁI: FORM ĐĂNG KÝ */}
             <Col xs={24} lg={12} className="p-10 flex items-center">
               <div className="w-full max-w-md mx-auto">
                 <Title level={2} className="text-gray-800 mb-2">
-                  Create Account
+                  Tạo tài khoản
                 </Title>
+                <Text type="secondary" className="block mb-8">
+                  Điền thông tin bên dưới để bắt đầu
+                </Text>
 
                 <Form
                   form={form}
@@ -96,46 +97,45 @@ const RegisterPage = () => {
                     email: "",
                     password: "",
                     confirmPassword: "",
-                    role: 0, // default Member
                   }}
                 >
                   <Form.Item
-                    label="Full Name"
+                    label="Họ và tên"
                     name="fullName"
-                    rules={[{ required: true, message: "Please enter your full name!" }]}
+                    rules={[{ required: true, message: "Vui lòng nhập họ và tên!" }]}
                   >
-                    <Input placeholder="Enter your full name" />
+                    <Input placeholder="VD: Nguyễn Văn A" />
                   </Form.Item>
 
                   <Form.Item
-                    label="User Name"
+                    label="Tên đăng nhập"
                     name="userName"
-                    rules={[{ required: true, message: "Please enter your user name!" }]}
+                    rules={[{ required: true, message: "Vui lòng nhập tên đăng nhập!" }]}
                   >
-                    <Input placeholder="Choose a username" />
+                    <Input placeholder="Chọn tên đăng nhập" />
                   </Form.Item>
 
                   <Form.Item
-                    label="Email Address"
+                    label="Email"
                     name="email"
                     rules={[
-                      { required: true, message: "Please enter your email!" },
-                      { type: "email", message: "Invalid email format!" },
+                      { required: true, message: "Vui lòng nhập email!" },
+                      { type: "email", message: "Định dạng email không hợp lệ!" },
                     ]}
                   >
-                    <Input placeholder="you@example.com" />
+                    <Input placeholder="VD: ban@vidu.com" />
                   </Form.Item>
 
                   <Form.Item
-                    label="Password"
+                    label="Mật khẩu"
                     name="password"
                     rules={[
-                      { required: true, message: "Please enter your password!" },
-                      { min: 6, message: "Password must be at least 6 characters" },
+                      { required: true, message: "Vui lòng nhập mật khẩu!" },
+                      { min: 6, message: "Mật khẩu tối thiểu 6 ký tự!" },
                     ]}
                   >
                     <Input.Password
-                      placeholder="Enter 6 characters or more"
+                      placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
                       iconRender={(visible) =>
                         visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
                       }
@@ -143,39 +143,28 @@ const RegisterPage = () => {
                   </Form.Item>
 
                   <Form.Item
-                    label="Confirm Password"
+                    label="Xác nhận mật khẩu"
                     name="confirmPassword"
                     dependencies={["password"]}
                     hasFeedback
                     rules={[
-                      { required: true, message: "Please confirm your password!" },
+                      { required: true, message: "Vui lòng nhập lại mật khẩu!" },
                       ({ getFieldValue }) => ({
                         validator(_, value) {
-                          if (!value || getFieldValue("password") === value) return Promise.resolve();
-                          return Promise.reject(new Error("Passwords do not match!"));
+                          if (!value || getFieldValue("password") === value)
+                            return Promise.resolve();
+                          return Promise.reject(new Error("Mật khẩu xác nhận không khớp!"));
                         },
                       }),
                     ]}
                   >
                     <Input.Password
-                      placeholder="Confirm your password"
+                      placeholder="Nhập lại mật khẩu"
                       iconRender={(visible) =>
                         visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
                       }
                     />
                   </Form.Item>
-
-                  <Form.Item
-                    label="Role"
-                    name="role"
-                    rules={[{ required: true, message: "Please choose a role!" }]}
-                  >
-                    <Radio.Group>
-                      <Radio value={0}>Member</Radio>
-                      <Radio value={1}>Staff / Admin</Radio>
-                    </Radio.Group>
-                  </Form.Item>
-
                   <Form.Item>
                     <Button
                       type="primary"
@@ -185,18 +174,18 @@ const RegisterPage = () => {
                       className="font-semibold"
                       loading={isLoading}
                     >
-                      Create Account
+                      Tạo tài khoản
                     </Button>
                   </Form.Item>
 
                   <div className="text-center mt-6">
                     <Text type="secondary">
-                      Already have an account?{" "}
+                      Đã có tài khoản?{" "}
                       <Link
                         to="/auth/login"
                         className="text-blue-600 hover:text-blue-700 font-medium"
                       >
-                        Sign In
+                        Đăng nhập
                       </Link>
                     </Text>
                   </div>
@@ -213,7 +202,7 @@ const RegisterPage = () => {
               </div>
             </Col>
 
-            {/* RIGHT: LOGO */}
+            {/* PHẢI: LOGO */}
             <Col
               xs={24}
               lg={12}

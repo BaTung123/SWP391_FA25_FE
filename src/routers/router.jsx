@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import RootLayout from "../layout/RootLayout";
 import AuthLayout from "../layout/AuthLayout";
 import SidebarLayout from "../layout/SidebarLayout";
+import MemberLayout from "../layout/MemberLayout";
 
 // Guest pages
 const HomePage = lazy(() => import("../pages/guest/homePage"));
@@ -13,6 +14,7 @@ const LoginPage = lazy(() => import("../pages/guest/loginPage"));
 const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 
 // Member pages
+const MemberPage = lazy(() => import("../pages/member/memberPage")); // ⬅️ đổi tên biến import
 const ProfilePage = lazy(() => import("../pages/member/profilePage"));
 const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 const QRPage = lazy(() => import("../pages/member/qrPage"));
@@ -22,7 +24,7 @@ const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"
 const UserManagementPage = lazy(() => import("../pages/admin/userManagementPage"));
 const VehicleManagementPage = lazy(() => import("../pages/admin/vehicleManagementPage"));
 
-// Staff pages (nếu staff cũng role=1)
+// Staff pages
 const StaffVehicleManagementPage = lazy(() => import("../pages/staff/groupPage"));
 const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
@@ -34,22 +36,14 @@ const NotFoundPage = lazy(() => import("../pages/error/notFoundPage"));
 
 const Loading = () => <div>Loading...</div>;
 
-/** Route protection
- * - Lấy user từ localStorage
- * - Kiểm tra role dạng số: 1 (admin/staff), 0 (member)
- */
 const ProtectedRoute = ({ children, roleAccount }) => {
   const token = localStorage.getItem("token");
   const userData = localStorage.getItem("user");
   const user = userData ? JSON.parse(userData) : null;
-  const role = user?.role; // 0 | 1
+  const role = user?.role;
 
   if (!token || !user) return <Navigate to="/auth/login" replace />;
-
-  if (!roleAccount.includes(role)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
+  if (!roleAccount.includes(role)) return <Navigate to="/unauthorized" replace />;
   return children;
 };
 
@@ -59,38 +53,10 @@ export const router = createBrowserRouter([
     path: "/",
     element: <RootLayout />,
     children: [
-      {
-        path: "",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <HomePage />
-          </Suspense>
-        ),
-      },
-      {
-        path: "about",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <AboutPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: "contact",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <ContactPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: "warehouse",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <WarehousePage />
-          </Suspense>
-        ),
-      },
+      { path: "", element: <Suspense fallback={<Loading />}><HomePage /></Suspense> },
+      { path: "about", element: <Suspense fallback={<Loading />}><AboutPage /></Suspense> },
+      { path: "contact", element: <Suspense fallback={<Loading />}><ContactPage /></Suspense> },
+      { path: "warehouse", element: <Suspense fallback={<Loading />}><WarehousePage /></Suspense> },
     ],
   },
 
@@ -99,26 +65,12 @@ export const router = createBrowserRouter([
     path: "/auth",
     element: <AuthLayout />,
     children: [
-      {
-        path: "login",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <LoginPage />
-          </Suspense>
-        ),
-      },
-      {
-        path: "register",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <RegisterPage />
-          </Suspense>
-        ),
-      },
+      { path: "login", element: <Suspense fallback={<Loading />}><LoginPage /></Suspense> },
+      { path: "register", element: <Suspense fallback={<Loading />}><RegisterPage /></Suspense> },
     ],
   },
 
-  // Profile (ví dụ mở rộng, nếu muốn chỉ user đã login mới vào)
+  // Profile (nếu muốn)
   {
     path: "/profile",
     element: <SidebarLayout />,
@@ -136,45 +88,56 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Member
-  {
-    path: "/member",
-    element: <RootLayout />,
-    children: [
-      {
-        path: "profile",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[0, 1]}>
-              <ProfilePage />
-            </ProtectedRoute>
-          </Suspense>
-        ),
-      },
-      {
-        path: "registercar",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[0, 1]}>
-              <RegistercarPage />
-            </ProtectedRoute>
-          </Suspense>
-        ),
-      },
-      {
-        path: "wallet",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[0, 1]}>
-              <QRPage />
-            </ProtectedRoute>
-          </Suspense>
-        ),
-      },
-    ],
-  },
+  // Member (dùng RootLayout để có header/footer)
+{
+  path: "/member",
+  element: <MemberLayout />,   // ⬅️ thay vì RootLayout
+  children: [
+    {
+      path: "",
+      element: (
+        <Suspense fallback={<Loading />}>
+          <ProtectedRoute roleAccount={[0, 1]}>
+            <MemberPage />
+          </ProtectedRoute>
+        </Suspense>
+      ),
+    },
+    {
+      path: "profile",
+      element: (
+        <Suspense fallback={<Loading />}>
+          <ProtectedRoute roleAccount={[0, 1]}>
+            <ProfilePage />
+          </ProtectedRoute>
+        </Suspense>
+      ),
+    },
+    {
+      path: "registercar",
+      element: (
+        <Suspense fallback={<Loading />}>
+          <ProtectedRoute roleAccount={[0, 1]}>
+            <RegistercarPage />
+          </ProtectedRoute>
+        </Suspense>
+      ),
+    },
+    {
+      path: "wallet",
+      element: (
+        <Suspense fallback={<Loading />}>
+          <ProtectedRoute roleAccount={[0, 1]}>
+            <QRPage />
+          </ProtectedRoute>
+        </Suspense>
+      ),
+    },
+  ],
+  
+},
 
-  // Admin (role 1 = admin/staff)
+  // Admin
   {
     path: "/admin",
     element: <SidebarLayout />,
@@ -212,7 +175,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Staff (nếu bạn vẫn muốn tách khu staff; cùng role 1)
+  // Staff
   {
     path: "/staff",
     element: <SidebarLayout />,
@@ -261,20 +224,6 @@ export const router = createBrowserRouter([
   },
 
   // Errors
-  {
-    path: "/unauthorized",
-    element: (
-      <Suspense fallback={<Loading />}>
-        <UnauthorizedPage />
-      </Suspense>
-    ),
-  },
-  {
-    path: "*",
-    element: (
-      <Suspense fallback={<Loading />}>
-        <NotFoundPage />
-      </Suspense>
-    ),
-  },
+  { path: "/unauthorized", element: <Suspense fallback={<Loading />}><UnauthorizedPage /></Suspense> },
+  { path: "*", element: <Suspense fallback={<Loading />}><NotFoundPage /></Suspense> },
 ]);

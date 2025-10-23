@@ -59,7 +59,7 @@ const Header = () => {
             
             {/* Registration Button */}
             <Link
-              to="/member/registercar"
+              to="/auth/register"
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
             >
               Đăng Ký Lịch

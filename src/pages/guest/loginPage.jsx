@@ -60,7 +60,7 @@ const LoginPage = () => {
       if (roleNum === 1) {
         navigate("/admin", { replace: true });
       } else if (roleNum === 0) {
-        navigate("/member/profile", { replace: true });
+        navigate("/member", { replace: true });
       } else {
         message.warning("Không xác định được vai trò người dùng để điều hướng.");
       }
@@ -183,3 +183,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+
