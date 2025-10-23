@@ -52,17 +52,12 @@ const Header = () => {
 
           {/* Desktop Money & Login Section */}
           <div className="hidden lg:flex items-center space-x-4">
-            {/* Money Section */}
-            <div className="flex items-center space-x-2  px-3 py-2 rounded-lg">
-              <span className="text-green-700 font-semibold">0 VNĐ</span>
-            </div>
-            
             {/* Registration Button */}
             <Link
               to="/auth/register"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
+              className="px-7 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
             >
-              Đăng Ký Lịch
+              Đăng Ký 
             </Link>
             
             {/* Login Button */}

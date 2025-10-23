@@ -95,9 +95,9 @@ const LoginPage = () => {
             {/* LEFT: LOGIN FORM */}
             <Col xs={24} lg={12} className="p-10 flex items-center">
               <div className="w-full max-w-md mx-auto">
-                <Title level={2} className="text-gray-800 mb-2">Welcome Back</Title>
+                <Title level={2} className="text-gray-800 mb-2">ĐĂNG NHẬP TÀI KHOẢN</Title>
                 <Text type="secondary" className="block mb-8">
-                  Please sign in to your account
+                  Hãy điền thông tin của bạn để đăng nhập
                 </Text>
 
                 <Form
@@ -107,15 +107,15 @@ const LoginPage = () => {
                   initialValues={{ userName: "", password: "", remember: true }}
                 >
                   <Form.Item
-                    label="User Name hoặc Email"
+                    label="Tên Đăng Nhập"
                     name="userName"
                     rules={[{ required: true, message: "Please enter your user name!" }]}
                   >
-                    <Input placeholder="Enter your user name or email" />
+                    <Input placeholder="Enter your user name" />
                   </Form.Item>
 
                   <Form.Item
-                    label="Password"
+                    label="Mật Khẩu"
                     name="password"
                     rules={[{ required: true, message: "Please enter your password!" }]}
                   >
@@ -128,7 +128,7 @@ const LoginPage = () => {
                   </Form.Item>
 
                   <Form.Item name="remember" valuePropName="checked">
-                    <Checkbox>Remember me</Checkbox>
+                    <Checkbox>Lưu Mật Khẩu</Checkbox>
                   </Form.Item>
 
                   <Form.Item>
@@ -140,15 +140,15 @@ const LoginPage = () => {
                       className="font-semibold"
                       loading={isLoading}
                     >
-                      Login
+                      Đăng Nhập
                     </Button>
                   </Form.Item>
 
                   <div className="text-center mt-6">
                     <Text type="secondary">
-                      Don’t have an account?{" "}
+                      Bạn Chưa Có Tài Khoản?{" "}
                       <Link to="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                        Sign Up
+                        Đăng Ký
                       </Link>
                     </Text>
                   </div>
