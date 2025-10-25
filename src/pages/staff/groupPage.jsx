@@ -207,7 +207,8 @@ export default function GroupPage() {
   const handleDelete = async (groupId) => {
     if (!groupId) return message.error("Không tìm thấy ID nhóm để xoá!");
     try {
-      await api.delete(`/Group/${groupId}/delete`);
+      const res = await api.delete(`/Group/${groupId}/delete`);
+      console.log(res)
       removeMembersForGroup(groupId);
       message.success("Xoá nhóm thành công!");
       fetchGroups();

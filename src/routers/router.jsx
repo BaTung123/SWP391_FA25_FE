@@ -20,13 +20,23 @@ const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 const QRPage = lazy(() => import("../pages/member/qrPage"));
 
 // Admin pages
-const AdminDashboardPage = lazy(() => import("../pages/admin/adminDashboardPage"));
-const UserManagementPage = lazy(() => import("../pages/admin/userManagementPage"));
-const VehicleManagementPage = lazy(() => import("../pages/admin/vehicleManagementPage"));
+const AdminDashboardPage = lazy(() =>
+  import("../pages/admin/adminDashboardPage")
+);
+const UserManagementPage = lazy(() =>
+  import("../pages/admin/userManagementPage")
+);
+const VehicleManagementPage = lazy(() =>
+  import("../pages/admin/vehicleManagementPage")
+);
 
 // Staff pages
-const StaffVehicleManagementPage = lazy(() => import("../pages/staff/groupPage"));
-const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
+const StaffVehicleManagementPage = lazy(() =>
+  import("../pages/staff/groupPage")
+);
+const BookingManagementPage = lazy(() =>
+  import("../pages/staff/bookingManagementPage")
+);
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
 
@@ -42,8 +52,9 @@ const ProtectedRoute = ({ children, roleAccount }) => {
   const user = userData ? JSON.parse(userData) : null;
   const role = user?.role;
 
-  if (!token || !user) return <Navigate to="/auth/login" replace />;
-  if (!roleAccount.includes(role)) return <Navigate to="/unauthorized" replace />;
+  if (!token) return <Navigate to="/auth/login" replace />;
+  if (!roleAccount.includes(role))
+    return <Navigate to="/unauthorized" replace />;
   return children;
 };
 
@@ -53,10 +64,38 @@ export const router = createBrowserRouter([
     path: "/",
     element: <RootLayout />,
     children: [
-      { path: "", element: <Suspense fallback={<Loading />}><HomePage /></Suspense> },
-      { path: "about", element: <Suspense fallback={<Loading />}><AboutPage /></Suspense> },
-      { path: "contact", element: <Suspense fallback={<Loading />}><ContactPage /></Suspense> },
-      { path: "warehouse", element: <Suspense fallback={<Loading />}><WarehousePage /></Suspense> },
+      {
+        path: "",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <HomePage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "about",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <AboutPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "contact",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ContactPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "warehouse",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <WarehousePage />
+          </Suspense>
+        ),
+      },
     ],
   },
 
@@ -65,8 +104,22 @@ export const router = createBrowserRouter([
     path: "/auth",
     element: <AuthLayout />,
     children: [
-      { path: "login", element: <Suspense fallback={<Loading />}><LoginPage /></Suspense> },
-      { path: "register", element: <Suspense fallback={<Loading />}><RegisterPage /></Suspense> },
+      {
+        path: "login",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <LoginPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "register",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <RegisterPage />
+          </Suspense>
+        ),
+      },
     ],
   },
 
@@ -89,53 +142,53 @@ export const router = createBrowserRouter([
   },
 
   // Member (dùng RootLayout để có header/footer)
-{
-  path: "/member",
-  element: <MemberLayout />,   // ⬅️ thay vì RootLayout
-  children: [
-    {
-      path: "",
-      element: (
-        <Suspense fallback={<Loading />}>
-          <ProtectedRoute roleAccount={[0, 1]}>
-            <MemberPage />
-          </ProtectedRoute>
-        </Suspense>
-      ),
-    },
-    {
-      path: "profile",
-      element: (
-        <Suspense fallback={<Loading />}>
-          <ProtectedRoute roleAccount={[0, 1]}>
-            <ProfilePage />
-          </ProtectedRoute>
-        </Suspense>
-      ),
-    },
-    {
-      path: "registercar",
-      element: (
-        <Suspense fallback={<Loading />}>
-          <ProtectedRoute roleAccount={[0, 1]}>
-            <RegistercarPage />
-          </ProtectedRoute>
-        </Suspense>
-      ),
-    },
-    {
-      path: "wallet",
-      element: (
-        <Suspense fallback={<Loading />}>
-          <ProtectedRoute roleAccount={[0, 1]}>
-            <QRPage />
-          </ProtectedRoute>
-        </Suspense>
-      ),
-    },
-  ],
-  
-},
+  {
+    path: "/member",
+    element: <MemberLayout />, // ⬅️ thay vì RootLayout
+    children: [
+      {
+        path: "",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <MemberPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "profile",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <ProfilePage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "registercar",
+        element: (
+          <Suspense fallback={<Loading />}>
+            {/* <RegistercarPage /> */}
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <RegistercarPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "wallet",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <QRPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+    ],
+  },
 
   // Admin
   {
@@ -224,6 +277,20 @@ export const router = createBrowserRouter([
   },
 
   // Errors
-  { path: "/unauthorized", element: <Suspense fallback={<Loading />}><UnauthorizedPage /></Suspense> },
-  { path: "*", element: <Suspense fallback={<Loading />}><NotFoundPage /></Suspense> },
+  {
+    path: "/unauthorized",
+    element: (
+      <Suspense fallback={<Loading />}>
+        <UnauthorizedPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: "*",
+    element: (
+      <Suspense fallback={<Loading />}>
+        <NotFoundPage />
+      </Suspense>
+    ),
+  },
 ]);

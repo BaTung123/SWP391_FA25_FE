@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import {
-  Form, Input, Button, Checkbox, Row, Col, Typography, message
+  Form,
+  Input,
+  Button,
+  Checkbox,
+  Row,
+  Col,
+  Typography,
+  message,
 } from "antd";
 import { EyeInvisibleOutlined, EyeTwoTone } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
@@ -16,57 +23,74 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (values) => {
+    const { userName, password, remember } = values || {};
+    if (!userName || !password) {
+      message.warning("Vui lòng nhập Tên đăng nhập và Mật khẩu.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // 1) Lấy dữ liệu user từ /User theo cấu hình của bạn
-      const res = await api.get("/User");
-      console.log("[/User] response =", res?.data);
+      const res = await api.post("/User/login", {
+        userName: userName.trim(),
+        password: password,
+      });
 
-      let user = null;
-      if (Array.isArray(res?.data)) {
-        // Trường hợp BE trả LIST users (ví dụ như bạn demo)
-        const key = (values.userName || "").trim().toLowerCase();
-        user =
-          res.data.find(
-            (u) =>
-              u?.userName?.toLowerCase() === key ||
-              u?.email?.toLowerCase() === key
-          ) || null;
-      } else if (res?.data) {
-        // Trường hợp BE trả CURRENT user (đã xác thực)
-        user = res.data;
+      const data = res?.data || {};
+      const token = data.token;
+      const role =
+        typeof data.isRole === "number" ? data.isRole : Number(data.isRole);
+
+      if (!token) {
+        throw new Error("Không nhận được token từ máy chủ.");
       }
 
-      console.log("[login] picked user =", user);
+     const store = remember ? localStorage : sessionStorage;
 
-      if (!user) {
-        message.error("Không tìm thấy người dùng phù hợp. Kiểm tra User Name/email.");
-        return;
+    // Lưu token + set header cho axios
+    store.setItem("token", token);
+    localStorage.setItem("token", token); // nhiều chỗ đang đọc từ localStorage
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      // 4) Lưu localStorage user (để các trang khác dùng)
+     const userObj = {
+      ...(data.user || {}),                           // nếu BE trả kèm user
+      userName: (data.user?.userName ?? userName).trim(),
+      role,                                           // 0 = member, 1 = admin
+      token,
+    };
+      localStorage.setItem("user", JSON.stringify(userObj));
+
+      // 5) Ghi nhớ đăng nhập (nếu bạn muốn lưu userName)
+      if (remember) {
+        localStorage.setItem("remember_userName", userName.trim());
+      } else {
+        localStorage.removeItem("remember_userName");
       }
 
-      // 2) Lưu localStorage (để ProtectedRoute/ứng dụng dùng)
-      localStorage.setItem("user", JSON.stringify(user));
-
-      // Nếu router của bạn đang check token, set 1 giá trị để pass ProtectedRoute.
-      // Nếu bạn KHÔNG dùng token → có thể xóa dòng này.
-      if (!localStorage.getItem("token")) {
-        localStorage.setItem("token", "ok");
-      }
-
-      // 3) Điều hướng theo role (đảm bảo role là number)
-      const roleNum = typeof user.role === "number" ? user.role : Number(user.role);
-      console.log("[login] roleNum =", roleNum, "type=", typeof roleNum);
-
-      if (roleNum === 1) {
+      if (role === 1) {
+        message.success("Đăng nhập Admin thành công!");
         navigate("/admin", { replace: true });
-      } else if (roleNum === 0) {
+      } else if (role === 0) {
+        message.success("Đăng nhập Member thành công!");
         navigate("/member", { replace: true });
       } else {
-        message.warning("Không xác định được vai trò người dùng để điều hướng.");
+        message.success("Đăng nhập thành công!");
+        navigate("/", { replace: true });
       }
     } catch (e) {
       console.error("Login error:", e?.response?.data || e?.message);
-      message.error("Đăng nhập thất bại. Vui lòng thử lại sau.");
+      // Xoá token/user cũ nếu có
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      delete api.defaults.headers.common.Authorization;
+
+      const apiMsg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Đăng nhập thất bại. Vui lòng thử lại.";
+      message.error(apiMsg);
     } finally {
       setIsLoading(false);
     }
@@ -95,7 +119,9 @@ const LoginPage = () => {
             {/* LEFT: LOGIN FORM */}
             <Col xs={24} lg={12} className="p-10 flex items-center">
               <div className="w-full max-w-md mx-auto">
-                <Title level={2} className="text-gray-800 mb-2">ĐĂNG NHẬP TÀI KHOẢN</Title>
+                <Title level={2} className="text-gray-800 mb-2">
+                  ĐĂNG NHẬP TÀI KHOẢN
+                </Title>
                 <Text type="secondary" className="block mb-8">
                   Hãy điền thông tin của bạn để đăng nhập
                 </Text>
@@ -104,12 +130,21 @@ const LoginPage = () => {
                   form={form}
                   layout="vertical"
                   onFinish={handleSubmit}
-                  initialValues={{ userName: "", password: "", remember: true }}
+                  initialValues={{
+                    userName: localStorage.getItem("remember_userName") || "",
+                    password: "",
+                    remember: !!localStorage.getItem("remember_userName"),
+                  }}
                 >
                   <Form.Item
                     label="Tên Đăng Nhập"
                     name="userName"
-                    rules={[{ required: true, message: "Please enter your user name!" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter your user name!",
+                      },
+                    ]}
                   >
                     <Input placeholder="Enter your user name" />
                   </Form.Item>
@@ -117,7 +152,12 @@ const LoginPage = () => {
                   <Form.Item
                     label="Mật Khẩu"
                     name="password"
-                    rules={[{ required: true, message: "Please enter your password!" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter your password!",
+                      },
+                    ]}
                   >
                     <Input.Password
                       placeholder="Enter your password"
@@ -147,14 +187,20 @@ const LoginPage = () => {
                   <div className="text-center mt-6">
                     <Text type="secondary">
                       Bạn Chưa Có Tài Khoản?{" "}
-                      <Link to="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                      <Link
+                        to="/auth/register"
+                        className="text-blue-600 hover:text-blue-700 font-medium"
+                      >
                         Đăng Ký
                       </Link>
                     </Text>
                   </div>
 
                   <div className="mt-4 text-center">
-                    <Link to="/" className="text-blue-700 font-semibold hover:underline">
+                    <Link
+                      to="/"
+                      className="text-blue-700 font-semibold hover:underline"
+                    >
                       Quay lại Trang chủ
                     </Link>
                   </div>
@@ -163,7 +209,11 @@ const LoginPage = () => {
             </Col>
 
             {/* RIGHT: LOGO */}
-            <Col xs={24} lg={12} className="relative flex items-center justify-center overflow-hidden bg-white">
+            <Col
+              xs={24}
+              lg={12}
+              className="relative flex items-center justify-center overflow-hidden bg-white"
+            >
               <div
                 className="absolute inset-0 logo-anim"
                 style={{
@@ -183,4 +233,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-
