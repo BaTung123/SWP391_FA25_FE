@@ -145,40 +145,40 @@ export default function HomePage() {
     >
       {[
         {
-          name: "VinFast VF3",
-          price: "$180 / day",
-          img: "https://i1-vnexpress.vnecdn.net/2024/08/01/VinFastVF3VnE9416JPG-1722500133.jpg?w=750&h=450&q=100&dpr=1&fit=crop&s=PqtpkmPPpczSND540feRFg",
-        },
-        {
-          name: "Toyota Alphard",
-          price: "$150 / day",
-          img: "https://images.unsplash.com/photo-1605559424843-94d89b7a612d?auto=format&fit=crop&w=800&q=80",
-        },
-        {
-          name: "Ford Transit Limousine",
-          price: "$120 / day",
-          img: "https://images.unsplash.com/photo-1583267747406-1c1c62666b03?auto=format&fit=crop&w=800&q=80",
-        },
-        {
-          name: "Lexus LM 350h",
-          price: "$200 / day",
-          img: "https://images.unsplash.com/photo-1598133894008-cd9f22e0e4e4?auto=format&fit=crop&w=800&q=80",
-        },
-        {
-          name: "Hyundai Solati VIP",
-          price: "$130 / day",
-          img: "https://images.unsplash.com/photo-1611472173361-c59f0a73084c?auto=format&fit=crop&w=800&q=80",
-        },
+                    name: "VinFast VF3",
+                    //price: "$180 / day",
+                    img: "https://i1-vnexpress.vnecdn.net/2024/08/01/VinFastVF3VnE9416JPG-1722500133.jpg?w=750&h=450&q=100&dpr=1&fit=crop&s=PqtpkmPPpczSND540feRFg",
+                  },
+                  {
+                    name: "Vinfast VF5",
+                    //price: "$150 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.Wwv2jLcoiXO9YXN4QTNY4gHaFR?pid=Api&P=0&h=220",
+                  },
+                  {
+                    name: "Vinfast VF6",
+                    //price: "$120 / day",
+                    img: "https://tse1.mm.bing.net/th/id/OIP.xRVbVRcFbXGKDLNfUz5_6wHaE7?pid=Api&P=0&h=220",
+                  },
+                  {
+                    name: "Vinfast VF7",
+                    //price: "$200 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.BTN06ECSn6134CVkuZwklwHaEK?pid=Api&P=0&h=220",
+                  },
+                  {
+                    name: "Vinfast VF8",
+                    //price: "$130 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.yu-rxYqPXlkF3lAdYNPp-QHaEK?pid=Api&P=0&h=220",
+                  },
       ].map((car, i) => (
         <SwiperSlide key={i}>
               <Card
             hoverable
             cover={
-              <div className="h-72 sm:h-80 md:h-96 lg:h-[420px] w-full flex items-center justify-center bg-gray-50 rounded-t-xl overflow-hidden">
+              <div className="h-64 sm:h-72 md:h-80 lg:h-96 w-full relative rounded-t-xl overflow-hidden bg-gray-50">
                 <img
                   alt={car.name}
                   src={car.img}
-                  className="max-h-full max-w-full object-contain"
+                  className="absolute inset-0 w-full h-full object-cover"
                   loading="lazy"
                 />
               </div>

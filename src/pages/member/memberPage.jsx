@@ -24,16 +24,16 @@ export default function MemberPage() {
             top: 50% !important;
             transform: translateY(-50%) !important;
             z-index: 10 !important;
-            width: 36px !important;
-            height: 36px !important;
+            width: 40px !important;
+            height: 40px !important;
             margin-top: 0 !important;
             background-color: rgba(255, 255, 255, 0.9) !important;
             border-radius: 50% !important;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
             transition: all 0.3s ease !important;
           }
-          .car-swiper .swiper-button-prev { left: -18px !important; }
-          .car-swiper .swiper-button-next { right: -18px !important; }
+          .car-swiper .swiper-button-prev { left: 10px !important; }
+          .car-swiper .swiper-button-next { right: 10px !important; }
           .car-swiper .swiper-button-prev:hover,
           .car-swiper .swiper-button-next:hover {
             background-color: #2563eb !important;
@@ -133,39 +133,39 @@ export default function MemberPage() {
                 {[
                   {
                     name: "VinFast VF3",
-                    price: "$180 / day",
+                    //price: "$180 / day",
                     img: "https://i1-vnexpress.vnecdn.net/2024/08/01/VinFastVF3VnE9416JPG-1722500133.jpg?w=750&h=450&q=100&dpr=1&fit=crop&s=PqtpkmPPpczSND540feRFg",
                   },
                   {
-                    name: "Toyota Alphard",
-                    price: "$150 / day",
-                    img: "https://images.unsplash.com/photo-1605559424843-94d89b7a612d?auto=format&fit=crop&w=800&q=80",
+                    name: "Vinfast VF5",
+                    //price: "$150 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.Wwv2jLcoiXO9YXN4QTNY4gHaFR?pid=Api&P=0&h=220",
                   },
                   {
-                    name: "Ford Transit Limousine",
-                    price: "$120 / day",
-                    img: "https://images.unsplash.com/photo-1583267747406-1c1c62666b03?auto=format&fit=crop&w=800&q=80",
+                    name: "Vinfast VF6",
+                    //price: "$120 / day",
+                    img: "https://tse1.mm.bing.net/th/id/OIP.xRVbVRcFbXGKDLNfUz5_6wHaE7?pid=Api&P=0&h=220",
                   },
                   {
-                    name: "Lexus LM 350h",
-                    price: "$200 / day",
-                    img: "https://images.unsplash.com/photo-1598133894008-cd9f22e0e4e4?auto=format&fit=crop&w=800&q=80",
+                    name: "Vinfast VF7",
+                    //price: "$200 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.BTN06ECSn6134CVkuZwklwHaEK?pid=Api&P=0&h=220",
                   },
                   {
-                    name: "Hyundai Solati VIP",
-                    price: "$130 / day",
-                    img: "https://images.unsplash.com/photo-1611472173361-c59f0a73084c?auto=format&fit=crop&w=800&q=80",
+                    name: "Vinfast VF8",
+                    //price: "$130 / day",
+                    img: "https://tse3.mm.bing.net/th/id/OIP.yu-rxYqPXlkF3lAdYNPp-QHaEK?pid=Api&P=0&h=220",
                   },
                 ].map((car, i) => (
                   <SwiperSlide key={i}>
                     <Card
                       hoverable
                       cover={
-                        <div className="h-72 sm:h-80 md:h-96 lg:h-[420px] w-full flex items-center justify-center bg-gray-50 rounded-t-xl overflow-hidden">
+                        <div className="h-64 sm:h-72 md:h-80 lg:h-96 w-full relative rounded-t-xl overflow-hidden bg-gray-50">
                           <img
                             alt={car.name}
                             src={car.img}
-                            className="max-h-full max-w-full object-contain"
+                            className="absolute inset-0 w-full h-full object-cover"
                             loading="lazy"
                           />
                         </div>
@@ -176,6 +176,9 @@ export default function MemberPage() {
                         <Title level={4} className="text-gray-800 mb-1">
                           {car.name}
                         </Title>
+                        <Text className="text-blue-600 font-semibold">
+                          {car.price}
+                        </Text>
                       </div>
                     </Card>
                   </SwiperSlide>
@@ -183,6 +186,122 @@ export default function MemberPage() {
               </Swiper>
             </div>
           </section>
+        </div>
+      </section>
+
+      {/* Member Dashboard Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl font-bold text-gray-800 text-center mb-12">
+            Bảng Điều Khiển Thành Viên
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Booking Status */}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              <h3 className="text-xl font-semibold mb-4">Lịch Đặt Xe</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span>Đang chờ duyệt:</span>
+                  <span className="font-semibold text-orange-500">2</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Đã xác nhận:</span>
+                  <span className="font-semibold text-green-500">1</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Sắp tới:</span>
+                  <span className="font-semibold text-blue-500">3</span>
+                </div>
+              </div>
+              <button className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                Xem Chi Tiết
+              </button>
+            </div>
+
+            {/* Usage Statistics */}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              <h3 className="text-xl font-semibold mb-4">Thống Kê Sử Dụng</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span>Tổng giờ sử dụng:</span>
+                  <span className="font-semibold">48 giờ</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Quãng đường:</span>
+                  <span className="font-semibold">789 km</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Điện năng tiêu thụ:</span>
+                  <span className="font-semibold">180 kWh</span>
+                </div>
+              </div>
+              <button className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                Xem Báo Cáo
+              </button>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              <h3 className="text-xl font-semibold mb-4">Tổng Kết Chi Phí</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span>Chi phí sạc:</span>
+                  <span className="font-semibold">540,000 đ</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Chi phí bảo trì:</span>
+                  <span className="font-semibold">320,000 đ</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Tổng cộng:</span>
+                  <span className="font-semibold text-blue-600">860,000 đ</span>
+                </div>
+              </div>
+              <button className="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                Thanh Toán Ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Actions Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl font-bold text-gray-800 text-center mb-12">
+            Thao Tác Nhanh
+          </h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <button className="p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-center">
+              <svg className="w-8 h-8 mx-auto mb-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="font-semibold">Đặt Lịch</span>
+            </button>
+            
+            <button className="p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-center">
+              <svg className="w-8 h-8 mx-auto mb-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 8h6m-5 0a3 3 0 110 6H9l3 3m-3-6h6m6 1a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-semibold">Nạp Tiền</span>
+            </button>
+            
+            <button className="p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-center">
+              <svg className="w-8 h-8 mx-auto mb-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="font-semibold">Lịch Sử</span>
+            </button>
+            
+            <button className="p-6 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-center">
+              <svg className="w-8 h-8 mx-auto mb-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-semibold">Hỗ Trợ</span>
+            </button>
+          </div>
         </div>
       </section>
 
