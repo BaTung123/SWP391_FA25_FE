@@ -151,7 +151,7 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <ProtectedRoute roleAccount={[0, 1]}>
-              <MemberPage />
+              <HomePage />
             </ProtectedRoute>
           </Suspense>
         ),
