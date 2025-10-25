@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { User, LogOut, Wallet } from 'lucide-react';
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -11,6 +12,52 @@ const Header = () => {
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
+  };
+
+  const [userName, setUserName] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const syncUser = () => {
+      try {
+        const user = JSON.parse(localStorage.getItem("user"));
+        if (user && user.userName) {
+          setUserName(user.userName);
+          setIsLoggedIn(true);
+        } else {
+          setUserName("");
+          setIsLoggedIn(false);
+        }
+      } catch {
+        setUserName("");
+        setIsLoggedIn(false);
+      }
+    };
+
+    // initial sync
+    syncUser();
+
+    // listen for storage changes (other tabs) and re-sync
+    const onStorage = (e) => {
+      if (!e.key || e.key === "user" || e.key === "token") syncUser();
+    };
+    window.addEventListener("storage", onStorage);
+
+    return () => window.removeEventListener("storage", onStorage);
+  }, [location]);
+
+  function getInitials(name) {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
   };
 
   return (
@@ -38,7 +85,7 @@ const Header = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/about" className={`transition-colors duration-200 ${location.pathname === '/about' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
+<Link to="/about" className={`transition-colors duration-200 ${location.pathname === '/about' ? 'text-blue-600' : 'hover:text-blue-600'}`}>
                   Về chúng tôi
                 </Link>
               </li>
@@ -50,23 +97,57 @@ const Header = () => {
             </ul>
           </nav>
 
-          {/* Desktop Money & Login Section */}
+          {/* Desktop Money & Login / User Section */}
           <div className="hidden lg:flex items-center space-x-4">
-            {/* Registration Button */}
-            <Link
-              to="/auth/register"
-              className="px-7 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
-            >
-              Đăng Ký 
-            </Link>
-            
-            {/* Login Button */}
-            <Link
-              to="/auth/login"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
-            >
-              Đăng Nhập
-            </Link>
+            {/* Money — CHỈ hiện khi đã đăng nhập */}
+            {isLoggedIn && (
+              <div className="flex items-center space-x-2 px-3 py-2 rounded-lg">
+                <span className="text-green-700 font-semibold">0 VNĐ</span>
+              </div>
+            )}
+
+            {isLoggedIn ? (
+              <div className="relative group">
+                <button className="flex items-center space-x-2 focus:outline-none rounded-full hover:bg-gray-100 px-2 py-1">
+                  <span className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-blue-600 text-white font-bold text-lg">
+                    {getInitials(userName)}
+                  </span>
+                  <span className="font-medium text-gray-800">{userName}</span>
+                  <svg className="w-4 h-4 ml-1 text-gray-500 group-hover:text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-150">
+                  <button onClick={() => navigate("/member/profile")} className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100">
+                    <User className="mr-2 h-4 w-4" />
+                    Thông tin cá nhân
+                  </button>
+                  <button onClick={() => navigate("/member/wallet")} className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Ví của tôi
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-gray-100">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Đăng xuất
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Registration Button */}
+                <Link
+                  to="/auth/register"
+className="px-7 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
+                >
+                  Đăng Ký
+                </Link>
+                {/* Login Button */}
+                <Link
+                  to="/auth/login"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+                >
+                  Đăng Nhập
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -76,11 +157,15 @@ const Header = () => {
               className="p-2 text-gray-700 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-md"
               aria-label="Toggle mobile menu"
             >
-                {isMobileMenuOpen ? (
+              {isMobileMenuOpen ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                )}
+                </svg>
+              )}
             </button>
           </div>
         </div>
@@ -116,7 +201,7 @@ const Header = () => {
                   >
                     Về chúng tôi
                   </Link>
-                </li>
+</li>
                 <li>
                   <Link 
                     to="/contact" 
@@ -126,13 +211,16 @@ const Header = () => {
                     Liên hệ
                   </Link>
                 </li>
-                {/* Mobile Money Section */}
-                <li className="pt-2">
-                  <div className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg mx-3">
-                    <span className="text-green-700 font-semibold">0 VNĐ</span>
-                  </div>
-                </li>
-                
+
+                {/* Mobile Money Section — CHỈ hiện khi đã đăng nhập */}
+                {isLoggedIn && (
+                  <li className="pt-2">
+                    <div className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg mx-3">
+                      <span className="text-green-700 font-semibold">0 VNĐ</span>
+                    </div>
+                  </li>
+                )}
+
                 {/* Mobile Registration Button */}
                 <li className="pt-2">
                   <Link
@@ -143,17 +231,42 @@ const Header = () => {
                     Đăng Ký Lịch
                   </Link>
                 </li>
-                
-                {/* Mobile Login Button */}
-                <li className="pt-2">
-                  <Link
-                    to="/auth/login"
-                    className="block px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-center"
-                    onClick={closeMobileMenu}
-                  >
-                    Đăng Nhập
-                  </Link>
-                </li>
+
+                {/* Conditional auth buttons */}
+                {isLoggedIn ? (
+                  <>
+                    <li>
+                      <Link
+                        to="/member/profile"
+                        className="block px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-center"
+                        onClick={closeMobileMenu}
+                      >
+                        Thông tin cá nhân
+                      </Link>
+                    </li>
+                    <li>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          closeMobileMenu();
+                        }}
+                        className="block w-full px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 font-medium text-center"
+                      >
+                        Đăng xuất
+                      </button>
+                    </li>
+                  </>
+                ) : (
+                  <li>
+                    <Link
+                      to="/auth/login"
+                      className="block px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium text-center"
+                      onClick={closeMobileMenu}
+                    >
+                      Đăng Nhập
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
           </div>
