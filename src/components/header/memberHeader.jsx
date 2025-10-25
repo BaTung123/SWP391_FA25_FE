@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { User, LogOut, Wallet } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const MemberHeader = () => {
@@ -8,14 +9,24 @@ const MemberHeader = () => {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const [userName, setUserName] = useState("");
   const isLoggedIn = useMemo(() => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
+      if (user && user.userName) setUserName(user.userName);
       return !!user;
     } catch {
       return false;
     }
   }, []);
+
+  function getInitials(name) {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
 
  
   const handleLogout = () => {
@@ -65,18 +76,7 @@ const MemberHeader = () => {
                   Đăng ký xe
                 </Link>
               </li>
-              <li>
-                <Link
-                  to="/member/wallet"
-                  className={`transition-colors duration-200 ${
-                    location.pathname === "/member/wallet"
-                      ? "text-blue-600"
-                      : "hover:text-blue-600"
-                  }`}
-                >
-                  Ví của tôi
-                </Link>
-              </li>
+              {/* Ví của tôi moved into the user dropdown on desktop */}
             </ul>
           </nav>
 
@@ -88,20 +88,30 @@ const MemberHeader = () => {
             </div>
 
             {isLoggedIn ? (
-              <>
-                <Link
-                  to="/member/profile"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
-                >
-                  Thông tin cá nhân
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 font-medium"
-                >
-                  Đăng xuất
+              <div className="relative group">
+                <button className="flex items-center space-x-2 focus:outline-none rounded-full hover:bg-gray-100 px-2 py-1">
+                  <span className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-blue-600 text-white font-bold text-lg">
+                    {getInitials(userName)}
+                  </span>
+                  <span className="font-medium text-gray-800">{userName}</span>
+                  <svg className="w-4 h-4 ml-1 text-gray-500 group-hover:text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </button>
-              </>
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg py-2 z-50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto transition-opacity duration-150">
+                 
+                  <button onClick={() => navigate("/member/profile") } className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100">
+                    <User className="mr-2 h-4 w-4" />
+                    Thông tin cá nhân
+                  </button>
+                  <button onClick={() => navigate("/member/wallet") } className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100">
+                    <Wallet className="mr-2 h-4 w-4" />
+                    Ví của tôi
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center w-full px-4 py-2 text-red-600 hover:bg-gray-100">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Đăng xuất
+                  </button>
+                </div>
+              </div>
             ) : (
               <Link
                 to="/auth/login"
