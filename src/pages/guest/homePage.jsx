@@ -1,6 +1,8 @@
 import React from "react";
 import bgGarage from "../../assets/search-image.jpg";
 import logoGarage from "../../assets/logo.png";
+import image from "../../assets/work.png";
+import vision from "../../assets/vision.png";
 import Header from "../../components/header/header";
 import Footer from "../../components/footer/footer";
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -465,7 +467,7 @@ export default function HomePage() {
     <div className="md:w-1/2">
       <div className="relative">
         <img
-          src={logoGarage}
+          src={image}
           alt="How EV Co-ownership Works"
           className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
           loading="lazy"
@@ -483,7 +485,7 @@ export default function HomePage() {
     <div className="md:w-1/2 mb-8 md:mb-0">
       <div className="relative">
         <img
-          src={logoGarage}
+          src={vision}
           alt="EV Co-ownership Vision"
           className="w-full h-96 object-cover rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300"
           loading="lazy"
