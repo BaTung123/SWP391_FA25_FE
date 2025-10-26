@@ -7,9 +7,10 @@ const ProfilePage = () => {
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   
-  const [user] = useState({
+  const [user, setUser] = useState({
     email: 'john.doe@example.com',
-    avatarImageUrl: null
+    avatarImageUrl: null,
+    idCardImageUrl: null
   });
   
   const [form, setForm] = useState({
@@ -130,6 +131,40 @@ const ProfilePage = () => {
     alert('Thông tin thành viên đã được lưu thành công!');
   };
 
+  // Handle ID card file selection -> convert to data URL for preview
+  const handleIdCardChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Kích thước file không được vượt quá 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUser(prev => ({ ...prev, idCardImageUrl: reader.result }));
+    };
+    reader.onerror = () => {
+      alert('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveIdCard = () => {
+    setUser(prev => ({ ...prev, idCardImageUrl: null }));
+    // Reset file input
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) fileInput.value = '';
+  };
+
   const handleViewCoOwners = (vehicle) => {
     setSelectedVehicle(vehicle);
     setShowCoOwnersModal(true);
@@ -203,90 +238,167 @@ const ProfilePage = () => {
         </div>
 
         {activeTab === 'profile' && user && (
-          <div className="flex items-start mb-8">
-            {/* Hiển thị avatar nếu có */}
-            {user.avatarImageUrl && (
-              <div className="mr-8 flex-shrink-0">
-                <img
-                  src={user.avatarImageUrl}
-                  alt="Avatar"
-                  className="w-32 h-32 rounded-full object-cover border-4 border-indigo-200 shadow-md"
-                />
-              </div>
-            )}
-            <div className="flex-1 w-full">
-              <div className="grid grid-cols-2 gap-x-12 gap-y-6 w-full">
-                <div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">HỌ VÀ TÊN</label>
-                    <input
-                      name="name"
-                      value={form.name || form.fullName || ''}
-                      onChange={handleChange}
-                      className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">SỐ ĐIỆN THOẠI</label>
-                    <input
-                      name="phone"
-                      value={form.phone || ''}
-                      onChange={handleChange}
-                      className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="text-base font-semibold uppercase tracking-wider min-w-[180px] text-left">Bằng lái xe</label>
-                    <input
-                      name="lisenseNumber"
-                      value={form.licenseNumber || ''}
-                      onChange={handleChange}
-                      className="py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all flex-1 w-full hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                      placeholder="Nhập bằng lái xe"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">NGÀY SINH</label>
-                    <input
-                      name="dob"
-                      value={form.dob || ''}
-                      type="date"
-                      onChange={handleChange}
-                      className="w-full py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Left Side - Avatar */}
+            <div className="md:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
+                {/* Avatar */}
+                <div className="flex justify-center mb-4">
+                  <div className="relative">
+                    {/* <div className="h-32 w-32 rounded-full overflow-hidden border-4 border-gray-200 shadow-lg">
+                      {user.avatarImageUrl ? (
+                        <img
+                          src={user.avatarImageUrl}
+                          alt="Avatar"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white text-3xl">
+                          {form.name ? form.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                      )}
+                    </div>
+                    <button className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 hover:bg-blue-700 transition-colors">
+                      <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button> */}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">EMAIL</label>
-                  <input
-                    name="email"
-                    value={user.email}
-                    readOnly
-                    className="w-full py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)] cursor-not-allowed"
-                  />
-                  <div className="flex flex-col gap-1 w-full mb-3 mt-3">
-                    <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">GIỚI TÍNH</label>
-                    <select
-                      name="gender"
-                      value={form.gender || ''}
-                      onChange={handleChange}
-                      className="w-full py-3.5 px-4 border-2 border-indigo-100 rounded-lg text-lg bg-white transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                    >
-                      <option value="Male">Nam</option>
-                      <option value="Female">Nữ</option>
-                      <option value="Other">Khác</option>
-                    </select>
+                {/* Name */}
+                {/* <h3 className="text-gray-900 text-xl font-bold">
+                  {form.name || form.fullName || 'Chưa cập nhật'}
+                </h3> */}
+
+                {/* ID card upload placed under the name */}
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Ảnh căn cước</p>
+                  <div className="mx-auto w-48">
+                    {user.idCardImageUrl ? (
+                      <img
+                        src={user.idCardImageUrl}
+                        alt="Ảnh căn cước"
+                        className="w-full h-auto rounded-md border border-gray-200 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-gray-100 rounded-md border border-gray-200 shadow-sm flex items-center justify-center">
+                        <span className="text-gray-400">Chưa có ảnh căn cước</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-col gap-1 w-full mb-3">
-                    <label className="block text-base font-semibold uppercase tracking-wider mb-1 text-left">ĐỊA CHỈ</label>
+
+                  <div className="mt-2 flex justify-center space-x-2">
+                    <label className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white rounded cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleIdCardChange} />
+                      Tải ảnh
+                    </label>
+                    {user.idCardImageUrl && (
+                      <button onClick={handleRemoveIdCard} className="px-3 py-1 border rounded">Xóa</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side - Form */}
+            <div className="md:col-span-2">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="space-y-6">
+                  {/* Row 1: Họ và Tên + Email */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">HỌ VÀ TÊN</label>
+                      <input
+                        name="name"
+                        value={form.name || form.fullName || ''}
+                        onChange={handleChange}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">EMAIL</label>
+                      <input
+                        name="email"
+                        value={user.email}
+                        readOnly
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Số điện thoại + Giới tính */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">SỐ ĐIỆN THOẠI</label>
+                      <input
+                        name="phone"
+                        value={form.phone || ''}
+                        onChange={handleChange}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nhập số điện thoại"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">GIỚI TÍNH</label>
+                      <select
+                        name="gender"
+                        value={form.gender || ''}
+                        onChange={handleChange}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="Male">Nam</option>
+                        <option value="Female">Nữ</option>
+                        <option value="Other">Khác</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Ngày sinh + Địa chỉ */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">NGÀY SINH</label>
+                      <input
+                        name="dob"
+                        type="date"
+                        value={form.dob || ''}
+                        onChange={handleChange}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">ĐỊA CHỈ</label>
+                      <input
+                        name="address"
+                        value={form.address || ''}
+                        onChange={handleChange}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Nhập địa chỉ thường trú"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 4: Bằng lái xe */}
+                  <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 text-left">BẰNG LÁI XE</label>
                     <input
-                      name="address"
-                      value={form.address || ''}
+                      name="licenseNumber"
+                      value={form.licenseNumber || ''}
                       onChange={handleChange}
-                      className="w-full py-3 px-4 border-2 border-indigo-100 rounded-lg text-lg transition-all hover:border-indigo-200 focus:border-indigo-900 focus:outline-none focus:shadow-[0_0_0_3px_rgba(26,35,126,0.1)]"
-                      placeholder="Nhập địa chỉ thường trú"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Nhập bằng lái xe"
                     />
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-center mt-8">
+                    <button
+                      onClick={handleSave}
+                      className="px-12 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      LƯU
+                    </button>
                   </div>
                 </div>
               </div>
@@ -452,17 +564,6 @@ const ProfilePage = () => {
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {activeTab === 'profile' && (
-          <div className="flex justify-center mt-10 gap-4">
-            <button
-              className="!bg-indigo-900 !text-white border-none font-semibold text-lg py-3 px-12 rounded-lg shadow-md transition-all hover:!bg-indigo-800 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-              onClick={handleSave}
-            >
-              LƯU
-            </button>
           </div>
         )}
 
