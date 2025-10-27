@@ -133,12 +133,12 @@ const Header = () => {
             ) : (
               <>
                 {/* Registration Button */}
-                <Link
+                {/* <Link
                   to="/auth/register"
 className="px-7 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 font-medium"
                 >
                   Đăng Ký
-                </Link>
+                </Link> */}
                 {/* Login Button */}
                 <Link
                   to="/auth/login"

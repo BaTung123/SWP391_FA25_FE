@@ -10,7 +10,8 @@ const ProfilePage = () => {
   const [user, setUser] = useState({
     email: 'john.doe@example.com',
     avatarImageUrl: null,
-    idCardImageUrl: null
+    idCardImageUrl: null,
+    drivingLicenseImageUrl: null
   });
   
   const [form, setForm] = useState({
@@ -132,7 +133,7 @@ const ProfilePage = () => {
   };
 
   // Handle ID card file selection -> convert to data URL for preview
-  const handleIdCardChange = (e) => {
+  const handleImageChange = (imageType) => (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
@@ -150,7 +151,10 @@ const ProfilePage = () => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      setUser(prev => ({ ...prev, idCardImageUrl: reader.result }));
+      setUser(prev => ({ 
+        ...prev, 
+        [imageType === 'idCard' ? 'idCardImageUrl' : 'drivingLicenseImageUrl']: reader.result 
+      }));
     };
     reader.onerror = () => {
       alert('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
@@ -158,12 +162,7 @@ const ProfilePage = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveIdCard = () => {
-    setUser(prev => ({ ...prev, idCardImageUrl: null }));
-    // Reset file input
-    const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) fileInput.value = '';
-  };
+
 
   const handleViewCoOwners = (vehicle) => {
     setSelectedVehicle(vehicle);
@@ -241,6 +240,7 @@ const ProfilePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Left Side - Avatar */}
             <div className="md:col-span-1">
+              
               <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
                 {/* Avatar */}
                 <div className="flex justify-center mb-4">
@@ -274,7 +274,7 @@ const ProfilePage = () => {
 
                 {/* ID card upload placed under the name */}
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Ảnh căn cước</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Ảnh căn cước mặt trước</p>
                   <div className="mx-auto w-48">
                     {user.idCardImageUrl ? (
                       <img
@@ -291,11 +291,39 @@ const ProfilePage = () => {
 
                   <div className="mt-2 flex justify-center space-x-2">
                     <label className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white rounded cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden" onChange={handleIdCardChange} />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageChange('idCard')} />
                       Tải ảnh
                     </label>
                     {user.idCardImageUrl && (
-                      <button onClick={handleRemoveIdCard} className="px-3 py-1 border rounded">Xóa</button>
+                      <button onClick={() => setUser(prev => ({ ...prev, idCardImageUrl: null }))} className="px-3 py-1 border rounded">Xóa</button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border p-6 text-center mt-6">
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Ảnh căn cước mặt sau</p>
+                  <div className="mx-auto w-48">
+                    {user.drivingLicenseImageUrl ? (
+                      <img
+                        src={user.drivingLicenseImageUrl}
+                        alt="Ảnh căn cước mặt sau"
+                        className="w-full h-auto rounded-md border border-gray-200 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-full h-48 bg-gray-100 rounded-md border border-gray-200 shadow-sm flex items-center justify-center">
+                        <span className="text-gray-400">Chưa có ảnh căn cước</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2 flex justify-center space-x-2">
+                    <label className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white rounded cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageChange('drivingLicense')} />
+                      Tải ảnh
+                    </label>
+                    {user.drivingLicenseImageUrl && (
+                      <button onClick={() => setUser(prev => ({ ...prev, drivingLicenseImageUrl: null }))} className="px-3 py-1 border rounded">Xóa</button>
                     )}
                   </div>
                 </div>
