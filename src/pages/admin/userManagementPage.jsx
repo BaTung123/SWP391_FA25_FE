@@ -14,13 +14,10 @@ import {
   Typography,
   Tooltip,
   Select,
-  Row,
-  Col,
   Empty,
 } from "antd";
 import {
   PlusOutlined,
-  ReloadOutlined,
   UserAddOutlined,
   SearchOutlined,
   TeamOutlined,
@@ -29,7 +26,7 @@ import {
 } from "@ant-design/icons";
 import api from "../../config/axios";
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { Option } = Select;
 
 const roleLabel = (roleNumber) => (Number(roleNumber) === 1 ? "Nhân viên" : "Thành viên");
@@ -46,8 +43,8 @@ export default function UserManagementPage() {
 
   // Search & Filters
   const [keyword, setKeyword] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");     // all | 0 | 1
-  const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -289,15 +286,14 @@ export default function UserManagementPage() {
               <Option value="active">Hoạt động</Option>
               <Option value="inactive">Ngừng hoạt động</Option>
             </Select>
-            <Button icon={<ReloadOutlined />} onClick={fetchUsers} loading={loading}>
-              Làm mới
-            </Button>
+
+            {/* Đã bỏ nút Làm mới */}
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setIsModalOpen(true)}
             >
-              Thêm thành viên
+              Thêm nhân viên
             </Button>
           </Space>
         }

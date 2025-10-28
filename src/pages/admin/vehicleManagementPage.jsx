@@ -18,14 +18,15 @@ import {
   Avatar,
   Empty,
   Pagination,
+  Progress,
 } from "antd";
 import {
   PlusOutlined,
   EditOutlined,
-  ReloadOutlined,
   CarOutlined,
   SearchOutlined,
   PictureOutlined,
+  PieChartOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
@@ -41,9 +42,10 @@ export default function VehicleManagementPage() {
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // === Pagination: giống User ===
+  const [openShareModal, setOpenShareModal] = useState(false); // Modal xem phần trăm
+
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8); 
+  const [itemsPerPage] = useState(8);
 
   const [form] = Form.useForm();
 
@@ -118,7 +120,7 @@ export default function VehicleManagementPage() {
     });
   }, [vehicles, keyword, statusFilter]);
 
-  // --- Slice dữ liệu theo trang (giống User) ---
+  // --- Slice dữ liệu theo trang ---
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -210,14 +212,14 @@ export default function VehicleManagementPage() {
               value={keyword}
               onChange={(e) => {
                 setKeyword(e.target.value);
-                setCurrentPage(1); // reset trang như User
+                setCurrentPage(1);
               }}
             />
             <Select
               value={statusFilter}
               onChange={(v) => {
                 setStatusFilter(v);
-                setCurrentPage(1); // reset trang như User
+                setCurrentPage(1);
               }}
               style={{ width: 180 }}
               options={[
@@ -226,8 +228,13 @@ export default function VehicleManagementPage() {
                 { label: "Không hoạt động", value: 0 },
               ]}
             />
-            <Button icon={<ReloadOutlined />} onClick={fetchVehicles}>
-              Làm mới
+            {/* Nút xem phần trăm đồng sở hữu */}
+            <Button
+              type="default"
+              icon={<PieChartOutlined />}
+              onClick={() => setOpenShareModal(true)}
+            >
+              Xem phần trăm đồng sở hữu
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
               Thêm xe
@@ -246,19 +253,16 @@ export default function VehicleManagementPage() {
           bordered
           loading={loading}
           sticky
-          pagination={false} 
+          pagination={false}
           locale={{
             emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Không có dữ liệu xe"
-              />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có dữ liệu xe" />
             ),
           }}
         />
       </Card>
 
-      {/* Pagination (giống User) */}
+      {/* Pagination */}
       <Space style={{ width: "100%", justifyContent: "center" }}>
         <Pagination
           current={currentPage}
@@ -336,12 +340,7 @@ export default function VehicleManagementPage() {
                 label="Dung lượng pin (kWh)"
                 rules={[{ required: true, message: "Nhập dung lượng pin" }]}
               >
-                <InputNumber
-                  min={0}
-                  style={{ width: "100%" }}
-                  placeholder="VD: 42"
-                  controls={false}
-                />
+                <InputNumber min={0} style={{ width: "100%" }} placeholder="VD: 42" controls={false} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -373,6 +372,43 @@ export default function VehicleManagementPage() {
             </Card>
           )}
         </Form>
+      </Modal>
+
+      {/* Modal phần trăm đồng sở hữu */}
+      <Modal
+        title={
+          <Space>
+            <PieChartOutlined />
+            <span>Phần trăm đồng sở hữu xe</span>
+          </Space>
+        }
+        open={openShareModal}
+        footer={null}
+        onCancel={() => setOpenShareModal(false)}
+        width={700}
+      >
+        {vehicles.length === 0 ? (
+          <Empty description="Chưa có dữ liệu đồng sở hữu" />
+        ) : (
+          <Table
+            dataSource={vehicles.map((v) => ({
+              ...v,
+              sharePercent: Math.floor(Math.random() * 60) + 20, // demo phần trăm giả
+            }))}
+            rowKey={(r) => r.id ?? r.carId}
+            pagination={false}
+            columns={[
+              { title: "Tên xe", dataIndex: "carName", key: "carName" },
+              { title: "Biển số", dataIndex: "plateNumber", key: "plateNumber" },
+              {
+                title: "Phần trăm sở hữu",
+                dataIndex: "sharePercent",
+                key: "sharePercent",
+                render: (v) => <Progress percent={v} size="small" status="active" />,
+              },
+            ]}
+          />
+        )}
       </Modal>
     </div>
   );
