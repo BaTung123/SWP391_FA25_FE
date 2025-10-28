@@ -17,6 +17,7 @@ const RegisterPage = lazy(() => import("../pages/guest/registerPage"));
 const MemberPage = lazy(() => import("../pages/member/memberPage")); // ⬅️ đổi tên biến import
 const ProfilePage = lazy(() => import("../pages/member/profilePage"));
 const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
+const DepositPage = lazy(() => import("../pages/member/depositPage"));
 const QRPage = lazy(() => import("../pages/member/qrPage"));
 
 // Admin pages
@@ -178,7 +179,7 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "wallet",
+        path: "qrcode",
         element: (
           <Suspense fallback={<Loading />}>
             <ProtectedRoute roleAccount={[0, 1]}>
@@ -187,7 +188,17 @@ export const router = createBrowserRouter([
           </Suspense>
         ),
       },
-    ],
+      {
+        path: "wallet",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <DepositPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+    ]
   },
 
   // Admin
