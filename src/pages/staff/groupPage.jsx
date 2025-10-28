@@ -28,27 +28,40 @@ import {
 import api from "../../config/axios";
 
 const { Option } = Select;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 /* ========= LocalStorage helpers ========= */
 const LS_KEY = "group_members_map"; // { [groupId]: number[] }
+const PERCENT_KEY = "ownership_percent_map"; // { [groupId]: { [userId]: percent } }
+
 const loadMembersMap = () => {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    // ignore parse error
     return {};
   }
 };
+
 const saveMembersMap = (map) => {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(map || {}));
-  } catch  {
-    // ignore quota error
+  } catch {}
+};
+
+const loadPercentMap = () => {
+  try {
+    const raw = localStorage.getItem(PERCENT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
   }
+};
+
+const savePercentMap = (map) => {
+  try {
+    localStorage.setItem(PERCENT_KEY, JSON.stringify(map || {}));
+  } catch {}
 };
 
 export default function GroupPage() {
@@ -57,16 +70,19 @@ export default function GroupPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // local members map { [groupId]: number[] }
   const [groupMembersMap, setGroupMembersMap] = useState({});
+  const [percentMap, setPercentMap] = useState({});
 
-  // UI states
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [viewModal, setViewModal] = useState({ visible: false, group: null });
   const [editingGroup, setEditingGroup] = useState(null);
 
-  // Search / filter / pagination
+  // Modal phần trăm
+  const [isPercentModalVisible, setIsPercentModalVisible] = useState(false);
+  const [selectedGroupForPercent, setSelectedGroupForPercent] = useState(null);
+  const [ownershipMap, setOwnershipMap] = useState({});
+
   const [keyword, setKeyword] = useState("");
   const [carFilter, setCarFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,8 +98,7 @@ export default function GroupPage() {
       const res = await api.get("/Group");
       const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
       setGroups(list);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không tải được danh sách nhóm!");
     } finally {
       setLoading(false);
@@ -94,8 +109,7 @@ export default function GroupPage() {
     try {
       const res = await api.get("/Car");
       setCars(res.data || []);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không tải được danh sách xe!");
     }
   };
@@ -115,8 +129,7 @@ export default function GroupPage() {
         }))
         .filter((u) => u.id != null);
       setUsers(mapped);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không tải được danh sách thành viên!");
     }
   };
@@ -126,9 +139,10 @@ export default function GroupPage() {
     fetchCars();
     fetchUsers();
     setGroupMembersMap(loadMembersMap());
+    setPercentMap(loadPercentMap());
   }, []);
 
-  /* ========= Options: chỉ Member (role = 0) ========= */
+  /* ========= Member options ========= */
   const memberOptions = useMemo(
     () =>
       users
@@ -142,17 +156,13 @@ export default function GroupPage() {
 
   /* ========= Helpers ========= */
   const getGroupId = (record) => record?.groupId ?? record?.id;
-
   const getMemberIdsForGroup = (group) => {
     const gid = getGroupId(group);
     if (!gid) return [];
     return Array.isArray(groupMembersMap[gid]) ? groupMembersMap[gid] : [];
   };
-
   const resolveMembers = (ids) =>
-    ids
-      .map((id) => users.find((u) => Number(u.id) === Number(id)))
-      .filter(Boolean);
+    ids.map((id) => users.find((u) => Number(u.id) === Number(id))).filter(Boolean);
 
   const setMembersForGroup = (groupId, userIds) => {
     setGroupMembersMap((prev) => {
@@ -161,7 +171,6 @@ export default function GroupPage() {
       return next;
     });
   };
-
   const removeMembersForGroup = (groupId) => {
     setGroupMembersMap((prev) => {
       const next = { ...prev };
@@ -171,7 +180,7 @@ export default function GroupPage() {
     });
   };
 
-  /* ========= Add Group (members local only) ========= */
+  /* ========= Add Group ========= */
   const handleAddGroup = async (values) => {
     try {
       const car = cars.find((c) => Number(c.carId) === Number(values.carId));
@@ -194,8 +203,7 @@ export default function GroupPage() {
       setIsAddModalVisible(false);
       formAdd.resetFields();
       fetchGroups();
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không thể thêm nhóm!");
     }
   };
@@ -205,20 +213,17 @@ export default function GroupPage() {
 
   /* ========= Delete Group ========= */
   const handleDelete = async (groupId) => {
-    if (!groupId) return message.error("Không tìm thấy ID nhóm để xoá!");
     try {
-      const res = await api.delete(`/Group/${groupId}/delete`);
-      console.log(res)
+      await api.delete(`/Group/${groupId}/delete`);
       removeMembersForGroup(groupId);
       message.success("Xoá nhóm thành công!");
       fetchGroups();
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không thể xoá nhóm!");
     }
   };
 
-  /* ========= Edit Group (update name/img on BE, members local) ========= */
+  /* ========= Edit Group ========= */
   const openEditModal = (record) => {
     setEditingGroup(record);
     const currentMemberIds = getMemberIdsForGroup(record);
@@ -242,7 +247,6 @@ export default function GroupPage() {
 
       setMembersForGroup(id, values.memberIds || []);
 
-      // cập nhật nhanh name/img hiển thị
       setGroups((prev) =>
         prev.map((g) =>
           getGroupId(g) === id ? { ...g, groupName: values.groupName, groupImg: values.groupImg } : g
@@ -251,16 +255,43 @@ export default function GroupPage() {
 
       message.success("Cập nhật nhóm thành công!");
       setIsEditModalVisible(false);
-    } catch (err) {
-      console.error(err);
+    } catch {
       message.error("Không thể cập nhật nhóm!");
     }
   };
 
-  /* ========= Filter + Pagination (giống style User/Vehicle) ========= */
+  /* ========= Chỉnh sửa phần trăm ========= */
+  const handleOpenPercentModal = (record) => {
+    const ids = getMemberIdsForGroup(record);
+    const members = resolveMembers(ids);
+    const gid = getGroupId(record);
+    const saved = percentMap[gid] || {};
+    const initMap = {};
+    members.forEach((m) => (initMap[m.id] = saved[m.id] ?? 0));
+    setSelectedGroupForPercent({ ...record, members });
+    setOwnershipMap(initMap);
+    setIsPercentModalVisible(true);
+  };
+
+  const handleSavePercent = () => {
+    if (!selectedGroupForPercent) return;
+    const gid = getGroupId(selectedGroupForPercent);
+    const total = Object.values(ownershipMap).reduce((sum, v) => sum + Number(v || 0), 0);
+    if (total !== 100) {
+      return message.warning("Tổng phần trăm phải bằng 100%!");
+    }
+    setPercentMap((prev) => {
+      const next = { ...prev, [gid]: ownershipMap };
+      savePercentMap(next);
+      return next;
+    });
+    message.success("Đã lưu phần trăm đồng sở hữu!");
+    setIsPercentModalVisible(false);
+  };
+
+  /* ========= Filter + Pagination ========= */
   const filteredGroups = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-
     return groups.filter((g) => {
       const matchKW =
         !kw ||
@@ -282,11 +313,6 @@ export default function GroupPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentRows = filteredGroups.slice(startIndex, endIndex);
-
-  const handlePageChange = (page) => {
-    if (page < 1 || page > totalPages) return;
-    setCurrentPage(page);
-  };
 
   /* ========= Columns ========= */
   const columns = [
@@ -315,17 +341,27 @@ export default function GroupPage() {
     {
       title: "Hành động",
       key: "action",
-      width: 200,
+      width: 280,
       align: "center",
       render: (_, record) => (
         <Space>
           <Tooltip title="Xem chi tiết">
             <Button icon={<EyeOutlined />} onClick={() => handleViewGroup(record)} />
           </Tooltip>
-          <Tooltip title="Chỉnh sửa thông tin & thành viên (local)">
-            <Button type="default" icon={<EditOutlined />} onClick={() => openEditModal(record)} />
+          <Tooltip title="Chỉnh sửa thông tin & thành viên">
+            <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
           </Tooltip>
-          <Popconfirm title="Xác nhận xoá nhóm này?" onConfirm={() => handleDelete(getGroupId(record))}>
+          <Tooltip title="Chỉnh sửa phần trăm đồng sở hữu">
+            <Button
+              icon={<CarOutlined />}
+              type="primary"
+              onClick={() => handleOpenPercentModal(record)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Xác nhận xoá nhóm này?"
+            onConfirm={() => handleDelete(getGroupId(record))}
+          >
             <Button danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -336,15 +372,9 @@ export default function GroupPage() {
   /* ========= Render ========= */
   return (
     <div className="space-y-4">
-      {/* Header + Actions */}
+      {/* Header */}
       <Card
-        styles={{ padding: 16 }}
-        className="border border-gray-100 shadow-sm"
-        title={
-          <Space>
-            <span className="font-semibold">Quản lý nhóm</span>
-          </Space>
-        }
+        title={<span className="font-semibold">Quản lý nhóm</span>}
         extra={
           <Space wrap>
             <Input
@@ -376,7 +406,11 @@ export default function GroupPage() {
             <Button icon={<ReloadOutlined />} onClick={fetchGroups}>
               Làm mới
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsAddModalVisible(true)}
+            >
               Thêm nhóm
             </Button>
           </Space>
@@ -384,32 +418,30 @@ export default function GroupPage() {
       />
 
       {/* Table */}
-      <Card styles={{ padding: 0 }} className="border border-gray-100 shadow-sm">
+      <Card>
         <Table
           dataSource={currentRows}
           columns={columns}
           rowKey={(record) => getGroupId(record)}
           loading={loading}
-          pagination={false} // dùng Pagination rời giống các trang khác
+          pagination={false}
           size="middle"
-          locale={{
-            emptyText: <Empty description="Không có nhóm nào" />,
-          }}
+          locale={{ emptyText: <Empty description="Không có nhóm nào" /> }}
         />
       </Card>
 
-      {/* Pagination (rời) */}
+      {/* Pagination */}
       <Space style={{ width: "100%", justifyContent: "center" }}>
         <Pagination
           current={currentPage}
           pageSize={itemsPerPage}
           total={totalItems}
-          onChange={handlePageChange}
+          onChange={(p) => setCurrentPage(p)}
           showSizeChanger={false}
         />
       </Space>
 
-      {/* ===== Modal thêm nhóm ===== */}
+      {/* Modal thêm nhóm */}
       <Modal
         title="Thêm nhóm mới"
         open={isAddModalVisible}
@@ -417,7 +449,7 @@ export default function GroupPage() {
         onOk={() => formAdd.submit()}
         okText="Lưu"
         cancelText="Hủy"
-     destroyOnHidden
+        destroyOnClose
       >
         <Form form={formAdd} layout="vertical" onFinish={handleAddGroup}>
           <Form.Item
@@ -427,11 +459,9 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-
           <Form.Item name="description" label="Mô tả">
             <Input.TextArea placeholder="Nhập mô tả" rows={3} />
           </Form.Item>
-
           <Form.Item
             name="carId"
             label="Chọn xe"
@@ -445,13 +475,11 @@ export default function GroupPage() {
               ))}
             </Select>
           </Form.Item>
-
-          {/* Thành viên (local only) */}
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select
               mode="multiple"
               allowClear
-              placeholder="Chọn thành viên (chỉ hiển thị Member)"
+              placeholder="Chọn thành viên"
               options={memberOptions}
               optionFilterProp="label"
               showSearch
@@ -460,7 +488,7 @@ export default function GroupPage() {
         </Form>
       </Modal>
 
-      {/* ===== Modal chỉnh sửa nhóm ===== */}
+      {/* Modal chỉnh sửa nhóm */}
       <Modal
         title="Cập nhật nhóm"
         open={isEditModalVisible}
@@ -468,7 +496,7 @@ export default function GroupPage() {
         onOk={() => formEdit.submit()}
         okText="Lưu thay đổi"
         cancelText="Hủy"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={formEdit} layout="vertical" onFinish={handleUpdateGroup}>
           <Form.Item
@@ -478,18 +506,14 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-
-          {/* Swagger: /Group/{id}/update nhận groupName + groupImg */}
           <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
             <Input placeholder="https://..." />
           </Form.Item>
-
-          {/* Thành viên (local only) */}
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select
               mode="multiple"
               allowClear
-              placeholder="Chọn thành viên (chỉ hiển thị Member)"
+              placeholder="Chọn thành viên"
               options={memberOptions}
               optionFilterProp="label"
               showSearch
@@ -498,84 +522,43 @@ export default function GroupPage() {
         </Form>
       </Modal>
 
-      {/* ===== Modal xem chi tiết ===== */}
+      {/* Modal chỉnh phần trăm đồng sở hữu */}
       <Modal
-        open={viewModal.visible}
-        onCancel={() => setViewModal({ visible: false, group: null })}
-        footer={null}
-        title="Thông tin nhóm"
-        destroyOnHidden
+        title="Chỉnh sửa phần trăm đồng sở hữu"
+        open={isPercentModalVisible}
+        onCancel={() => setIsPercentModalVisible(false)}
+        onOk={handleSavePercent}
+        okText="Lưu"
+        cancelText="Hủy"
+        destroyOnClose
       >
-        {viewModal.group &&
-          (() => {
-            const ids = getMemberIdsForGroup(viewModal.group);
-            const members = resolveMembers(ids);
-            const g = viewModal.group;
-
-            const formattedCreated = g.createdAt
-              ? new Date(g.createdAt).toLocaleString("vi-VN")
-              : "(Không có)";
-
-            return (
-              <div className="space-y-3">
-                <p>
-                  <strong>Tên nhóm:</strong> {g.groupName}
-                </p>
-                <p>
-                  <strong>Mô tả:</strong> {g.description || "(không có)"}
-                </p>
-                <p>
-                  <strong>Ngày tạo:</strong> {formattedCreated}
-                </p>
-
-                {g.groupImg ? (
-                  <div>
-                    <strong>Ảnh nhóm:</strong>
-                    <div className="mt-2">
-                      <img
-                        src={g.groupImg}
-                        alt="Ảnh nhóm"
-                        className="w-full max-h-64 object-contain rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p>
-                    <strong>Ảnh nhóm:</strong> (chưa có)
-                  </p>
-                )}
-
-                {g.car ? (
-                  <>
-                    <p>
-                      <strong>Xe:</strong> {g.car.carName}
-                    </p>
-                    <p>
-                      <strong>Biển số:</strong> {g.car.plateNumber}
-                    </p>
-                  </>
-                ) : (
-                  <p>Chưa có xe được gán</p>
-                )}
-
-                <div>
-                  <strong>Thành viên ({members.length}):</strong>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {members.length > 0 ? (
-                      members.map((m) => (
-                        <Tag key={m.id} color="geekblue">
-                          {m.name}
-                          {m.email ? ` (${m.email})` : ""}
-                        </Tag>
-                      ))
-                    ) : (
-                      <div>(Chưa có thành viên)</div>
-                    )}
-                  </div>
-                </div>
+        {selectedGroupForPercent && selectedGroupForPercent.members.length > 0 ? (
+          <div className="space-y-3">
+            {selectedGroupForPercent.members.map((m) => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ flex: 1 }}>
+                  {m.name} {m.email ? `(${m.email})` : ""}
+                </span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  suffix="%"
+                  value={ownershipMap[m.id] || ""}
+                  onChange={(e) =>
+                    setOwnershipMap((prev) => ({
+                      ...prev,
+                      [m.id]: Number(e.target.value),
+                    }))
+                  }
+                  style={{ width: 120 }}
+                />
               </div>
-            );
-          })()}
+            ))}
+          </div>
+        ) : (
+          <Empty description="Nhóm chưa có thành viên" />
+        )}
       </Modal>
     </div>
   );
