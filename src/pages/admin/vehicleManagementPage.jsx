@@ -18,17 +18,23 @@ import {
   Avatar,
   Empty,
   Pagination,
+<<<<<<< HEAD
   Popconfirm,
+=======
+  Progress,
+>>>>>>> main
 } from "antd";
 import {
   PlusOutlined,
   EditOutlined,
-  ReloadOutlined,
   CarOutlined,
   SearchOutlined,
   PictureOutlined,
   PieChartOutlined,
+<<<<<<< HEAD
   DeleteOutlined,
+=======
+>>>>>>> main
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
@@ -45,7 +51,8 @@ export default function VehicleManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [openShareModal, setOpenShareModal] = useState(false);
 
-  // === Pagination: giống User ===
+  const [openShareModal, setOpenShareModal] = useState(false); // Modal xem phần trăm
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(8);
 
@@ -149,7 +156,7 @@ export default function VehicleManagementPage() {
     });
   }, [vehicles, keyword, statusFilter]);
 
-  // --- Slice dữ liệu theo trang (giống User) ---
+  // --- Slice dữ liệu theo trang ---
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -258,14 +265,14 @@ export default function VehicleManagementPage() {
               value={keyword}
               onChange={(e) => {
                 setKeyword(e.target.value);
-                setCurrentPage(1); // reset trang như User
+                setCurrentPage(1);
               }}
             />
             <Select
               value={statusFilter}
               onChange={(v) => {
                 setStatusFilter(v);
-                setCurrentPage(1); // reset trang như User
+                setCurrentPage(1);
               }}
               style={{ width: 180 }}
               options={[
@@ -274,8 +281,13 @@ export default function VehicleManagementPage() {
                 { label: "Không hoạt động", value: 0 },
               ]}
             />
-            <Button icon={<ReloadOutlined />} onClick={fetchVehicles}>
-              Làm mới
+            {/* Nút xem phần trăm đồng sở hữu */}
+            <Button
+              type="default"
+              icon={<PieChartOutlined />}
+              onClick={() => setOpenShareModal(true)}
+            >
+              Xem phần trăm đồng sở hữu
             </Button>
             <Button
               type="primary"
@@ -304,16 +316,13 @@ export default function VehicleManagementPage() {
           pagination={false}
           locale={{
             emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Không có dữ liệu xe"
-              />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có dữ liệu xe" />
             ),
           }}
         />
       </Card>
 
-      {/* Pagination (giống User) */}
+      {/* Pagination */}
       <Space style={{ width: "100%", justifyContent: "center" }}>
         <Pagination
           current={currentPage}
@@ -391,12 +400,7 @@ export default function VehicleManagementPage() {
                 label="Dung lượng pin (kWh)"
                 rules={[{ required: true, message: "Nhập dung lượng pin" }]}
               >
-                <InputNumber
-                  min={0}
-                  style={{ width: "100%" }}
-                  placeholder="VD: 42"
-                  controls={false}
-                />
+                <InputNumber min={0} style={{ width: "100%" }} placeholder="VD: 42" controls={false} />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
@@ -467,18 +471,26 @@ export default function VehicleManagementPage() {
             pagination={false}
             columns={[
               { title: "Tên xe", dataIndex: "carName", key: "carName" },
+<<<<<<< HEAD
               {
                 title: "Biển số",
                 dataIndex: "plateNumber",
                 key: "plateNumber",
               },
+=======
+              { title: "Biển số", dataIndex: "plateNumber", key: "plateNumber" },
+>>>>>>> main
               {
                 title: "Phần trăm sở hữu",
                 dataIndex: "sharePercent",
                 key: "sharePercent",
+<<<<<<< HEAD
                 render: (v) => (
                   <Progress percent={v} size="small" status="active" />
                 ),
+=======
+                render: (v) => <Progress percent={v} size="small" status="active" />,
+>>>>>>> main
               },
             ]}
           />

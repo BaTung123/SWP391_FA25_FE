@@ -24,7 +24,7 @@ const MaintenancePage = () => {
       vehicle: { name: "Honda Civic 2023", license: "XYZ-789" },
       type: "Sửa chữa",
       scheduledDate: "2024-02-10",
-      status: "Quá hạn",
+      status: "Đang thực hiện",
       description: "Sửa hệ thống phanh",
     },
     {
@@ -115,7 +115,6 @@ const MaintenancePage = () => {
       "Đã lên lịch": "bg-yellow-100 text-yellow-800",
       "Đang thực hiện": "bg-blue-100 text-blue-800",
       "Hoàn thành": "bg-green-100 text-green-800",
-      "Quá hạn": "bg-red-100 text-red-800",
     };
 
     return (
