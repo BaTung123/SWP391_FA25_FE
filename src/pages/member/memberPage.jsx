@@ -1,6 +1,5 @@
 import React from "react";
 import bgGarage from "../../assets/search-image.jpg";
-import MemberHeader from "../../components/header/memberheader"; 
 import Footer from "../../components/footer/footer";
 
 import { Swiper, SwiperSlide } from "swiper/react";
