@@ -35,46 +35,60 @@ const RegistercarPage = () => {
       const fromStorage = localStorage.getItem("user");
       if (fromStorage) return JSON.parse(fromStorage);
     } catch {}
-    // fallback
-    const me = await api.get("/Auth/me").catch(() => null);
-    return me?.data?.data || me?.data || null;
+    try {
+      const me = await api.get("/Auth/me");
+      return me?.data?.data || me?.data || null;
+    } catch {
+      return null;
+    }
   };
 
-  // ======= Load danh sách xe user đang sở hữu (qua CarUser) =======
+  // Chuẩn hoá object xe từ API /users/{userId}/cars (tuỳ backend trả field)
+  const normalizeCar = (raw) => ({
+    carId: raw?.carId ?? raw?.id,
+    carName: raw?.carName ?? raw?.name ?? "Xe",
+    plateNumber: raw?.plateNumber ?? raw?.plate ?? "",
+    brand: raw?.brand ?? "",
+    color: raw?.color ?? "",
+    image: raw?.image ?? raw?.img ?? "",
+  });
+
+  // ======= Load danh sách xe user đang sở hữu (CarUser) =======
   useEffect(() => {
     const boot = async () => {
+      setLoading(true);
+      setErrorMsg("");
       try {
-        setLoading(true);
-        setErrorMsg("");
-
         const me = await getCurrentUser();
         if (!me) throw new Error("Bạn chưa đăng nhập.");
         const userId = me.userId ?? me.id ?? me.Id;
         if (!userId) throw new Error("Thiếu userId để tra cứu xe.");
         setUser(me);
 
-        // 1) lấy danh sách CarUser của user
-        const cuRes = await api.get(`/CarUser/${userId}`);
-        const links = Array.isArray(cuRes.data) ? cuRes.data : cuRes.data?.data || [];
-        const carIds = [...new Set(links.map((x) => x.carId))].filter(Boolean);
-        if (carIds.length === 0) {
-          setCars([]);
-          return;
-        }
+        // Lấy trực tiếp danh sách xe user đang sở hữu
+        // ✅ Đúng theo CarUser: GET /api/users/{userId}/cars
+        const res = await api.get(`/users/${userId}/cars`);
+        const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+        const owned = list
+          .map(normalizeCar)
+          .filter((c) => c.carId != null);
 
-        // 2) lấy toàn bộ xe rồi lọc theo carIds (giảm số call)
-        const carRes = await api.get("/Car");
-        const allCars = Array.isArray(carRes.data) ? carRes.data : carRes.data?.data || [];
-        const owned = allCars.filter((c) => carIds.includes(c.carId ?? c.id));
         setCars(owned);
+
+        // Nếu đang chọn 1 xe không còn trong danh sách sở hữu → reset
+        if (formData.vehicleId && !owned.some((c) => String(c.carId) === String(formData.vehicleId))) {
+          setFormData((p) => ({ ...p, vehicleId: "" }));
+        }
       } catch (err) {
         console.error(err);
-        setErrorMsg(err?.message || "Không thể tải danh sách xe.");
+        setErrorMsg(err?.message || "Không thể tải danh sách xe bạn đang sở hữu.");
+        setCars([]);
       } finally {
         setLoading(false);
       }
     };
     boot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ======= UI helpers (giữ nguyên) =======
@@ -236,7 +250,7 @@ const RegistercarPage = () => {
               >
                 <option value="">-- Chọn xe --</option>
                 {cars.map((v) => (
-                  <option key={v.carId ?? v.id} value={v.carId ?? v.id}>
+                  <option key={v.carId} value={v.carId}>
                     {v.carName} - {v.plateNumber} ({v.brand})
                   </option>
                 ))}
@@ -246,7 +260,7 @@ const RegistercarPage = () => {
             {formData.vehicleId && (
               <div className="space-y-2 bg-indigo-50 rounded-lg p-4">
                 {(() => {
-                  const v = cars.find((x) => String(x.carId ?? x.id) === String(formData.vehicleId));
+                  const v = cars.find((x) => String(x.carId) === String(formData.vehicleId));
                   if (!v) return null;
                   return (
                     <>

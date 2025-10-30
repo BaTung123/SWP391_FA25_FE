@@ -18,6 +18,7 @@ import {
   Avatar,
   Empty,
   Pagination,
+  Popconfirm,
 } from "antd";
 import {
   PlusOutlined,
@@ -26,6 +27,8 @@ import {
   CarOutlined,
   SearchOutlined,
   PictureOutlined,
+  PieChartOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
@@ -40,10 +43,11 @@ export default function VehicleManagementPage() {
 
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [openShareModal, setOpenShareModal] = useState(false);
 
   // === Pagination: giống User ===
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8); 
+  const [itemsPerPage] = useState(8);
 
   const [form] = Form.useForm();
 
@@ -85,19 +89,44 @@ export default function VehicleManagementPage() {
   const handleSubmit = async (values) => {
     try {
       const payload = {
-        ...values,
+        brand: values.brand,
+        carName: values.carName,
+        plateNumber: values.plateNumber,
         status: Number(values.status),
+        image: values.image,
+        color: values.color,
         batteryCapacity: Number(values.batteryCapacity),
-        id: editingVehicle ? editingVehicle.id : undefined,
       };
 
-      await api.post("/Car", payload);
-      message.success(editingVehicle ? "Cập nhật xe thành công!" : "Thêm xe thành công!");
+      if (editingVehicle) {
+        await api.put(`/Car/${editingVehicle.carId}/update`, payload);
+        message.success("Cập nhật xe thành công!");
+      } else {
+        await api.post("/Car", payload);
+        message.success("Thêm xe thành công!");
+      }
+
       setOpenModal(false);
       form.resetFields();
       fetchVehicles();
-    } catch {
+    } catch (error) {
+      console.error("Lỗi khi lưu xe:", error);
       message.error("Không thể lưu xe. Vui lòng thử lại.");
+    }
+  };
+  const handleDelete = async (record) => {
+    try {
+      const carId = record?.carId ?? record?.id;
+      if (!carId) {
+        message.error("Không xác định được ID xe để xoá.");
+        return;
+      }
+      await api.delete(`/Car/${carId}/delete`);
+      message.success("Xoá xe thành công!");
+      fetchVehicles();
+    } catch (error) {
+      console.error("Lỗi khi xoá xe:", error);
+      message.error("Không thể xoá xe. Vui lòng thử lại.");
     }
   };
 
@@ -112,7 +141,9 @@ export default function VehicleManagementPage() {
           .some((t) => String(t).toLowerCase().includes(kw));
 
       const matchStatus =
-        statusFilter === "all" ? true : Number(v?.status ?? 0) === Number(statusFilter);
+        statusFilter === "all"
+          ? true
+          : Number(v?.status ?? 0) === Number(statusFilter);
 
       return matchKW && matchStatus;
     });
@@ -144,7 +175,9 @@ export default function VehicleManagementPage() {
           )}
           <div>
             <div className="font-medium">{record.carName}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{record.brand || "—"}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {record.brand || "—"}
+            </div>
           </div>
         </Space>
       ),
@@ -179,10 +212,25 @@ export default function VehicleManagementPage() {
       render: (_, record) => (
         <Space>
           <Tooltip title="Chỉnh sửa">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEditModal(record)}>
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEditModal(record)}
+            >
               Sửa
             </Button>
           </Tooltip>
+          <Popconfirm
+            title="Xác nhận xoá xe?"
+            description="Hành động này không thể hoàn tác."
+            okText="Xoá"
+            cancelText="Huỷ"
+            onConfirm={() => handleDelete(record)}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>
+              Xoá{" "}
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -229,7 +277,11 @@ export default function VehicleManagementPage() {
             <Button icon={<ReloadOutlined />} onClick={fetchVehicles}>
               Làm mới
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openAddModal}
+            >
               Thêm xe
             </Button>
           </Space>
@@ -237,7 +289,10 @@ export default function VehicleManagementPage() {
       />
 
       {/* Table */}
-      <Card styles={{ padding: 0 }} className="border border-gray-100 shadow-sm">
+      <Card
+        styles={{ padding: 0 }}
+        className="border border-gray-100 shadow-sm"
+      >
         <Table
           columns={columns}
           dataSource={currentVehicles}
@@ -246,7 +301,7 @@ export default function VehicleManagementPage() {
           bordered
           loading={loading}
           sticky
-          pagination={false} 
+          pagination={false}
           locale={{
             emptyText: (
               <Empty
@@ -345,7 +400,11 @@ export default function VehicleManagementPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}>
+              <Form.Item
+                name="status"
+                label="Trạng thái"
+                rules={[{ required: true }]}
+              >
                 <Select
                   options={[
                     { label: "Không hoạt động", value: 0 },
@@ -359,11 +418,19 @@ export default function VehicleManagementPage() {
           <Divider style={{ margin: "8px 0 16px" }} />
 
           <Form.Item name="image" label="Ảnh xe (URL)">
-            <Input placeholder="https://link-to-image..." prefix={<PictureOutlined />} />
+            <Input
+              placeholder="https://link-to-image..."
+              prefix={<PictureOutlined />}
+            />
           </Form.Item>
 
           {form.getFieldValue("image") && (
-            <Card size="small" type="inner" title="Xem trước ảnh" style={{ marginTop: 8 }}>
+            <Card
+              size="small"
+              type="inner"
+              title="Xem trước ảnh"
+              style={{ marginTop: 8 }}
+            >
               <img
                 src={form.getFieldValue("image")}
                 alt="car"
@@ -373,6 +440,49 @@ export default function VehicleManagementPage() {
             </Card>
           )}
         </Form>
+      </Modal>
+
+      {/* Modal phần trăm đồng sở hữu */}
+      <Modal
+        title={
+          <Space>
+            <PieChartOutlined />
+            <span>Phần trăm đồng sở hữu xe</span>
+          </Space>
+        }
+        open={openShareModal}
+        footer={null}
+        onCancel={() => setOpenShareModal(false)}
+        width={700}
+      >
+        {vehicles.length === 0 ? (
+          <Empty description="Chưa có dữ liệu đồng sở hữu" />
+        ) : (
+          <Table
+            dataSource={vehicles.map((v) => ({
+              ...v,
+              sharePercent: Math.floor(Math.random() * 60) + 20, // demo phần trăm giả
+            }))}
+            rowKey={(r) => r.id ?? r.carId}
+            pagination={false}
+            columns={[
+              { title: "Tên xe", dataIndex: "carName", key: "carName" },
+              {
+                title: "Biển số",
+                dataIndex: "plateNumber",
+                key: "plateNumber",
+              },
+              {
+                title: "Phần trăm sở hữu",
+                dataIndex: "sharePercent",
+                key: "sharePercent",
+                render: (v) => (
+                  <Progress percent={v} size="small" status="active" />
+                ),
+              },
+            ]}
+          />
+        )}
       </Modal>
     </div>
   );

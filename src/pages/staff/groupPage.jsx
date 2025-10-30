@@ -11,62 +11,37 @@ import {
   Popconfirm,
   Tag,
   Card,
-  Typography,
   Tooltip,
   Pagination,
   Empty,
 } from "antd";
 import {
-  EyeOutlined,
-  DeleteOutlined,
   PlusOutlined,
   EditOutlined,
+  DeleteOutlined,
   ReloadOutlined,
   SearchOutlined,
   CarOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios";
 
 const { Option } = Select;
-const { Title, Text } = Typography;
-
-/* ========= LocalStorage helpers ========= */
-const LS_KEY = "group_members_map"; // { [groupId]: number[] }
-const loadMembersMap = () => {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    // ignore parse error
-    return {};
-  }
-};
-const saveMembersMap = (map) => {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(map || {}));
-  } catch  {
-    // ignore quota error
-  }
-};
 
 export default function GroupPage() {
   const [groups, setGroups] = useState([]);
   const [cars, setCars] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState([]); // chỉ role=member
   const [loading, setLoading] = useState(false);
 
-  // local members map { [groupId]: number[] }
-  const [groupMembersMap, setGroupMembersMap] = useState({});
+  // carId -> [userId]
+  const [membersByCarId, setMembersByCarId] = useState({});
 
-  // UI states
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [viewModal, setViewModal] = useState({ visible: false, group: null });
   const [editingGroup, setEditingGroup] = useState(null);
 
-  // Search / filter / pagination
   const [keyword, setKeyword] = useState("");
   const [carFilter, setCarFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,16 +50,14 @@ export default function GroupPage() {
   const [formAdd] = Form.useForm();
   const [formEdit] = Form.useForm();
 
-  /* ========= Load data ========= */
+  /* =================== FETCH =================== */
   const fetchGroups = async () => {
     try {
       setLoading(true);
       const res = await api.get("/Group");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      setGroups(list);
-    } catch (err) {
-      console.error(err);
-      message.error("Không tải được danh sách nhóm!");
+      setGroups(Array.isArray(res.data) ? res.data : res.data ? [res.data] : []);
+    } catch {
+      message.error("Không thể tải danh sách nhóm!");
     } finally {
       setLoading(false);
     }
@@ -94,173 +67,237 @@ export default function GroupPage() {
     try {
       const res = await api.get("/Car");
       setCars(res.data || []);
-    } catch (err) {
-      console.error(err);
-      message.error("Không tải được danh sách xe!");
+    } catch {
+      message.error("Không thể tải danh sách xe!");
     }
   };
 
   const fetchUsers = async () => {
     try {
       const res = await api.get("/User");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      const mapped = list
-        .filter(Boolean)
+      const data = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      const members = data
+        .filter((u) => Number(u.role ?? 0) === 0)
         .map((u) => ({
           id: u.userId ?? u.id,
           name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
           email: u.email,
-          role: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
-          raw: u,
         }))
         .filter((u) => u.id != null);
-      setUsers(mapped);
-    } catch (err) {
-      console.error(err);
-      message.error("Không tải được danh sách thành viên!");
+      setUsers(members);
+    } catch {
+      message.error("Không thể tải danh sách thành viên!");
     }
   };
 
   useEffect(() => {
-    fetchGroups();
-    fetchCars();
-    fetchUsers();
-    setGroupMembersMap(loadMembersMap());
+    (async () => {
+      await Promise.all([fetchCars(), fetchUsers()]);
+      await fetchGroups();
+    })();
   }, []);
 
-  /* ========= Options: chỉ Member (role = 0) ========= */
+  // ---- CarUser helpers ----
+  const doesUserOwnCar = async (userId, carId) => {
+    try {
+      const res = await api.get(`/users/${userId}/cars`);
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      return arr.some((c) => Number(c.carId ?? c.id) === Number(carId));
+    } catch {
+      return false;
+    }
+  };
+
+  const safeAddOwner = async (carId, userId) => {
+    const owns = await doesUserOwnCar(userId, carId);
+    if (owns) return;
+    await api.post(`/cars/${carId}/users/${userId}/add`);
+  };
+
+  const safeRemoveOwner = async (carId, userId) => {
+    const owns = await doesUserOwnCar(userId, carId);
+    if (!owns) return;
+    await api.delete(`/cars/${carId}/users/${userId}/remove`);
+  };
+
+  const fetchMembersForCar = async (carId) => {
+    if (!carId || users.length === 0) return [];
+    try {
+      const results = await Promise.all(
+        users.map(async (u) => {
+          try {
+            const res = await api.get(`/users/${u.id}/cars`);
+            const userCars = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+            const owns = userCars.some((c) => Number(c.carId ?? c.id) === Number(carId));
+            return owns ? u.id : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const memberIds = results.filter(Boolean).map(Number);
+      setMembersByCarId((prev) => ({ ...prev, [carId]: memberIds }));
+      return memberIds;
+    } catch {
+      return [];
+    }
+  };
+
+  const hydrateAllCarsMembers = async (groupsList) => {
+    const carIds = [
+      ...new Set(
+        groupsList
+          .map((g) => Number(g?.car?.carId ?? g?.carId))
+          .filter((id) => !Number.isNaN(id))
+      ),
+    ];
+    await Promise.all(carIds.map((cid) => fetchMembersForCar(cid)));
+  };
+
+  useEffect(() => {
+    if (groups.length && users.length) {
+      hydrateAllCarsMembers(groups);
+    }
+  }, [groups, users]);
+
+  /* =================== HELPERS =================== */
+  const getGroupId = (g) => g?.groupId ?? g?.id;
+  const getCarIdOfGroup = (g) => Number(g?.car?.carId ?? g?.carId);
   const memberOptions = useMemo(
     () =>
-      users
-        .filter((u) => (typeof u.role === "number" ? u.role : Number(u.role ?? 0)) === 0)
-        .map((u) => ({
-          label: `${u.name}${u.email ? ` (${u.email})` : ""}`,
-          value: u.id,
-        })),
+      users.map((u) => ({
+        label: `${u.name}${u.email ? ` (${u.email})` : ""}`,
+        value: u.id,
+      })),
     [users]
   );
+  const getMemberIdsForGroup = (g) => {
+    const cid = getCarIdOfGroup(g);
+    return Array.isArray(membersByCarId[cid]) ? membersByCarId[cid] : [];
+  };
+  const resolveCarForGroup = (g) =>
+    g?.car ?? cars.find((c) => Number(c.carId) === Number(g?.carId));
 
-  /* ========= Helpers ========= */
-  const getGroupId = (record) => record?.groupId ?? record?.id;
-
-  const getMemberIdsForGroup = (group) => {
-    const gid = getGroupId(group);
-    if (!gid) return [];
-    return Array.isArray(groupMembersMap[gid]) ? groupMembersMap[gid] : [];
+  const humanizeError = (e) => {
+    const d = e?.response?.data;
+    if (typeof d === "string") return d;
+    return d?.message || d?.title || d?.detail || "Server error";
   };
 
-  const resolveMembers = (ids) =>
-    ids
-      .map((id) => users.find((u) => Number(u.id) === Number(id)))
-      .filter(Boolean);
-
-  const setMembersForGroup = (groupId, userIds) => {
-    setGroupMembersMap((prev) => {
-      const next = { ...prev, [groupId]: (userIds || []).map(Number) };
-      saveMembersMap(next);
-      return next;
-    });
-  };
-
-  const removeMembersForGroup = (groupId) => {
-    setGroupMembersMap((prev) => {
-      const next = { ...prev };
-      delete next[groupId];
-      saveMembersMap(next);
-      return next;
-    });
-  };
-
-  /* ========= Add Group (members local only) ========= */
+  /* =================== ADD GROUP =================== */
   const handleAddGroup = async (values) => {
+    const car = cars.find((c) => Number(c.carId) === Number(values.carId));
+    if (!car) return message.error("Vui lòng chọn xe hợp lệ!");
+
+    // Nếu DB ràng buộc 1-1 Car-Group: chặn xe đã thuộc nhóm khác
+    const carAlreadyUsed = groups.some(
+      (g) => Number(g?.car?.carId ?? g?.carId) === Number(car.carId)
+    );
+    if (carAlreadyUsed) {
+      return message.warning("Chiếc xe này đã thuộc một nhóm khác. Vui lòng chọn xe khác.");
+    }
+
+    const payload = {
+      groupName: values.groupName?.trim(),
+      ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+      ...(values.groupImg?.trim() ? { groupImg: values.groupImg.trim() } : {}),
+      carId: Number(car.carId),
+    };
+
     try {
-      const car = cars.find((c) => Number(c.carId) === Number(values.carId));
-      if (!car) return message.error("Hãy chọn một xe hợp lệ!");
+      await api.post("/Group", payload, { headers: { "Content-Type": "application/json" } });
 
-      const resCreate = await api.post("/Group", {
-        groupName: values.groupName,
-        description: values.description,
-        carId: car.carId,
-      });
-
-      const created = resCreate?.data || {};
-      const groupId = created.groupId ?? created.id;
-
-      if (groupId && Array.isArray(values.memberIds) && values.memberIds.length > 0) {
-        setMembersForGroup(groupId, values.memberIds);
+  
+      const memberIds = (values.memberIds || []).map(Number).filter(Boolean);
+      for (const uid of memberIds) {
+        await safeAddOwner(Number(car.carId), uid);
       }
 
+ 
+      await fetchMembersForCar(Number(car.carId));
       message.success("Thêm nhóm thành công!");
       setIsAddModalVisible(false);
       formAdd.resetFields();
       fetchGroups();
     } catch (err) {
-      console.error(err);
-      message.error("Không thể thêm nhóm!");
+      console.error("Create group failed:", err?.response?.data || err);
+      message.error(humanizeError(err));
     }
   };
 
-  /* ========= View Group ========= */
-  const handleViewGroup = (record) => setViewModal({ visible: true, group: record });
-
-  /* ========= Delete Group ========= */
-  const handleDelete = async (groupId) => {
-    if (!groupId) return message.error("Không tìm thấy ID nhóm để xoá!");
-    try {
-      const res = await api.delete(`/Group/${groupId}/delete`);
-      console.log(res)
-      removeMembersForGroup(groupId);
-      message.success("Xoá nhóm thành công!");
-      fetchGroups();
-    } catch (err) {
-      console.error(err);
-      message.error("Không thể xoá nhóm!");
-    }
-  };
-
-  /* ========= Edit Group (update name/img on BE, members local) ========= */
-  const openEditModal = (record) => {
+  /* =================== EDIT GROUP =================== */
+  const openEditModal = async (record) => {
     setEditingGroup(record);
-    const currentMemberIds = getMemberIdsForGroup(record);
+    const carId = getCarIdOfGroup(record);
+    const current = membersByCarId[carId]?.length
+      ? membersByCarId[carId]
+      : await fetchMembersForCar(carId);
+
     formEdit.setFieldsValue({
       groupName: record.groupName,
       groupImg: record.groupImg || "",
-      memberIds: currentMemberIds,
+      memberIds: current || [],
     });
     setIsEditModalVisible(true);
   };
 
   const handleUpdateGroup = async (values) => {
-    try {
-      const id = getGroupId(editingGroup);
-      if (!id) return;
+    const id = getGroupId(editingGroup);
+    if (!id) return;
+    const carId = getCarIdOfGroup(editingGroup);
 
+    try {
+  
       await api.put(`/Group/${id}/update`, {
         groupName: values.groupName,
         groupImg: values.groupImg || "",
       });
 
-      setMembersForGroup(id, values.memberIds || []);
+      // 2) diff thành viên -> remove trước, add sau (đều có precheck)
+      const prev = new Set(getMemberIdsForGroup(editingGroup));
+      const next = new Set((values.memberIds || []).map(Number));
+      const toAdd = [...next].filter((uid) => !prev.has(uid));
+      const toRemove = [...prev].filter((uid) => !next.has(uid));
 
-      // cập nhật nhanh name/img hiển thị
+      for (const uid of toRemove) {
+        await safeRemoveOwner(carId, uid);
+      }
+      for (const uid of toAdd) {
+        await safeAddOwner(carId, uid);
+      }
+
+      await fetchMembersForCar(carId);
+
+      message.success("Cập nhật nhóm thành công!");
+      setIsEditModalVisible(false);
+      // cập nhật tên/ảnh hiển thị
       setGroups((prev) =>
         prev.map((g) =>
           getGroupId(g) === id ? { ...g, groupName: values.groupName, groupImg: values.groupImg } : g
         )
       );
-
-      message.success("Cập nhật nhóm thành công!");
-      setIsEditModalVisible(false);
     } catch (err) {
-      console.error(err);
-      message.error("Không thể cập nhật nhóm!");
+      console.error("Update group failed:", err?.response?.data || err);
+      message.error(humanizeError(err));
     }
   };
 
-  /* ========= Filter + Pagination (giống style User/Vehicle) ========= */
+  /* =================== DELETE GROUP =================== */
+  const handleDeleteGroup = async (record) => {
+    const id = getGroupId(record);
+    try {
+      await api.delete(`/Group/${id}/delete`);
+      message.success("Đã xoá nhóm!");
+      fetchGroups();
+    } catch (err) {
+      console.error("Delete group failed:", err?.response?.data || err);
+      message.error(humanizeError(err));
+    }
+  };
+
+  /* =================== FILTER & PAGINATION =================== */
   const filteredGroups = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-
     return groups.filter((g) => {
       const matchKW =
         !kw ||
@@ -278,54 +315,50 @@ export default function GroupPage() {
   }, [groups, keyword, carFilter]);
 
   const totalItems = filteredGroups.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentRows = filteredGroups.slice(startIndex, endIndex);
+  const currentRows = filteredGroups.slice(startIndex, startIndex + itemsPerPage);
 
-  const handlePageChange = (page) => {
-    if (page < 1 || page > totalPages) return;
-    setCurrentPage(page);
-  };
-
-  /* ========= Columns ========= */
+  /* =================== COLUMNS =================== */
   const columns = [
-    {
-      title: "Tên nhóm",
-      dataIndex: "groupName",
-      key: "groupName",
-      render: (v) => <Text strong>{v}</Text>,
-    },
+    { title: "Tên nhóm", dataIndex: "groupName", key: "groupName" },
     {
       title: "Xe",
-      dataIndex: "car",
       key: "car",
-      render: (car) => (car ? `${car.carName} (${car.plateNumber})` : "Chưa có xe"),
+      render: (_, record) => {
+        const car = resolveCarForGroup(record);
+        return car ? `${car.carName} (${car.plateNumber})` : "Chưa có xe";
+      },
     },
     {
       title: "Thành viên",
-      key: "membersCount",
+      key: "members",
+      align: "center",
+      width: 140,
       render: (_, record) => {
         const count = getMemberIdsForGroup(record).length;
         return <Tag color="blue">{count} thành viên</Tag>;
       },
-      width: 140,
-      align: "center",
     },
     {
       title: "Hành động",
       key: "action",
-      width: 200,
       align: "center",
+      width: 260,
       render: (_, record) => (
         <Space>
           <Tooltip title="Xem chi tiết">
-            <Button icon={<EyeOutlined />} onClick={() => handleViewGroup(record)} />
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => setViewModal({ visible: true, group: record })}
+            />
           </Tooltip>
-          <Tooltip title="Chỉnh sửa thông tin & thành viên (local)">
-            <Button type="default" icon={<EditOutlined />} onClick={() => openEditModal(record)} />
+          <Tooltip title="Chỉnh sửa nhóm & thành viên">
+            <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
           </Tooltip>
-          <Popconfirm title="Xác nhận xoá nhóm này?" onConfirm={() => handleDelete(getGroupId(record))}>
+          <Popconfirm
+            title="Xác nhận xoá nhóm?"
+            onConfirm={() => handleDeleteGroup(record)}
+          >
             <Button danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -333,25 +366,18 @@ export default function GroupPage() {
     },
   ];
 
-  /* ========= Render ========= */
+  /* =================== RENDER =================== */
   return (
     <div className="space-y-4">
-      {/* Header + Actions */}
       <Card
-        styles={{ padding: 16 }}
-        className="border border-gray-100 shadow-sm"
-        title={
-          <Space>
-            <span className="font-semibold">Quản lý nhóm</span>
-          </Space>
-        }
+        title="Quản lý nhóm"
         extra={
           <Space wrap>
             <Input
               allowClear
               prefix={<SearchOutlined />}
-              placeholder="Tìm theo tên nhóm/xe/biển số"
-              style={{ width: 280 }}
+              placeholder="Tìm nhóm / biển số / tên xe"
+              style={{ width: 260 }}
               value={keyword}
               onChange={(e) => {
                 setKeyword(e.target.value);
@@ -383,33 +409,29 @@ export default function GroupPage() {
         }
       />
 
-      {/* Table */}
-      <Card styles={{ padding: 0 }} className="border border-gray-100 shadow-sm">
+      <Card>
         <Table
           dataSource={currentRows}
           columns={columns}
-          rowKey={(record) => getGroupId(record)}
+          rowKey={(r) => r.groupId ?? r.id}
           loading={loading}
-          pagination={false} // dùng Pagination rời giống các trang khác
+          pagination={false}
           size="middle"
-          locale={{
-            emptyText: <Empty description="Không có nhóm nào" />,
-          }}
+          locale={{ emptyText: <Empty description="Không có nhóm nào" /> }}
         />
       </Card>
 
-      {/* Pagination (rời) */}
       <Space style={{ width: "100%", justifyContent: "center" }}>
         <Pagination
           current={currentPage}
           pageSize={itemsPerPage}
-          total={totalItems}
-          onChange={handlePageChange}
+          total={filteredGroups.length}
+          onChange={(p) => setCurrentPage(p)}
           showSizeChanger={false}
         />
       </Space>
 
-      {/* ===== Modal thêm nhóm ===== */}
+      {/* Modal thêm nhóm */}
       <Modal
         title="Thêm nhóm mới"
         open={isAddModalVisible}
@@ -417,7 +439,7 @@ export default function GroupPage() {
         onOk={() => formAdd.submit()}
         okText="Lưu"
         cancelText="Hủy"
-     destroyOnHidden
+        destroyOnClose
       >
         <Form form={formAdd} layout="vertical" onFinish={handleAddGroup}>
           <Form.Item
@@ -427,15 +449,16 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-
           <Form.Item name="description" label="Mô tả">
-            <Input.TextArea placeholder="Nhập mô tả" rows={3} />
+            <Input.TextArea rows={3} placeholder="Nhập mô tả" />
           </Form.Item>
-
+          <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
+            <Input placeholder="https://..." />
+          </Form.Item>
           <Form.Item
             name="carId"
             label="Chọn xe"
-            rules={[{ required: true, message: "Hãy chọn một xe!" }]}
+            rules={[{ required: true, message: "Vui lòng chọn xe!" }]}
           >
             <Select placeholder="Chọn xe">
               {cars.map((car) => (
@@ -445,13 +468,11 @@ export default function GroupPage() {
               ))}
             </Select>
           </Form.Item>
-
-          {/* Thành viên (local only) */}
-          <Form.Item name="memberIds" label="Thành viên trong nhóm">
+          <Form.Item name="memberIds" label="Chọn thành viên (role = member)">
             <Select
               mode="multiple"
               allowClear
-              placeholder="Chọn thành viên (chỉ hiển thị Member)"
+              placeholder="Chọn thành viên"
               options={memberOptions}
               optionFilterProp="label"
               showSearch
@@ -460,7 +481,7 @@ export default function GroupPage() {
         </Form>
       </Modal>
 
-      {/* ===== Modal chỉnh sửa nhóm ===== */}
+      {/* Modal chỉnh sửa nhóm */}
       <Modal
         title="Cập nhật nhóm"
         open={isEditModalVisible}
@@ -468,7 +489,7 @@ export default function GroupPage() {
         onOk={() => formEdit.submit()}
         okText="Lưu thay đổi"
         cancelText="Hủy"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={formEdit} layout="vertical" onFinish={handleUpdateGroup}>
           <Form.Item
@@ -478,18 +499,14 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-
-          {/* Swagger: /Group/{id}/update nhận groupName + groupImg */}
           <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
             <Input placeholder="https://..." />
           </Form.Item>
-
-          {/* Thành viên (local only) */}
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select
               mode="multiple"
               allowClear
-              placeholder="Chọn thành viên (chỉ hiển thị Member)"
+              placeholder="Chọn thành viên"
               options={memberOptions}
               optionFilterProp="label"
               showSearch
@@ -498,84 +515,38 @@ export default function GroupPage() {
         </Form>
       </Modal>
 
-      {/* ===== Modal xem chi tiết ===== */}
+      {/* Modal xem chi tiết */}
       <Modal
+        title="Chi tiết nhóm"
         open={viewModal.visible}
         onCancel={() => setViewModal({ visible: false, group: null })}
         footer={null}
-        title="Thông tin nhóm"
-        destroyOnHidden
+        destroyOnClose
       >
-        {viewModal.group &&
-          (() => {
-            const ids = getMemberIdsForGroup(viewModal.group);
-            const members = resolveMembers(ids);
-            const g = viewModal.group;
-
-            const formattedCreated = g.createdAt
-              ? new Date(g.createdAt).toLocaleString("vi-VN")
-              : "(Không có)";
-
-            return (
-              <div className="space-y-3">
-                <p>
-                  <strong>Tên nhóm:</strong> {g.groupName}
-                </p>
-                <p>
-                  <strong>Mô tả:</strong> {g.description || "(không có)"}
-                </p>
-                <p>
-                  <strong>Ngày tạo:</strong> {formattedCreated}
-                </p>
-
-                {g.groupImg ? (
-                  <div>
-                    <strong>Ảnh nhóm:</strong>
-                    <div className="mt-2">
-                      <img
-                        src={g.groupImg}
-                        alt="Ảnh nhóm"
-                        className="w-full max-h-64 object-contain rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p>
-                    <strong>Ảnh nhóm:</strong> (chưa có)
-                  </p>
-                )}
-
-                {g.car ? (
-                  <>
-                    <p>
-                      <strong>Xe:</strong> {g.car.carName}
-                    </p>
-                    <p>
-                      <strong>Biển số:</strong> {g.car.plateNumber}
-                    </p>
-                  </>
-                ) : (
-                  <p>Chưa có xe được gán</p>
-                )}
-
-                <div>
-                  <strong>Thành viên ({members.length}):</strong>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {members.length > 0 ? (
-                      members.map((m) => (
-                        <Tag key={m.id} color="geekblue">
-                          {m.name}
-                          {m.email ? ` (${m.email})` : ""}
-                        </Tag>
-                      ))
-                    ) : (
-                      <div>(Chưa có thành viên)</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+        {viewModal.group ? (
+          <div>
+            <p><b>Tên nhóm:</b> {viewModal.group.groupName}</p>
+            <p>
+              <b>Xe:</b>{" "}
+              {(() => {
+                const car = resolveCarForGroup(viewModal.group);
+                return car ? `${car.carName} (${car.plateNumber})` : "Chưa có xe";
+              })()}
+            </p>
+            <p>
+              <b>Số thành viên:</b> {getMemberIdsForGroup(viewModal.group).length}
+            </p>
+            {viewModal.group.groupImg && (
+              <img
+                src={viewModal.group.groupImg}
+                alt="group"
+                style={{ width: "100%", maxHeight: 300, objectFit: "contain" }}
+              />
+            )}
+          </div>
+        ) : (
+          <Empty />
+        )}
       </Modal>
     </div>
   );
