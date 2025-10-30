@@ -1,6 +1,7 @@
 import React from "react";
 import bgGarage from "../../assets/search-image.jpg";
 import Footer from "../../components/footer/footer";
+import Header from "../../components/header/header.jsx";
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Pagination, Autoplay } from "swiper/modules";
@@ -59,7 +60,7 @@ export default function MemberPage() {
       />
 
       {/* Header cho member (đã có nút Thông tin cá nhân + Logout) */}
-      <MemberHeader />
+      <Header />
 
       <section
         id="home"
