@@ -353,7 +353,7 @@ export default function UserManagementPage() {
       >
         <Form form={form} layout="vertical" onFinish={handleAddUser} requiredMark={false}>
           <Form.Item
-            label="Họ và tên"
+            label="Tên người dùng"
             name="name"
             rules={[{ required: true, message: "Vui lòng nhập họ và tên" }]}
           >
