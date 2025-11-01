@@ -272,29 +272,33 @@ const MaintenancePage = () => {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên xe
-                </label>
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Tên xe
+                  </label>
+                </div>
                 <input
                   type="text"
                   name="vehicle"
                   value={newMaintenance.vehicle}
                   onChange={handleInputChange}
                   placeholder="Nhập tên xe..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Loại bảo dưỡng
-                </label>
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Loại bảo dưỡng
+                  </label>
+                </div>
                 <select
                   name="type"
                   value={newMaintenance.type}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="Bảo dưỡng định kỳ">Bảo dưỡng định kỳ</option>
                   <option value="Sửa chữa">Sửa chữa</option>
@@ -303,30 +307,35 @@ const MaintenancePage = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ngày dự kiến
-                </label>
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Ngày dự kiến
+                  </label>
+                </div>
                 <input
                   type="date"
                   name="scheduledDate"
                   value={newMaintenance.scheduledDate}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  placeholder="mm/dd/yyyy"
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mô tả
-                </label>
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Mô tả
+                  </label>
+                </div>
                 <textarea
                   name="description"
                   value={newMaintenance.description}
                   onChange={handleInputChange}
                   placeholder="Nhập mô tả chi tiết..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
