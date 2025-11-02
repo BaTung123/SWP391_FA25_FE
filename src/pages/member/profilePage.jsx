@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Header from '../../components/header/header';
 
 const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -6,12 +7,26 @@ const ProfilePage = () => {
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   
   const [user, setUser] = useState({
     email: 'john.doe@example.com',
     avatarImageUrl: null,
     idCardImageUrl: null
   });
+
+  // Kiểm tra role của user - chỉ hiển thị Header cho member (role = 0)
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        setUserRole(parsedUser.role);
+      }
+    } catch {
+      setUserRole(null);
+    }
+  }, []);
   
   const [form, setForm] = useState({
     name: 'John Doe',
@@ -199,8 +214,12 @@ const ProfilePage = () => {
     window.print();
   };
 
+  // Chỉ hiển thị Header cho member role (role = 0)
+  const isMember = userRole === 0 || userRole === '0' || Number(userRole) === 0;
+
   return (
     <div className="w-full">
+      {isMember && <Header/>}
       <div className="rounded-lg bg-white p-6">
         <h2 className="text-4xl font-bold text-indigo-900 mb-6">Thông tin thành viên EV Co-ownership</h2>
 

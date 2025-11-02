@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   FaCog,
   FaPlus,
@@ -7,6 +7,8 @@ import {
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
+  FaSearch,
+  FaTools,
 } from "react-icons/fa";
 
 const MaintenancePage = () => {
@@ -55,6 +57,8 @@ const MaintenancePage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const itemsPerPage = 5;
 
   const [newMaintenance, setNewMaintenance] = useState({
@@ -64,12 +68,28 @@ const MaintenancePage = () => {
     description: "",
   });
 
-  const totalPages = Math.ceil(maintenanceRecords.length / itemsPerPage);
+  // --- Lọc + tìm kiếm ---
+  const filtered = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return maintenanceRecords.filter((r) => {
+      const matchKW =
+        !kw ||
+        [r?.vehicle?.name, r?.vehicle?.license, r?.type, r?.description]
+          .filter(Boolean)
+          .some((t) => String(t).toLowerCase().includes(kw));
+
+      const matchStatus =
+        statusFilter === "all" ? true : r.status === statusFilter;
+
+      return matchKW && matchStatus;
+    });
+  }, [maintenanceRecords, keyword, statusFilter]);
+
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentRecords = maintenanceRecords.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
+  const endIndex = startIndex + itemsPerPage;
+  const currentRecords = filtered.slice(startIndex, endIndex);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
@@ -128,23 +148,75 @@ const MaintenancePage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Quản lý bảo dưỡng xe
-        </h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
-        >
-          <FaPlus className="mr-2" />
-          Lên lịch bảo dưỡng
-        </button>
+    <div className="space-y-4">
+      {/* Header + Actions */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Title */}
+          <div className="flex items-center gap-2">
+            <FaTools className="text-gray-600" />
+            <span className="font-semibold text-gray-900">Quản lý bảo dưỡng xe</span>
+          </div>
+
+          {/* Filters and Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input */}
+            <div className="relative" style={{ width: 260 }}>
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Tìm theo tên xe/biển số/loại/mô tả"
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-8 pr-8 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
+              {keyword && (
+                <button
+                  onClick={() => {
+                    setKeyword("");
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <FaTimes className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              style={{ width: 180 }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Đã lên lịch">Đã lên lịch</option>
+              <option value="Đang thực hiện">Đang thực hiện</option>
+              <option value="Hoàn thành">Hoàn thành</option>
+            </select>
+
+            {/* Add Button */}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="bg-blue-600 text-white px-4 py-1.5 h-8 text-sm rounded-md hover:bg-blue-700 flex items-center gap-2 whitespace-nowrap transition-colors font-medium"
+            >
+              <FaPlus className="text-xs" />
+              Lên lịch bảo dưỡng
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Danh sách bảo dưỡng */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-center">
             <thead className="bg-gray-50">
@@ -201,12 +273,6 @@ const MaintenancePage = () => {
                         title="Chỉnh sửa"
                       >
                         <FaEdit />
-                      </button>
-                      <button
-                        className="text-green-600 hover:text-green-900 p-1"
-                        title="Đánh dấu hoàn thành"
-                      >
-                        <FaCheck />
                       </button>
                     </div>
                   </td>
