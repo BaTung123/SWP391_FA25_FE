@@ -1,13 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   FaCreditCard,
   FaEye,
   FaChevronLeft,
   FaChevronRight,
   FaTimes,
+  FaSearch,
 } from "react-icons/fa";
 
 const PaymentPage = () => {
+  const formatCurrency = (amount) =>
+    amount.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+
   const [payments] = useState([
     {
       id: 1,
@@ -38,19 +42,44 @@ const PaymentPage = () => {
     },
   ]);
 
-  // Pagination
+  // Filter and Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const itemsPerPage = 5;
 
-  const totalPages = Math.ceil(payments.length / itemsPerPage);
+  // --- Lọc + tìm kiếm ---
+  const filtered = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return payments.filter((p) => {
+      const matchKW =
+        !kw ||
+        [
+          p?.paymentId,
+          p?.vehicle?.name,
+          p?.vehicle?.license,
+          p?.serviceType,
+          formatCurrency(p?.amount),
+        ]
+          .filter(Boolean)
+          .some((t) => String(t).toLowerCase().includes(kw));
+
+      const matchStatus =
+        statusFilter === "all" ? true : p.status === statusFilter;
+
+      return matchKW && matchStatus;
+    });
+  }, [payments, keyword, statusFilter]);
+
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentPayments = payments.slice(startIndex, endIndex);
+  const currentPayments = filtered.slice(startIndex, endIndex);
 
-  const handlePageChange = (page) => setCurrentPage(page);
-
-  const formatCurrency = (amount) =>
-    amount.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
 
   const getStatusBadge = (status) => {
     const statusClasses = {
@@ -70,14 +99,65 @@ const PaymentPage = () => {
   const [selectedPayment, setSelectedPayment] = useState(null);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Quản lý thanh toán</h1>
+    <div className="space-y-4">
+      {/* Header + Actions */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Title */}
+          <div className="flex items-center gap-2">
+            <FaCreditCard className="text-gray-600" />
+            <span className="font-semibold text-gray-900">Quản lý thanh toán</span>
+          </div>
+
+          {/* Filters and Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search Input */}
+            <div className="relative" style={{ width: 260 }}>
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Tìm theo mã/ xe/ dịch vụ/ số tiền"
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-8 pr-8 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
+              {keyword && (
+                <button
+                  onClick={() => {
+                    setKeyword("");
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  type="button"
+                >
+                  <FaTimes className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              style={{ width: 180 }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Đã thanh toán">Đã thanh toán</option>
+              <option value="Chờ thanh toán">Chờ thanh toán</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-md border border-gray-200">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

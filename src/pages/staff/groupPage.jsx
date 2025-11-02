@@ -17,7 +17,6 @@ import {
   Empty,
 } from "antd";
 import {
-  EyeOutlined,
   DeleteOutlined,
   PlusOutlined,
   EditOutlined,
@@ -75,7 +74,6 @@ export default function GroupPage() {
 
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [viewModal, setViewModal] = useState({ visible: false, group: null });
   const [editingGroup, setEditingGroup] = useState(null);
 
   // Modal phần trăm
@@ -207,9 +205,6 @@ export default function GroupPage() {
       message.error("Không thể thêm nhóm!");
     }
   };
-
-  /* ========= View Group ========= */
-  const handleViewGroup = (record) => setViewModal({ visible: true, group: record });
 
   /* ========= Delete Group ========= */
   const handleDelete = async (groupId) => {
@@ -345,18 +340,11 @@ export default function GroupPage() {
       align: "center",
       render: (_, record) => (
         <Space>
-          <Tooltip title="Xem chi tiết">
-            <Button icon={<EyeOutlined />} onClick={() => handleViewGroup(record)} />
+          <Tooltip title="Phần trăm đồng sở hữu">
+            <Button icon={<CarOutlined />} onClick={() => handleOpenPercentModal(record)} />
           </Tooltip>
           <Tooltip title="Chỉnh sửa thông tin & thành viên">
             <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa phần trăm đồng sở hữu">
-            <Button
-              icon={<CarOutlined />}
-              type="primary"
-              onClick={() => handleOpenPercentModal(record)}
-            />
           </Tooltip>
           <Popconfirm
             title="Xác nhận xoá nhóm này?"
