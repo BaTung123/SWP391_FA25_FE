@@ -318,12 +318,6 @@ const RegistercarPage = () => {
           <h1 className="text-4xl font-bold text-indigo-900 mb-4">Đăng ký lịch sử dụng xe</h1>
         </div>
 
-        {errorMsg && (
-          <div className="rounded-lg border border-red-200 bg-red-50 text-red-600 px-4 py-3 mb-6">
-            {errorMsg}
-          </div>
-        )}
-
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-12">
           {/* chọn xe */}
           <div className="bg-white rounded-xl shadow-lg p-8 xl:col-span-1">
