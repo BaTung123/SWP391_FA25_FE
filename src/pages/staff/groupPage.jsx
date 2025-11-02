@@ -29,48 +29,15 @@ import api from "../../config/axios";
 const { Option } = Select;
 const { Text } = Typography;
 
-/* ========= LocalStorage helpers ========= */
-const LS_KEY = "group_members_map"; // { [groupId]: number[] }
-const PERCENT_KEY = "ownership_percent_map"; // { [groupId]: { [userId]: percent } }
-
-const loadMembersMap = () => {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveMembersMap = (map) => {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(map || {}));
-  } catch {}
-};
-
-const loadPercentMap = () => {
-  try {
-    const raw = localStorage.getItem(PERCENT_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-const savePercentMap = (map) => {
-  try {
-    localStorage.setItem(PERCENT_KEY, JSON.stringify(map || {}));
-  } catch {}
-};
-
 export default function GroupPage() {
   const [groups, setGroups] = useState([]);
   const [cars, setCars] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [groupMembersMap, setGroupMembersMap] = useState({});
-  const [percentMap, setPercentMap] = useState({});
+  // state tạm cho thành viên & phần trăm (không dùng localStorage)
+  const [groupMembersMap, setGroupMembersMap] = useState({}); // { [groupId]: number[] }
+  const [percentMap, setPercentMap] = useState({});           // { [groupId]: { [userId]: number } }
 
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -84,7 +51,7 @@ export default function GroupPage() {
   const [keyword, setKeyword] = useState("");
   const [carFilter, setCarFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(6);
+  const itemsPerPage = 6;
 
   const [formAdd] = Form.useForm();
   const [formEdit] = Form.useForm();
@@ -136,8 +103,6 @@ export default function GroupPage() {
     fetchGroups();
     fetchCars();
     fetchUsers();
-    setGroupMembersMap(loadMembersMap());
-    setPercentMap(loadPercentMap());
   }, []);
 
   /* ========= Member options ========= */
@@ -163,52 +128,140 @@ export default function GroupPage() {
     ids.map((id) => users.find((u) => Number(u.id) === Number(id))).filter(Boolean);
 
   const setMembersForGroup = (groupId, userIds) => {
-    setGroupMembersMap((prev) => {
-      const next = { ...prev, [groupId]: (userIds || []).map(Number) };
-      saveMembersMap(next);
-      return next;
-    });
+    setGroupMembersMap((prev) => ({ ...prev, [groupId]: (userIds || []).map(Number) }));
   };
   const removeMembersForGroup = (groupId) => {
     setGroupMembersMap((prev) => {
       const next = { ...prev };
       delete next[groupId];
-      saveMembersMap(next);
+      return next;
+    });
+    setPercentMap((prev) => {
+      const next = { ...prev };
+      delete next[groupId];
       return next;
     });
   };
 
-  /* ========= Add Group ========= */
+  /* ========= CarUser API helpers (giữ để dùng ở Edit/Delete) ========= */
+  async function addCarUser(carId, userId, pct) {
+    try {
+      await api.post(`/cars/${carId}/users/${userId}/add`, {
+        ownershipPercentage: typeof pct === "number" ? pct : null,
+      });
+    } catch (e) {}
+  }
+  async function removeCarUser(carId, userId) {
+    try {
+      await api.delete(`/cars/${carId}/users/${userId}/remove`);
+    } catch (e) {}
+  }
+  async function syncCarUsersForGroup({ carId, prevMemberIds, nextMemberIds, percentOfGroup }) {
+    const prev = new Set((prevMemberIds || []).map(Number));
+    const next = new Set((nextMemberIds || []).map(Number));
+    const toAdd = [...next].filter((id) => !prev.has(id));
+    const toRemove = [...prev].filter((id) => !next.has(id));
+    await Promise.all(
+      toAdd.map((uid) => addCarUser(Number(carId), Number(uid), Number(percentOfGroup?.[uid])))
+    );
+    await Promise.all(toRemove.map((uid) => removeCarUser(Number(carId), Number(uid))));
+  }
+
+  /* ========= PercentOwnership API helpers ========= */
+  const normalizePO = (po) => ({
+    id: po?.id ?? po?.percentOwnershipId ?? null,
+    carId: Number(po?.carId ?? po?.car?.carId ?? po?.carUser?.carId),
+    userId: Number(po?.userId ?? po?.carUser?.userId),
+    percentage: Number(po?.ownershipPercentage ?? po?.percentage ?? po?.percent ?? 0),
+  });
+
+  async function listPercentOwnership() {
+    const res = await api.get(`/PercentOwnership`);
+    const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+    return arr.map(normalizePO);
+  }
+
+  async function ensurePercentRowsForMembers(carId, memberIds, defaultValue = 0) {
+    try {
+      const list = await listPercentOwnership();
+      const have = new Set(list.filter((po) => po.carId === Number(carId)).map((po) => `${po.userId}`));
+      const need = (memberIds || []).map(Number).filter((uid) => !have.has(`${uid}`));
+      if (!need.length) return;
+      await Promise.all(
+        need.map((uid) =>
+          api.post(`/PercentOwnership`, {
+            carId: Number(carId),
+            userId: Number(uid),
+            ownershipPercentage: defaultValue,
+          })
+        )
+      );
+    } catch (e) {}
+  }
+
+  async function deletePercentRowsForMembers(carId, memberIds) {
+    try {
+      const list = await listPercentOwnership();
+      const targets = list.filter(
+        (po) => po.carId === Number(carId) && memberIds.map(Number).includes(Number(po.userId))
+      );
+      await Promise.all(targets.filter((po) => po.id != null).map((po) => api.delete(`/PercentOwnership/${po.id}`)));
+    } catch (e) {}
+  }
+
+  async function upsertPercentOwnerships(carId, mapUserToPercent) {
+    try {
+      const list = await listPercentOwnership();
+      const byKey = new Map();
+      list.forEach((po) => byKey.set(`${po.carId}-${po.userId}`, po));
+
+      const tasks = Object.entries(mapUserToPercent || {}).map(([uidStr, pct]) => {
+        const userId = Number(uidStr);
+        const key = `${carId}-${userId}`;
+        const ex = byKey.get(key);
+        const body = { carId: Number(carId), userId, ownershipPercentage: Number(pct) };
+        return ex?.id ? api.put(`/PercentOwnership/${ex.id}`, body) : api.post(`/PercentOwnership`, body);
+      });
+      await Promise.all(tasks);
+    } catch (e) {}
+  }
+
+  /* ========= Add Group (CHỈ carId, groupName, groupImg) ========= */
   const handleAddGroup = async (values) => {
     try {
       const car = cars.find((c) => Number(c.carId) === Number(values.carId));
       if (!car) return message.error("Hãy chọn một xe hợp lệ!");
 
-      const resCreate = await api.post("/Group", {
-        groupName: values.groupName,
-        description: values.description,
-        carId: car.carId,
-      });
+      const payload = {
+        carId: Number(car.carId),
+        groupName: String(values.groupName || "").trim(),
+        groupImg: String(values.groupImg || "").trim(), // có thể rỗng nếu BE cho phép
+      };
 
-      const created = resCreate?.data || {};
-      const groupId = created.groupId ?? created.id;
-
-      if (groupId && Array.isArray(values.memberIds) && values.memberIds.length > 0) {
-        setMembersForGroup(groupId, values.memberIds);
-      }
+      await api.post("/Group", payload, { headers: { "Content-Type": "application/json" } });
 
       message.success("Thêm nhóm thành công!");
       setIsAddModalVisible(false);
       formAdd.resetFields();
       fetchGroups();
-    } catch {
-      message.error("Không thể thêm nhóm!");
+    } catch (err) {
+      console.error("Create Group FAILED:", err?.response?.data || err);
+      message.error("Không thể thêm nhóm. Kiểm tra carId/groupName/groupImg.");
     }
   };
 
   /* ========= Delete Group ========= */
   const handleDelete = async (groupId) => {
     try {
+      const group = groups.find((g) => getGroupId(g) === groupId);
+      const carId = Number(group?.car?.carId ?? group?.carId);
+      const currentMembers = getMemberIdsForGroup(group);
+
+      if (carId && currentMembers?.length) {
+        await Promise.all(currentMembers.map((uid) => removeCarUser(carId, Number(uid))));
+        await deletePercentRowsForMembers(carId, currentMembers.map(Number));
+      }
+
       await api.delete(`/Group/${groupId}/delete`);
       removeMembersForGroup(groupId);
       message.success("Xoá nhóm thành công!");
@@ -240,7 +293,27 @@ export default function GroupPage() {
         groupImg: values.groupImg || "",
       });
 
-      setMembersForGroup(id, values.memberIds || []);
+      const prevMemberIds = getMemberIdsForGroup(editingGroup).map(Number);
+      const nextMemberIds = (values.memberIds || []).map(Number);
+      const carId = Number(editingGroup?.car?.carId ?? editingGroup?.carId);
+
+      // cập nhật state thành viên (chỉ khi sửa nhóm)
+      setMembersForGroup(id, nextMemberIds);
+
+      // đồng bộ CarUser & PercentOwnership
+      if (carId) {
+        await syncCarUsersForGroup({
+          carId,
+          prevMemberIds,
+          nextMemberIds,
+          percentOfGroup: (percentMap || {})[id] || {},
+        });
+
+        const added = nextMemberIds.filter((m) => !prevMemberIds.includes(m));
+        const removed = prevMemberIds.filter((m) => !nextMemberIds.includes(m));
+        if (added.length) await ensurePercentRowsForMembers(carId, added, 0);
+        if (removed.length) await deletePercentRowsForMembers(carId, removed);
+      }
 
       setGroups((prev) =>
         prev.map((g) =>
@@ -268,18 +341,22 @@ export default function GroupPage() {
     setIsPercentModalVisible(true);
   };
 
-  const handleSavePercent = () => {
+  const handleSavePercent = async () => {
     if (!selectedGroupForPercent) return;
     const gid = getGroupId(selectedGroupForPercent);
     const total = Object.values(ownershipMap).reduce((sum, v) => sum + Number(v || 0), 0);
-    if (total !== 100) {
-      return message.warning("Tổng phần trăm phải bằng 100%!");
+    if (total !== 100) return message.warning("Tổng phần trăm phải bằng 100%!");
+
+    setPercentMap((prev) => ({ ...prev, [gid]: ownershipMap }));
+
+    const carId = Number(selectedGroupForPercent?.car?.carId ?? selectedGroupForPercent?.carId);
+    const memberIds = getMemberIdsForGroup(selectedGroupForPercent);
+    if (carId && memberIds?.length) {
+      const payload = {};
+      memberIds.forEach((uid) => (payload[uid] = Number(ownershipMap[uid] ?? 0)));
+      await upsertPercentOwnerships(carId, payload);
     }
-    setPercentMap((prev) => {
-      const next = { ...prev, [gid]: ownershipMap };
-      savePercentMap(next);
-      return next;
-    });
+
     message.success("Đã lưu phần trăm đồng sở hữu!");
     setIsPercentModalVisible(false);
   };
@@ -295,16 +372,13 @@ export default function GroupPage() {
           .some((t) => String(t).toLowerCase().includes(kw));
 
       const matchCar =
-        carFilter === "all"
-          ? true
-          : Number(g?.car?.carId ?? g?.carId) === Number(carFilter);
+        carFilter === "all" ? true : Number(g?.car?.carId ?? g?.carId) === Number(carFilter);
 
       return matchKW && matchCar;
     });
   }, [groups, keyword, carFilter]);
 
   const totalItems = filteredGroups.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentRows = filteredGroups.slice(startIndex, endIndex);
@@ -346,10 +420,7 @@ export default function GroupPage() {
           <Tooltip title="Chỉnh sửa thông tin & thành viên">
             <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
           </Tooltip>
-          <Popconfirm
-            title="Xác nhận xoá nhóm này?"
-            onConfirm={() => handleDelete(getGroupId(record))}
-          >
+          <Popconfirm title="Xác nhận xoá nhóm này?" onConfirm={() => handleDelete(getGroupId(record))}>
             <Button danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -394,11 +465,7 @@ export default function GroupPage() {
             <Button icon={<ReloadOutlined />} onClick={fetchGroups}>
               Làm mới
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setIsAddModalVisible(true)}
-            >
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
               Thêm nhóm
             </Button>
           </Space>
@@ -429,7 +496,7 @@ export default function GroupPage() {
         />
       </Space>
 
-      {/* Modal thêm nhóm */}
+      {/* Modal thêm nhóm (CHỈ 3 TRƯỜNG) */}
       <Modal
         title="Thêm nhóm mới"
         open={isAddModalVisible}
@@ -440,16 +507,6 @@ export default function GroupPage() {
         destroyOnClose
       >
         <Form form={formAdd} layout="vertical" onFinish={handleAddGroup}>
-          <Form.Item
-            name="groupName"
-            label="Tên nhóm"
-            rules={[{ required: true, message: "Nhập tên nhóm!" }]}
-          >
-            <Input placeholder="Nhập tên nhóm" />
-          </Form.Item>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea placeholder="Nhập mô tả" rows={3} />
-          </Form.Item>
           <Form.Item
             name="carId"
             label="Chọn xe"
@@ -463,20 +520,27 @@ export default function GroupPage() {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="memberIds" label="Thành viên trong nhóm">
-            <Select
-              mode="multiple"
-              allowClear
-              placeholder="Chọn thành viên"
-              options={memberOptions}
-              optionFilterProp="label"
-              showSearch
-            />
+
+          <Form.Item
+            name="groupName"
+            label="Tên nhóm"
+            rules={[{ required: true, message: "Nhập tên nhóm!" }]}
+          >
+            <Input placeholder="Nhập tên nhóm" />
+          </Form.Item>
+
+          <Form.Item
+            name="groupImg"
+            label="Ảnh nhóm (URL)"
+            // Nếu BE cho phép rỗng, bỏ required. Nếu bắt buộc, giữ rule này.
+            // rules={[{ required: true, message: "Nhập đường dẫn ảnh nhóm!" }]}
+          >
+            <Input placeholder="https://..." />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* Modal chỉnh sửa nhóm */}
+      {/* Modal chỉnh sửa nhóm (giữ phần chọn thành viên tại đây) */}
       <Modal
         title="Cập nhật nhóm"
         open={isEditModalVisible}
@@ -520,7 +584,7 @@ export default function GroupPage() {
         cancelText="Hủy"
         destroyOnClose
       >
-        {selectedGroupForPercent && selectedGroupForPercent.members.length > 0 ? (
+        {selectedGroupForPercent && selectedGroupForPercent.members?.length > 0 ? (
           <div className="space-y-3">
             {selectedGroupForPercent.members.map((m) => (
               <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>

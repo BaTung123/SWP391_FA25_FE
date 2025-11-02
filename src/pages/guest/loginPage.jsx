@@ -17,6 +17,41 @@ import api from "../../config/axios";
 
 const { Title, Text } = Typography;
 
+/* ================= Helpers ================= */
+const extractUserId = (obj) => {
+  if (!obj || typeof obj !== "object") return null;
+  return (
+    obj.userId ??
+    obj.UserId ??
+    obj.userID ??
+    obj.id ??
+    obj.Id ??
+    obj.ID ??
+    obj.user_id ??
+    obj.uid ??
+    obj.sub ??
+    obj.nameid ??
+    null
+  );
+};
+
+const parseJwt = (token) => {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+/* ========================================== */
+
 const LoginPage = () => {
   const [form] = Form.useForm();
   const [isLoading, setIsLoading] = useState(false);
@@ -31,6 +66,7 @@ const LoginPage = () => {
 
     setIsLoading(true);
     try {
+      // 1️⃣ Gọi API login
       const res = await api.post("/User/login", {
         userName: userName.trim(),
         password: password,
@@ -38,36 +74,59 @@ const LoginPage = () => {
 
       const data = res?.data || {};
       const token = data.token;
-      const role =
-        typeof data.isRole === "number" ? data.isRole : Number(data.isRole);
+      const role = typeof data.isRole === "number" ? data.isRole : Number(data.isRole);
 
-      if (!token) {
-        throw new Error("Không nhận được token từ máy chủ.");
+      if (!token) throw new Error("Không nhận được token từ máy chủ.");
+
+      // 2️⃣ Lưu token + header
+      const store = remember ? localStorage : sessionStorage;
+      store.setItem("token", token);
+      localStorage.setItem("token", token); // để các trang khác đọc được
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      // 3️⃣ Lấy thông tin user (thông qua API /User)
+      // Có thể là /User (danh sách) hoặc /User/{id} — bạn chọn cho đúng backend
+      const userRes = await api.get("/User");
+      // Nếu backend trả danh sách -> lấy user đầu tiên khớp userName
+      const users = Array.isArray(userRes.data)
+        ? userRes.data
+        : userRes.data?.data || [];
+
+      const matchedUser =
+        users.find(
+          (u) =>
+            String(u.userName || u.email).toLowerCase() ===
+            String(userName).toLowerCase()
+        ) || users[0];
+
+      const jwtClaims = parseJwt(token) || {};
+      const userId =
+        extractUserId(matchedUser) || extractUserId(jwtClaims) || null;
+
+      if (!userId) {
+        console.warn("⚠️ Không xác định được userId. Hãy kiểm tra API /User trả về gì.");
       }
 
-     const store = remember ? localStorage : sessionStorage;
+      // 4️⃣ Lưu user vào localStorage
+      const userObj = {
+        ...(matchedUser || {}),
+        userName: (matchedUser?.userName ?? userName).trim(),
+        role,
+        token,
+        userId,
+      };
 
-    // Lưu token + set header cho axios
-    store.setItem("token", token);
-    localStorage.setItem("token", token); // nhiều chỗ đang đọc từ localStorage
-    api.defaults.headers.common.Authorization = `Bearer ${token}`;
-
-      // 4) Lưu localStorage user (để các trang khác dùng)
-     const userObj = {
-      ...(data.user || {}),                           // nếu BE trả kèm user
-      userName: (data.user?.userName ?? userName).trim(),
-      role,                                           // 0 = member, 1 = admin
-      token,
-    };
       localStorage.setItem("user", JSON.stringify(userObj));
+      if (userId != null) localStorage.setItem("userId", String(userId));
 
-      // 5) Ghi nhớ đăng nhập (nếu bạn muốn lưu userName)
+      // 5️⃣ Nhớ username nếu cần
       if (remember) {
         localStorage.setItem("remember_userName", userName.trim());
       } else {
         localStorage.removeItem("remember_userName");
       }
 
+      // 6️⃣ Điều hướng sau đăng nhập
       if (role === 1) {
         message.success("Đăng nhập Admin thành công!");
         navigate("/admin", { replace: true });
@@ -80,9 +139,9 @@ const LoginPage = () => {
       }
     } catch (e) {
       console.error("Login error:", e?.response?.data || e?.message);
-      // Xoá token/user cũ nếu có
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      localStorage.removeItem("userId");
       delete api.defaults.headers.common.Authorization;
 
       const apiMsg =
@@ -139,12 +198,7 @@ const LoginPage = () => {
                   <Form.Item
                     label="Tên Đăng Nhập"
                     name="userName"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter your user name!",
-                      },
-                    ]}
+                    rules={[{ required: true, message: "Please enter your user name!" }]}
                   >
                     <Input placeholder="Enter your user name" />
                   </Form.Item>
@@ -152,12 +206,7 @@ const LoginPage = () => {
                   <Form.Item
                     label="Mật Khẩu"
                     name="password"
-                    rules={[
-                      {
-                        required: true,
-                        message: "Please enter your password!",
-                      },
-                    ]}
+                    rules={[{ required: true, message: "Please enter your password!" }]}
                   >
                     <Input.Password
                       placeholder="Enter your password"
@@ -197,10 +246,7 @@ const LoginPage = () => {
                   </div>
 
                   <div className="mt-4 text-center">
-                    <Link
-                      to="/"
-                      className="text-blue-700 font-semibold hover:underline"
-                    >
+                    <Link to="/" className="text-blue-700 font-semibold hover:underline">
                       Quay lại Trang chủ
                     </Link>
                   </div>

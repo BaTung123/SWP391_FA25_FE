@@ -4,7 +4,7 @@ import api from "../../config/axios";
 
 const RegistercarPage = () => {
   const [formData, setFormData] = useState({
-    vehicleId: "",
+    vehicleId: "", // carId
     startDate: "",
     endDate: "",
     startTime: "",
@@ -16,32 +16,37 @@ const RegistercarPage = () => {
   });
 
   const [user, setUser] = useState(null);
-  const [cars, setCars] = useState([]);
+  const [cars, setCars] = useState([]); // danh sách xe user sở hữu (kèm _carId, _carUserId)
+  const [carUserMap, setCarUserMap] = useState({}); // { [carId]: carUserId }
+
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // calendar states (giữ nguyên UI)
+  // Calendar / modal states (UI giữ nguyên)
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState([]);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [selectedDateForTime, setSelectedDateForTime] = useState(null);
-  const [timeSlots, setTimeSlots] = useState([]);
+
+  // timeSlots đang chỉnh trong modal hiện tại
+  const [timeSlots, setTimeSlots] = useState([]); // [{startTime, endTime, id?}]
+  // Lưu các slot đã đăng ký theo ngày: { 'YYYY-MM-DD': [{startTime, endTime, id}] }
   const [registeredTimeSlots, setRegisteredTimeSlots] = useState({});
 
-  const userOwnershipPercentage = 25; // giữ UI demo
+  // demo quota giờ/ngày cho UI
+  const userOwnershipPercentage = 25;
 
-  // ======= Helper: lấy user hiện tại (localStorage ↔ /Auth/me) =======
+  // Lấy user hiện tại
   const getCurrentUser = async () => {
     try {
       const fromStorage = localStorage.getItem("user");
       if (fromStorage) return JSON.parse(fromStorage);
     } catch {}
-    // fallback
     const me = await api.get("/Auth/me").catch(() => null);
     return me?.data?.data || me?.data || null;
   };
 
-  // ======= Load danh sách xe user đang sở hữu (qua CarUser) =======
+  // Load xe mà user sở hữu: GET /users/{userId}/cars
   useEffect(() => {
     const boot = async () => {
       try {
@@ -54,20 +59,42 @@ const RegistercarPage = () => {
         if (!userId) throw new Error("Thiếu userId để tra cứu xe.");
         setUser(me);
 
-        // 1) lấy danh sách CarUser của user
-        const cuRes = await api.get(`/CarUser/${userId}`);
-        const links = Array.isArray(cuRes.data) ? cuRes.data : cuRes.data?.data || [];
-        const carIds = [...new Set(links.map((x) => x.carId))].filter(Boolean);
-        if (carIds.length === 0) {
-          setCars([]);
-          return;
-        }
+        const res = await api.get(`/users/${userId}/cars`);
+        const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
-        // 2) lấy toàn bộ xe rồi lọc theo carIds (giảm số call)
-        const carRes = await api.get("/Car");
-        const allCars = Array.isArray(carRes.data) ? carRes.data : carRes.data?.data || [];
-        const owned = allCars.filter((c) => carIds.includes(c.carId ?? c.id));
-        setCars(owned);
+        const mapped = list
+          .filter(Boolean)
+          .map((it) => {
+            const carId = it.carId ?? it.id ?? it.CarId ?? it.Id;
+            const carUserId =
+              it.carUserId ??
+              it.CarUserId ??
+              it.carUser?.id ??
+              it.carUser?.carUserId ??
+              it.linkId ??
+              it.CarUserLinkId ??
+              null;
+
+            return {
+              ...it,
+              _carId: carId,
+              _carUserId: carUserId,
+              carName: it.carName ?? it.name ?? it.CarName,
+              brand: it.brand ?? it.Brand,
+              plateNumber: it.plateNumber ?? it.PlateNumber,
+              color: it.color ?? it.Color,
+              image: it.image ?? it.Image,
+            };
+          })
+          .filter((x) => x._carId != null);
+
+        setCars(mapped);
+
+        const map = {};
+        for (const c of mapped) {
+          if (c._carUserId != null) map[c._carId] = c._carUserId;
+        }
+        setCarUserMap(map);
       } catch (err) {
         console.error(err);
         setErrorMsg(err?.message || "Không thể tải danh sách xe.");
@@ -81,8 +108,8 @@ const RegistercarPage = () => {
   // ======= UI helpers (giữ nguyên) =======
   const monthNames = useMemo(
     () => [
-      "Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6",
-      "Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12",
+      "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
     ],
     []
   );
@@ -106,6 +133,7 @@ const RegistercarPage = () => {
   const goToNextMonth = () =>
     setCurrentDate((p) => new Date(p.getFullYear(), p.getMonth() + 1, 1));
   const goToToday = () => setCurrentDate(new Date());
+
   const isToday = (day) => {
     if (!day) return false;
     const today = new Date();
@@ -165,34 +193,107 @@ const RegistercarPage = () => {
     setShowTimeModal(true);
   };
 
-  const confirmSlots = () => {
-    if (timeSlots.length === 0) return alert("Vui lòng thêm ít nhất 1 khung giờ.");
-    for (let i = 0; i < timeSlots.length; i++) {
-      const d = calcDuration(timeSlots[i].startTime, timeSlots[i].endTime);
-      if (d < 1) return alert(`Khung giờ ${i + 1} tối thiểu 1 giờ`);
-      if (d > maxDaily()) return alert(`Khung giờ ${i + 1} vượt quá ${maxDaily()}h`);
+  // ======= POST /Schedule cho mỗi slot =======
+  const confirmSlots = async () => {
+    try {
+      if (!formData.vehicleId) return alert("Vui lòng chọn xe trước.");
+      if (!selectedDateForTime) return;
+
+      if (timeSlots.length === 0) return alert("Vui lòng thêm ít nhất 1 khung giờ.");
+      for (let i = 0; i < timeSlots.length; i++) {
+        const d = calcDuration(timeSlots[i].startTime, timeSlots[i].endTime);
+        if (d < 1) return alert(`Khung giờ ${i + 1} tối thiểu 1 giờ`);
+        if (d > maxDaily()) return alert(`Khung giờ ${i + 1} vượt quá ${maxDaily()}h`);
+      }
+      const sum = totalHours();
+      if (sum > maxDaily()) return alert(`Tổng thời gian ${sum.toFixed(2)}h > giới hạn ${maxDaily()}h`);
+
+      const carId = Number(formData.vehicleId);
+      const carUserId = carUserMap[carId];
+      if (!carUserId) {
+        return alert(
+          "Không tìm thấy carUserId của xe đã chọn. Kiểm tra response /users/{userId}/cars có trả carUserId không."
+        );
+      }
+
+      const dateKey = selectedDateForTime.toISOString().split("T")[0];
+      const created = [];
+
+      for (const slot of timeSlots) {
+        const [sh, sm] = slot.startTime.split(":").map(Number);
+        const [eh, em] = slot.endTime.split(":").map(Number);
+
+        const start = new Date(
+          selectedDateForTime.getFullYear(),
+          selectedDateForTime.getMonth(),
+          selectedDateForTime.getDate(),
+          sh,
+          sm,
+          0,
+          0
+        );
+        const end = new Date(
+          selectedDateForTime.getFullYear(),
+          selectedDateForTime.getMonth(),
+          selectedDateForTime.getDate(),
+          eh,
+          em,
+          0,
+          0
+        );
+
+        const body = {
+          carUserId,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          status: 0,
+        };
+
+        const res = await api.post("/Schedule", body);
+        const saved = res?.data?.data || res?.data || {};
+        const scheduleId = saved.id ?? saved.scheduleId ?? saved.Id ?? saved.ScheduleId ?? undefined;
+
+        created.push({
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          id: scheduleId,
+        });
+      }
+
+      setRegisteredTimeSlots((prev) => ({ ...prev, [dateKey]: created }));
+      setSelectedDates((p) => (p.includes(dateKey) ? p : [...p, dateKey]));
+
+      alert(
+        `Đăng ký thành công ngày ${selectedDateForTime.toLocaleDateString(
+          "vi-VN"
+        )} với ${timeSlots.length} khung giờ (${sum.toFixed(2)}h).`
+      );
+      setShowTimeModal(false);
+      setSelectedDateForTime(null);
+      setTimeSlots([]);
+    } catch (e) {
+      console.error(e);
+      alert("Không thể lưu lịch. Vui lòng thử lại.");
     }
-    const sum = totalHours();
-    if (sum > maxDaily()) return alert(`Tổng thời gian ${sum.toFixed(2)}h > giới hạn ${maxDaily()}h`);
-    const key = selectedDateForTime.toISOString().split("T")[0];
-    setRegisteredTimeSlots((p) => ({ ...p, [key]: [...timeSlots] }));
-    setSelectedDates((p) => (p.includes(key) ? p : [...p, key]));
-    alert(
-      `Đăng ký thành công ngày ${selectedDateForTime.toLocaleDateString(
-        "vi-VN"
-      )} với ${timeSlots.length} khung giờ (${sum.toFixed(2)}h).`
-    );
-    setShowTimeModal(false);
-    setSelectedDateForTime(null);
-    setTimeSlots([]);
   };
-  const cancelSlots = () => {
-    setShowTimeModal(false);
-    setSelectedDateForTime(null);
-    setTimeSlots([]);
-  };
-  const cancelRegistration = () => {
+
+  // ======= DELETE /Schedule/{id} để hủy =======
+  const cancelRegistration = async () => {
+    if (!selectedDateForTime) return;
     const key = selectedDateForTime.toISOString().split("T")[0];
+    const slots = registeredTimeSlots[key] || [];
+
+    try {
+      for (const s of slots) {
+        if (s?.id != null) {
+          await api.delete(`/Schedule/${s.id}`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      // vẫn clear local để UI phản hồi; nếu muốn chặt chẽ có thể giữ lại khi lỗi
+    }
+
     setRegisteredTimeSlots((p) => {
       const n = { ...p };
       delete n[key];
@@ -212,7 +313,7 @@ const RegistercarPage = () => {
     <div className="min-h-screen bg-gray-50 pt-24 pb-8">
       <Header />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* header */}
+        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-indigo-900 mb-4">Đăng ký lịch sử dụng xe</h1>
         </div>
@@ -237,8 +338,8 @@ const RegistercarPage = () => {
               >
                 <option value="">-- Chọn xe --</option>
                 {cars.map((v) => (
-                  <option key={v.carId ?? v.id} value={v.carId ?? v.id}>
-                    {v.carName} - {v.plateNumber} ({v.brand})
+                  <option key={v._carId} value={v._carId}>
+                    {v.carName} - {v.plateNumber}
                   </option>
                 ))}
               </select>
@@ -247,7 +348,7 @@ const RegistercarPage = () => {
             {formData.vehicleId && (
               <div className="space-y-2 bg-indigo-50 rounded-lg p-4">
                 {(() => {
-                  const v = cars.find((x) => String(x.carId ?? x.id) === String(formData.vehicleId));
+                  const v = cars.find((x) => String(x._carId) === String(formData.vehicleId));
                   if (!v) return null;
                   return (
                     <>
@@ -318,7 +419,7 @@ const RegistercarPage = () => {
           </div>
         </div>
 
-        {/* modal chọn khung giờ (giữ nguyên) */}
+        {/* modal chọn khung giờ */}
         {showTimeModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -328,15 +429,14 @@ const RegistercarPage = () => {
                     ? `Khung giờ đã đăng ký - ${selectedDateForTime?.toLocaleDateString("vi-VN")}`
                     : `Chọn khung giờ cho ngày ${selectedDateForTime?.toLocaleDateString("vi-VN")}`}
                 </h3>
-                <button onClick={cancelSlots} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+                <button onClick={() => { setShowTimeModal(false); setSelectedDateForTime(null); setTimeSlots([]); }} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
               </div>
 
               <div className="space-y-4">
                 {timeSlots.map((slot, index) => {
                   const dur = calcDuration(slot.startTime, slot.endTime);
                   const valid = dur >= 1 && dur <= maxDaily();
-                  const viewing =
-                    !!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]];
+                  const viewing = !!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]];
 
                   return (
                     <div
@@ -410,12 +510,9 @@ const RegistercarPage = () => {
                   )}
                 </div>
                 <div className="flex space-x-4">
-                  {/* ❌ Nút "Hủy" đã được bỏ. Giờ chỉ hiển thị:
-                        - "Hủy đăng ký" khi đã có đăng ký
-                        - "Đăng ký" khi chưa đăng ký */}
                   {registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
                     <button
-                      onClick={cancelRegistration}
+                      onClick={async () => { await cancelRegistration(); }}
                       className="px-6 py-3 rounded-lg transition bg-red-600 text-white hover:bg-red-700"
                     >
                       Hủy đăng ký
@@ -424,7 +521,7 @@ const RegistercarPage = () => {
 
                   {!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
                     <button
-                      onClick={confirmSlots}
+                      onClick={async () => { await confirmSlots(); }}
                       disabled={totalHours() === 0 || totalHours() > maxDaily()}
                       className={`px-6 py-3 rounded-lg transition ${
                         totalHours() === 0 || totalHours() > maxDaily()

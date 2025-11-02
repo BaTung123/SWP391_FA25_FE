@@ -18,8 +18,7 @@ import {
   Avatar,
   Empty,
   Pagination,
-  Progress,
-  Typography,
+  Popconfirm,
 } from "antd";
 import {
   PlusOutlined,
@@ -27,39 +26,14 @@ import {
   CarOutlined,
   SearchOutlined,
   PictureOutlined,
-  PieChartOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
 const { Option } = Select;
-const { Text } = Typography;
-
-/* ========= LocalStorage helpers ========= */
-const PERCENT_KEY = "ownership_percent_map"; // { [groupId]: { [userId]: percent } }
-const LS_KEY = "group_members_map"; // { [groupId]: number[] }
-
-const loadPercentMap = () => {
-  try {
-    const raw = localStorage.getItem(PERCENT_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-const loadMembersMap = () => {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
 
 export default function VehicleManagementPage() {
   const [vehicles, setVehicles] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [openModal, setOpenModal] = useState(false);
@@ -68,11 +42,11 @@ export default function VehicleManagementPage() {
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const [openShareModal, setOpenShareModal] = useState(false); // Modal xem phần trăm
-  const [selectedVehicle, setSelectedVehicle] = useState(null); // Xe được chọn để xem phần trăm
-
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(8);
+
+  // trạng thái xoá theo từng hàng để disable nút
+  const [deletingIds, setDeletingIds] = useState(new Set());
 
   const [form] = Form.useForm();
 
@@ -89,41 +63,8 @@ export default function VehicleManagementPage() {
     }
   };
 
-  // --- Lấy danh sách nhóm ---
-  const fetchGroups = async () => {
-    try {
-      const res = await api.get("/Group");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      setGroups(list);
-    } catch {
-      // Không hiển thị lỗi vì có thể không có quyền truy cập
-    }
-  };
-
-  // --- Lấy danh sách người dùng ---
-  const fetchUsers = async () => {
-    try {
-      const res = await api.get("/User");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      const mapped = list
-        .filter(Boolean)
-        .map((u) => ({
-          id: u.userId ?? u.id,
-          name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
-          email: u.email,
-          raw: u,
-        }))
-        .filter((u) => u.id != null);
-      setUsers(mapped);
-    } catch {
-      // Không hiển thị lỗi vì có thể không có quyền truy cập
-    }
-  };
-
   useEffect(() => {
     fetchVehicles();
-    fetchGroups();
-    fetchUsers();
   }, []);
 
   // --- Mở modal thêm/sửa ---
@@ -143,23 +84,60 @@ export default function VehicleManagementPage() {
     setOpenModal(true);
   };
 
-  // --- Thêm/Sửa xe ---
+  // --- Thêm xe (POST) | Sửa xe (PUT) ---
   const handleSubmit = async (values) => {
-    try {
-      const payload = {
-        ...values,
-        status: Number(values.status),
-        batteryCapacity: Number(values.batteryCapacity),
-        id: editingVehicle ? editingVehicle.id : undefined,
-      };
+    const payload = {
+      ...values,
+      status: Number(values.status),
+      batteryCapacity: Number(values.batteryCapacity),
+    };
 
-      await api.post("/Car", payload);
-      message.success(editingVehicle ? "Cập nhật xe thành công!" : "Thêm xe thành công!");
+    try {
+      if (editingVehicle) {
+        // --- SỬA: dùng PUT ---
+        const id = editingVehicle.id ?? editingVehicle.carId;
+        try {
+          // 1) /Car/{id}
+          await api.put(`/Car/${id}/update`, payload);
+        } catch (e) {
+          // Empty
+        }
+        message.success("Cập nhật xe thành công!");
+      } else {
+        // --- THÊM: dùng POST ---
+        await api.post("/Car", payload);
+        message.success("Thêm xe thành công!");
+      }
+
       setOpenModal(false);
       form.resetFields();
       fetchVehicles();
     } catch {
       message.error("Không thể lưu xe. Vui lòng thử lại.");
+    }
+  };
+
+  // --- Xoá xe (DELETE) ---
+  const deleteVehicle = async (id) => {
+    setDeletingIds((prev) => new Set(prev).add(id));
+    try {
+      try {
+        await api.delete(`/Car/${id}/delete`);
+      } catch (e) {
+        // Empty
+      }
+
+      message.success("Đã xoá xe.");
+      setVehicles((list) => list.filter((v) => (v.id ?? v.carId) !== id));
+    } catch {
+      message.error("Xoá xe thất bại. Vui lòng thử lại.");
+      fetchVehicles();
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -174,7 +152,9 @@ export default function VehicleManagementPage() {
           .some((t) => String(t).toLowerCase().includes(kw));
 
       const matchStatus =
-        statusFilter === "all" ? true : Number(v?.status ?? 0) === Number(statusFilter);
+        statusFilter === "all"
+          ? true
+          : Number(v?.status ?? 0) === Number(statusFilter);
 
       return matchKW && matchStatus;
     });
@@ -206,7 +186,9 @@ export default function VehicleManagementPage() {
           )}
           <div>
             <div className="font-medium">{record.carName}</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>{record.brand || "—"}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {record.brand || "—"}
+            </div>
           </div>
         </Space>
       ),
@@ -237,28 +219,45 @@ export default function VehicleManagementPage() {
       title: "Hành động",
       key: "action",
       fixed: "right",
-      width: 180,
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="Xem phần trăm đồng sở hữu">
-            <Button
-              size="small"
-              icon={<PieChartOutlined />}
-              onClick={() => {
-                setSelectedVehicle(record);
-                setOpenShareModal(true);
-              }}
+      width: 200,
+      render: (_, record) => {
+        const id = record.id ?? record.carId;
+        const deleting = deletingIds.has(id);
+
+        return (
+          <Space>
+            <Tooltip title="Chỉnh sửa">
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => openEditModal(record)}
+              >
+                Sửa
+              </Button>
+            </Tooltip>
+
+            <Popconfirm
+              title="Xoá xe này?"
+              description="Hành động không thể hoàn tác."
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true, loading: deleting }}
+              onConfirm={() => deleteVehicle(id)}
             >
-              Phần trăm
-            </Button>
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEditModal(record)}>
-              Sửa
-            </Button>
-          </Tooltip>
-        </Space>
-      ),
+              <Tooltip title="Xoá">
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deleting}
+                >
+                  Xoá
+                </Button>
+              </Tooltip>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -300,7 +299,11 @@ export default function VehicleManagementPage() {
                 { label: "Không hoạt động", value: 0 },
               ]}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={openAddModal}
+            >
               Thêm xe
             </Button>
           </Space>
@@ -308,7 +311,10 @@ export default function VehicleManagementPage() {
       />
 
       {/* Table */}
-      <Card styles={{ padding: 0 }} className="border border-gray-100 shadow-sm">
+      <Card
+        styles={{ padding: 0 }}
+        className="border border-gray-100 shadow-sm"
+      >
         <Table
           columns={columns}
           dataSource={currentVehicles}
@@ -320,7 +326,10 @@ export default function VehicleManagementPage() {
           pagination={false}
           locale={{
             emptyText: (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có dữ liệu xe" />
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Không có dữ liệu xe"
+              />
             ),
           }}
         />
@@ -404,11 +413,20 @@ export default function VehicleManagementPage() {
                 label="Dung lượng pin (kWh)"
                 rules={[{ required: true, message: "Nhập dung lượng pin" }]}
               >
-                <InputNumber min={0} style={{ width: "100%" }} placeholder="VD: 42" controls={false} />
+                <InputNumber
+                  min={0}
+                  style={{ width: "100%" }}
+                  placeholder="VD: 42"
+                  controls={false}
+                />
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}>
+              <Form.Item
+                name="status"
+                label="Trạng thái"
+                rules={[{ required: true }]}
+              >
                 <Select
                   options={[
                     { label: "Không hoạt động", value: 0 },
@@ -422,11 +440,19 @@ export default function VehicleManagementPage() {
           <Divider style={{ margin: "8px 0 16px" }} />
 
           <Form.Item name="image" label="Ảnh xe (URL)">
-            <Input placeholder="https://link-to-image..." prefix={<PictureOutlined />} />
+            <Input
+              placeholder="https://link-to-image..."
+              prefix={<PictureOutlined />}
+            />
           </Form.Item>
 
           {form.getFieldValue("image") && (
-            <Card size="small" type="inner" title="Xem trước ảnh" style={{ marginTop: 8 }}>
+            <Card
+              size="small"
+              type="inner"
+              title="Xem trước ảnh"
+              style={{ marginTop: 8 }}
+            >
               <img
                 src={form.getFieldValue("image")}
                 alt="car"
@@ -436,110 +462,6 @@ export default function VehicleManagementPage() {
             </Card>
           )}
         </Form>
-      </Modal>
-
-      {/* Modal phần trăm đồng sở hữu */}
-      <Modal
-        title={
-          <Space>
-            <PieChartOutlined />
-            <span>
-              Phần trăm đồng sở hữu - {selectedVehicle?.carName || ""} (
-              {selectedVehicle?.plateNumber || ""})
-            </span>
-          </Space>
-        }
-        open={openShareModal}
-        footer={null}
-        onCancel={() => {
-          setOpenShareModal(false);
-          setSelectedVehicle(null);
-        }}
-        width={700}
-      >
-        {(() => {
-          if (!selectedVehicle) {
-            return <Empty description="Chưa chọn xe" />;
-          }
-
-          // Tìm group có carId trùng với xe được chọn
-          const carId = selectedVehicle.id ?? selectedVehicle.carId;
-          const group = groups.find(
-            (g) => Number(g?.car?.carId ?? g?.carId) === Number(carId)
-          );
-
-          if (!group) {
-            return <Empty description="Xe này chưa có nhóm đồng sở hữu" />;
-          }
-
-          // Lấy members và phần trăm
-          const groupId = group.groupId ?? group.id;
-          const membersMap = loadMembersMap();
-          const percentMap = loadPercentMap();
-          const memberIds = membersMap[groupId] || [];
-          const ownershipPercent = percentMap[groupId] || {};
-
-          if (memberIds.length === 0) {
-            return <Empty description="Nhóm chưa có thành viên" />;
-          }
-
-          // Tạo danh sách owners với thông tin đầy đủ
-          const owners = memberIds
-            .map((userId) => {
-              const user = users.find((u) => Number(u.id) === Number(userId));
-              if (!user) return null;
-              return {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                percent: Number(ownershipPercent[userId] ?? 0),
-              };
-            })
-            .filter(Boolean);
-
-          if (owners.length === 0) {
-            return <Empty description="Không tìm thấy thông tin thành viên" />;
-          }
-
-          return (
-            <Table
-              dataSource={owners}
-              rowKey="id"
-              pagination={false}
-              columns={[
-                {
-                  title: "Tên thành viên",
-                  dataIndex: "name",
-                  key: "name",
-                  render: (text) => <Text strong>{text}</Text>,
-                },
-                {
-                  title: "Email",
-                  dataIndex: "email",
-                  key: "email",
-                },
-                {
-                  title: "Phần trăm sở hữu",
-                  dataIndex: "percent",
-                  key: "percent",
-                  align: "center",
-                  width: 200,
-                  render: (v) => (
-                    <Progress percent={Number(v) || 0} size="small" status="active" />
-                  ),
-                },
-                {
-                  title: "Phần trăm",
-                  dataIndex: "percent",
-                  key: "percentValue",
-                  align: "center",
-                  width: 100,
-                  render: (v) => <Text>{Number(v) || 0}%</Text>,
-                },
-              ]}
-            />
-          );
-        })()}
       </Modal>
     </div>
   );
