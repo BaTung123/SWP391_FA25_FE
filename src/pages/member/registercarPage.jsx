@@ -229,7 +229,6 @@ const RegistercarPage = () => {
         {/* header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-indigo-900 mb-4">Đăng ký lịch sử dụng xe</h1>
-          <p className="text-gray-500">Xin chào{user ? `, ${user.fullName || user.userName}` : ""}</p>
         </div>
 
         {errorMsg && (
@@ -425,20 +424,17 @@ const RegistercarPage = () => {
                   )}
                 </div>
                 <div className="flex space-x-4">
-                  <button
-                    onClick={
-                      registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]]
-                        ? cancelRegistration
-                        : cancelSlots
-                    }
-                    className={`px-6 py-3 rounded-lg transition ${
-                      registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]]
-                        ? "bg-red-600 text-white hover:bg-red-700"
-                        : "text-gray-600 border border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] ? "Hủy đăng ký" : "Hủy"}
-                  </button>
+                  {/* ❌ Nút "Hủy" đã được bỏ. Giờ chỉ hiển thị:
+                        - "Hủy đăng ký" khi đã có đăng ký
+                        - "Đăng ký" khi chưa đăng ký */}
+                  {registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
+                    <button
+                      onClick={cancelRegistration}
+                      className="px-6 py-3 rounded-lg transition bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Hủy đăng ký
+                    </button>
+                  )}
 
                   {!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
                     <button

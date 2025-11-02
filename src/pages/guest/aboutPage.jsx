@@ -222,50 +222,103 @@ const AboutPage = () => {
         </div>
       </Content>
 
-      {/* POPULAR TOPICS */}
-      <section style={{ background: "#fff", padding: "60px 0" }}>
-        <div style={{ maxWidth: 1500, margin: "0 auto", padding: "0 40px" }}>
-          <motion.div variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
-            <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-              <Col>
-                <Title level={3} style={{ marginBottom: 0 }}>
-                  Chủ đề nổi bật
-                </Title>
-              </Col>
-            </Row>
+{/* POPULAR TOPICS */}
+<section style={{ background: "#fff", padding: "60px 0" }}>
+  <div style={{ maxWidth: 1500, margin: "0 auto", padding: "0 40px" }}>
+    <motion.div variants={sectionVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <Title level={3} style={{ marginBottom: 0 }}>
+            Chủ đề nổi bật
+          </Title>
+        </Col>
+      </Row>
 
-            <Row gutter={[24, 24]}>
-              <Col xs={24} sm={12} lg={8}>
-                <motion.div variants={featureVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
-                  <Card
-                    hoverable
-                    cover={
-                      <img
-                        alt="Mô hình chia sẻ chi phí"
-                        src="https://base.vn/wp-content/uploads/2024/02/lean-la-gi.jpg"
-                        style={{ height: 200, objectFit: "cover" }}
-                      />
-                    }
-                  >
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      <ThunderboltOutlined /> Chiến lược • 12 phút trước
-                    </Text>
-                    <Title level={5} style={{ marginTop: 8 }}>
-                      Thiết kế công thức chia sẻ chi phí công bằng cho EV
-                    </Title>
-                    <Paragraph type="secondary">
-                      Cân bằng giữa tỉ lệ sở hữu, thời lượng sử dụng và chi phí bảo trì thực tế.
-                    </Paragraph>
-                    <Button type="link" size="small">
-                      Đọc tiếp…
-                    </Button>
-                  </Card>
-                </motion.div>
-              </Col>
-            </Row>
+      <Row gutter={[24, 24]}>
+        {/* ✅ Chủ đề 1 */}
+        <Col xs={24} sm={12} lg={8}>
+          <motion.div variants={featureVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+            <Card
+              hoverable
+              cover={
+                <img
+                  alt="Chia sẻ chi phí xe điện"
+                  src="https://1office.vn/wp-content/uploads/2023/11/nhung-sai-lam-khi-ghi-nhan-chi-phi.jpg"
+                  style={{ height: 200, objectFit: "cover" }}
+                />
+              }
+            >
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <DollarOutlined /> Tài chính • 2 giờ trước
+              </Text>
+              <Title level={5} style={{ marginTop: 8 }}>
+                Quy tắc phân chia chi phí – Minh bạch & công bằng
+              </Title>
+              <Paragraph type="secondary">
+                Làm sao để định lượng đúng chi phí bảo trì, khấu hao và sử dụng theo tỷ lệ sở hữu?
+              </Paragraph>
+              <Button type="link" size="small">Đọc tiếp…</Button>
+            </Card>
           </motion.div>
-        </div>
-      </section>
+        </Col>
+
+        {/* ✅ Chủ đề 2 */}
+        <Col xs={24} sm={12} lg={8}>
+          <motion.div variants={featureVariants} initial="hidden" whileInView="visible" viewport={{ once: true }} transition={{ delay: 0.2 }}>
+            <Card
+              hoverable
+              cover={
+                <img
+                  alt="Quản lý lịch đặt xe"
+                  src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSu6alez_KxnuPVHzZT5epeidkBs1vePOklGA&s"
+                  style={{ height: 200, objectFit: "cover" }}
+                />
+              }
+            >
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <CalendarOutlined /> Lịch đặt xe • 5 giờ trước
+              </Text>
+              <Title level={5} style={{ marginTop: 8 }}>
+                Lịch sử dụng xe thông minh – Tránh xung đột quyền lợi
+              </Title>
+              <Paragraph type="secondary">
+                Hệ thống đặt lịch theo tỷ lệ sở hữu và ưu tiên minh bạch cho người dùng.
+              </Paragraph>
+              <Button type="link" size="small">Đọc tiếp…</Button>
+            </Card>
+          </motion.div>
+        </Col>
+
+        {/* ✅ Chủ đề 3 */}
+        <Col xs={24} sm={12} lg={8}>
+          <motion.div variants={featureVariants} initial="hidden" whileInView="visible" viewport={{ once: true }} transition={{ delay: 0.4 }}>
+            <Card
+              hoverable
+              cover={
+                <img
+                  alt="Cơ chế quyền sở hữu xe"
+                  src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZ_brhcc-EQlSaxegO4Zz5IP9t4h2Ve0vcui8QNm2KgYnYilh88PVQcZ_7-ebtWW-yGiI&usqp=CAU"
+                  style={{ height: 200, objectFit: "cover" }}
+                />
+              }
+            >
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <UserOutlined /> Quyền lợi • 1 ngày trước
+              </Text>
+              <Title level={5} style={{ marginTop: 8 }}>
+                Mô hình đồng sở hữu – Giải quyết tranh chấp ra sao?
+              </Title>
+              <Paragraph type="secondary">
+                Quy định rõ quyền hạn và trách nhiệm giúp nhóm chủ sở hữu hoạt động bền vững.
+              </Paragraph>
+              <Button type="link" size="small">Đọc tiếp…</Button>
+            </Card>
+          </motion.div>
+        </Col>
+      </Row>
+    </motion.div>
+  </div>
+</section>
 
       <Divider style={{ margin: "0" }} />
       <Footer />

@@ -16,6 +16,10 @@ import {
   Empty,
 } from "antd";
 import {
+<<<<<<< HEAD
+=======
+  DeleteOutlined,
+>>>>>>> main
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
@@ -82,7 +86,6 @@ export default function GroupPage() {
 
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [viewModal, setViewModal] = useState({ visible: false, group: null });
   const [editingGroup, setEditingGroup] = useState(null);
 
 <<<<<<< HEAD
@@ -343,9 +346,6 @@ export default function GroupPage() {
     }
   };
 
-  /* ========= View Group ========= */
-  const handleViewGroup = (record) => setViewModal({ visible: true, group: record });
-
   /* ========= Delete Group ========= */
   const handleDelete = async (groupId) => {
     try {
@@ -532,11 +532,16 @@ export default function GroupPage() {
       width: 260,
       render: (_, record) => (
         <Space>
+<<<<<<< HEAD
           <Tooltip title="Xem chi tiết">
             <Button
               icon={<EyeOutlined />}
               onClick={() => setViewModal({ visible: true, group: record })}
             />
+=======
+          <Tooltip title="Phần trăm đồng sở hữu">
+            <Button icon={<CarOutlined />} onClick={() => handleOpenPercentModal(record)} />
+>>>>>>> main
           </Tooltip>
 <<<<<<< HEAD
           <Tooltip title="Chỉnh sửa nhóm & thành viên">
@@ -548,13 +553,6 @@ export default function GroupPage() {
 =======
           <Tooltip title="Chỉnh sửa thông tin & thành viên">
             <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa phần trăm đồng sở hữu">
-            <Button
-              icon={<CarOutlined />}
-              type="primary"
-              onClick={() => handleOpenPercentModal(record)}
-            />
           </Tooltip>
           <Popconfirm
             title="Xác nhận xoá nhóm này?"

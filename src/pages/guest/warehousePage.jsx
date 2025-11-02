@@ -175,49 +175,6 @@ export default function WarehousePage() {
     <div className="min-h-screen bg-[#f6f7fb]">
       <Header />
 
-      {/* Top */}
-      <section className="pt-24 pb-6">
-        <div className="max-w-7xl mx-auto px-5">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-            <div>
-              <h1 className="text-3xl md:text-[34px] font-extrabold text-slate-900 m-0">
-                Inventory
-              </h1>
-              <p className="text-slate-600 mt-1">
-                Danh sách xe (status = 0). Chỉ hiển thị ảnh, màu, dung lượng pin và tên xe.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={fetchCars}
-                className="h-10 w-10 grid place-items-center rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
-                title="Làm mới"
-              >
-                ⟳
-              </button>
-              <div className="p-0.5 rounded-xl bg-white border border-slate-200">
-                <button
-                  className={`px-3 py-2 rounded-lg text-sm ${
-                    view === "grid" ? "bg-slate-900 text-white" : "text-slate-700"
-                  }`}
-                  onClick={() => setView("grid")}
-                >
-                  Grid
-                </button>
-                <button
-                  className={`px-3 py-2 rounded-lg text-sm ${
-                    view === "list" ? "bg-slate-900 text-white" : "text-slate-700"
-                  }`}
-                  onClick={() => setView("list")}
-                >
-                  List
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Toolbar */}
       <section className="pb-6">
         <div className="max-w-7xl mx-auto px-5">

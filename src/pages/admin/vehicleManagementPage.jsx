@@ -22,6 +22,10 @@ import {
   Popconfirm,
 =======
   Progress,
+<<<<<<< HEAD
+>>>>>>> main
+=======
+  Typography,
 >>>>>>> main
 } from "antd";
 import {
@@ -39,9 +43,34 @@ import {
 import api from "../../config/axios.js";
 
 const { Option } = Select;
+const { Text } = Typography;
+
+/* ========= LocalStorage helpers ========= */
+const PERCENT_KEY = "ownership_percent_map"; // { [groupId]: { [userId]: percent } }
+const LS_KEY = "group_members_map"; // { [groupId]: number[] }
+
+const loadPercentMap = () => {
+  try {
+    const raw = localStorage.getItem(PERCENT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const loadMembersMap = () => {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
 
 export default function VehicleManagementPage() {
   const [vehicles, setVehicles] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [openModal, setOpenModal] = useState(false);
@@ -52,6 +81,7 @@ export default function VehicleManagementPage() {
   const [openShareModal, setOpenShareModal] = useState(false);
 
   const [openShareModal, setOpenShareModal] = useState(false); // Modal xem phần trăm
+  const [selectedVehicle, setSelectedVehicle] = useState(null); // Xe được chọn để xem phần trăm
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(8);
@@ -71,8 +101,41 @@ export default function VehicleManagementPage() {
     }
   };
 
+  // --- Lấy danh sách nhóm ---
+  const fetchGroups = async () => {
+    try {
+      const res = await api.get("/Group");
+      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      setGroups(list);
+    } catch {
+      // Không hiển thị lỗi vì có thể không có quyền truy cập
+    }
+  };
+
+  // --- Lấy danh sách người dùng ---
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get("/User");
+      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      const mapped = list
+        .filter(Boolean)
+        .map((u) => ({
+          id: u.userId ?? u.id,
+          name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
+          email: u.email,
+          raw: u,
+        }))
+        .filter((u) => u.id != null);
+      setUsers(mapped);
+    } catch {
+      // Không hiển thị lỗi vì có thể không có quyền truy cập
+    }
+  };
+
   useEffect(() => {
     fetchVehicles();
+    fetchGroups();
+    fetchUsers();
   }, []);
 
   // --- Mở modal thêm/sửa ---
@@ -215,9 +278,21 @@ export default function VehicleManagementPage() {
       title: "Hành động",
       key: "action",
       fixed: "right",
-      width: 120,
+      width: 180,
       render: (_, record) => (
         <Space>
+          <Tooltip title="Xem phần trăm đồng sở hữu">
+            <Button
+              size="small"
+              icon={<PieChartOutlined />}
+              onClick={() => {
+                setSelectedVehicle(record);
+                setOpenShareModal(true);
+              }}
+            >
+              Phần trăm
+            </Button>
+          </Tooltip>
           <Tooltip title="Chỉnh sửa">
             <Button
               size="small"
@@ -281,6 +356,7 @@ export default function VehicleManagementPage() {
                 { label: "Không hoạt động", value: 0 },
               ]}
             />
+<<<<<<< HEAD
             {/* Nút xem phần trăm đồng sở hữu */}
             <Button
               type="default"
@@ -294,6 +370,9 @@ export default function VehicleManagementPage() {
               icon={<PlusOutlined />}
               onClick={openAddModal}
             >
+=======
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
+>>>>>>> main
               Thêm xe
             </Button>
           </Space>
@@ -451,14 +530,21 @@ export default function VehicleManagementPage() {
         title={
           <Space>
             <PieChartOutlined />
-            <span>Phần trăm đồng sở hữu xe</span>
+            <span>
+              Phần trăm đồng sở hữu - {selectedVehicle?.carName || ""} (
+              {selectedVehicle?.plateNumber || ""})
+            </span>
           </Space>
         }
         open={openShareModal}
         footer={null}
-        onCancel={() => setOpenShareModal(false)}
+        onCancel={() => {
+          setOpenShareModal(false);
+          setSelectedVehicle(null);
+        }}
         width={700}
       >
+<<<<<<< HEAD
         {vehicles.length === 0 ? (
           <Empty description="Chưa có dữ liệu đồng sở hữu" />
         ) : (
@@ -495,6 +581,91 @@ export default function VehicleManagementPage() {
             ]}
           />
         )}
+=======
+        {(() => {
+          if (!selectedVehicle) {
+            return <Empty description="Chưa chọn xe" />;
+          }
+
+          // Tìm group có carId trùng với xe được chọn
+          const carId = selectedVehicle.id ?? selectedVehicle.carId;
+          const group = groups.find(
+            (g) => Number(g?.car?.carId ?? g?.carId) === Number(carId)
+          );
+
+          if (!group) {
+            return <Empty description="Xe này chưa có nhóm đồng sở hữu" />;
+          }
+
+          // Lấy members và phần trăm
+          const groupId = group.groupId ?? group.id;
+          const membersMap = loadMembersMap();
+          const percentMap = loadPercentMap();
+          const memberIds = membersMap[groupId] || [];
+          const ownershipPercent = percentMap[groupId] || {};
+
+          if (memberIds.length === 0) {
+            return <Empty description="Nhóm chưa có thành viên" />;
+          }
+
+          // Tạo danh sách owners với thông tin đầy đủ
+          const owners = memberIds
+            .map((userId) => {
+              const user = users.find((u) => Number(u.id) === Number(userId));
+              if (!user) return null;
+              return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                percent: Number(ownershipPercent[userId] ?? 0),
+              };
+            })
+            .filter(Boolean);
+
+          if (owners.length === 0) {
+            return <Empty description="Không tìm thấy thông tin thành viên" />;
+          }
+
+          return (
+            <Table
+              dataSource={owners}
+              rowKey="id"
+              pagination={false}
+              columns={[
+                {
+                  title: "Tên thành viên",
+                  dataIndex: "name",
+                  key: "name",
+                  render: (text) => <Text strong>{text}</Text>,
+                },
+                {
+                  title: "Email",
+                  dataIndex: "email",
+                  key: "email",
+                },
+                {
+                  title: "Phần trăm sở hữu",
+                  dataIndex: "percent",
+                  key: "percent",
+                  align: "center",
+                  width: 200,
+                  render: (v) => (
+                    <Progress percent={Number(v) || 0} size="small" status="active" />
+                  ),
+                },
+                {
+                  title: "Phần trăm",
+                  dataIndex: "percent",
+                  key: "percentValue",
+                  align: "center",
+                  width: 100,
+                  render: (v) => <Text>{Number(v) || 0}%</Text>,
+                },
+              ]}
+            />
+          );
+        })()}
+>>>>>>> main
       </Modal>
     </div>
   );
