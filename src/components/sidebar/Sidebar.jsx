@@ -3,20 +3,13 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   FaTachometerAlt,
   FaUsers,
-  FaDatabase,
-  FaBox,
-  FaHeart,
   FaCalendarAlt,
-  FaFileAlt,
-  FaExchangeAlt,
-  FaUserPlus,
   FaCog,
   FaSignOutAlt,
   FaCar,
   FaUser,
-  FaClipboardList,
   FaCreditCard,
-  FaHandshake
+  FaRegClipboard,
 } from 'react-icons/fa';
 
 const Sidebar = () => {
@@ -70,6 +63,12 @@ const Sidebar = () => {
       icon: <FaCog />,
       label: "Maintenance",
       path: "/staff/maintenance"
+    },
+    {
+      key: "/staff/vote",
+      icon: <FaRegClipboard />,
+      label: "Vote",
+      path: "/staff/vote"
     },
     {
       key: "/staff/payment",

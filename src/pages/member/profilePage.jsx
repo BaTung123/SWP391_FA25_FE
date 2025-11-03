@@ -1,5 +1,144 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../../components/header/header';
+import api from '../../config/axios';
+
+// Danh sách đánh giá (vote) cho member
+const VoteList = () => {
+  const [votes, setVotes] = useState([
+    {
+      id: 1,
+      formId: 101,
+      vehicleName: 'Tesla Model 3',
+      licensePlate: '30A-12345',
+      serviceType: 'Bảo dưỡng định kỳ',
+      status: 'Chờ đánh giá',
+      date: '2024-12-15',
+      choice: null,
+    },
+    {
+      id: 2,
+      formId: 102,
+      vehicleName: 'BYD Atto 3',
+      licensePlate: '29B-67890',
+      serviceType: 'Sửa hệ thống phanh',
+      status: 'Đã đánh giá',
+      date: '2024-12-10',
+      choice: 'Đồng ý',
+    },
+  ]);
+  const [submittingId, setSubmittingId] = useState(null);
+
+  const getStatusBadge = (status) => {
+    const classes =
+      status === 'Đã đánh giá'
+        ? 'bg-green-100 text-green-800'
+        : 'bg-yellow-100 text-yellow-800';
+    return (
+      <span className={`px-2 py-1 text-xs rounded-full font-semibold ${classes}`}>
+        {status}
+      </span>
+    );
+  };
+
+  const onVote = async (id, choice) => {
+    const vote = votes.find((v) => v.id === id);
+    if (!vote) return;
+
+    // Lấy userId từ localStorage
+    let userId = null;
+    try {
+      const userData = localStorage.getItem('user');
+      userId = userData ? JSON.parse(userData)?.id ?? JSON.parse(userData)?.userId : null;
+    } catch {}
+
+    if (userId == null) {
+      alert('Không xác định được người dùng. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    setSubmittingId(id);
+    try {
+      // API GET /Vote với query params
+      await api.get('/Vote', {
+        params: {
+          userId,
+          formId: vote.formId,
+          decision: choice === 'Đồng ý',
+        },
+      });
+
+      // Cập nhật UI khi thành công
+      setVotes((prev) =>
+        prev.map((v) =>
+          v.id === id ? { ...v, status: 'Đã đánh giá', choice } : v
+        )
+      );
+    } catch (e) {
+      alert('Gửi đánh giá thất bại. Vui lòng thử lại.');
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-indigo-200 rounded-lg shadow-md overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-indigo-50">
+            <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">Xe</th>
+            <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">Dịch vụ</th>
+            <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">Trạng thái</th>
+            <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">Ngày</th>
+            <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {votes.map((vote) => (
+            <tr key={vote.id} className="hover:bg-gray-50 transition-colors">
+              <td className="border border-indigo-200 px-4 py-3">
+                <div className="font-medium text-gray-900">{vote.vehicleName}</div>
+                <div className="text-sm text-gray-500">{vote.licensePlate}</div>
+              </td>
+              <td className="border border-indigo-200 px-4 py-3 text-gray-900 text-sm">{vote.serviceType}</td>
+              <td className="border border-indigo-200 px-4 py-3 text-center">{getStatusBadge(vote.status)}</td>
+              <td className="border border-indigo-200 px-4 py-3 text-sm text-gray-700 text-center">{vote.date}</td>
+              <td className="border border-indigo-200 px-4 py-3">
+                {vote.status === 'Chờ đánh giá' ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => onVote(vote.id, 'Đồng ý')}
+                      disabled={submittingId === vote.id}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm disabled:opacity-60"
+                    >
+                      Đồng ý
+                    </button>
+                    <button
+                      onClick={() => onVote(vote.id, 'Từ chối')}
+                      disabled={submittingId === vote.id}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm disabled:opacity-60"
+                    >
+                      Từ chối
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      vote.choice === 'Đồng ý'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {vote.choice}
+                    </span>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -254,6 +393,16 @@ const ProfilePage = () => {
           >
             BẢO HIỂM
           </div>
+          <div
+            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+              activeTab === 'votes' 
+                ? 'text-indigo-900 border-b-3 border-indigo-900' 
+                : 'text-indigo-600 hover:text-indigo-800'
+            }`}
+            onClick={() => setActiveTab('votes')}
+          >
+            ĐÁNH GIÁ
+          </div>
         </div>
 
         {activeTab === 'profile' && user && (
@@ -427,10 +576,6 @@ const ProfilePage = () => {
 
         {activeTab === 'vehicles' && (
           <div className="mb-8">
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold text-indigo-900 mb-4">Danh sách xe sở hữu chung</h3>
-            </div>
-            
             <div className="overflow-x-auto">
               <table className="w-full border-collapse bg-white rounded-lg shadow-md">
                 <thead>
@@ -510,11 +655,6 @@ const ProfilePage = () => {
 
         {activeTab === 'insurance' && (
           <div className="mb-8">
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold text-indigo-900 mb-4">Thông tin bảo hiểm xe</h3>
-              <p className="text-gray-600">Quản lý và theo dõi các khoản chi phí bảo hiểm cho xe sở hữu chung</p>
-            </div>
-            
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
               {vehicleData.map((vehicle) => (
                 <div key={vehicle.id} className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow">
@@ -583,6 +723,13 @@ const ProfilePage = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'votes' && (
+          <div className="mb-8">
+            {/* Mock votes - có thể thay bằng API */}
+            <VoteList />
           </div>
         )}
 
