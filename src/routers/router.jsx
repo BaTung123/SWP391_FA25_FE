@@ -40,6 +40,7 @@ const BookingManagementPage = lazy(() =>
 );
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
+const VotePage = lazy(() => import("../pages/staff/votePage"));
 
 // Error pages
 const UnauthorizedPage = lazy(() => import("../pages/error/unauthorizedPage"));
@@ -270,6 +271,16 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             <ProtectedRoute roleAccount={[1]}>
               <MaintenancePage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "vote",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[1]}>
+              <VotePage />
             </ProtectedRoute>
           </Suspense>
         ),
