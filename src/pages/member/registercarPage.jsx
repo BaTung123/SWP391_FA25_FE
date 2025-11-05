@@ -18,7 +18,7 @@ const RegistercarPage = () => {
   const [user, setUser] = useState(null);
   const [cars, setCars] = useState([]);               // danh sách xe user sở hữu (kèm _carId, _carUserId)
   const [carUserMap, setCarUserMap] = useState({});   // { [carId]: carUserId }
-  const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: percentage }  <-- NEW
+  const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: percentage }
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -46,7 +46,7 @@ const RegistercarPage = () => {
     return me?.data?.data || me?.data || null;
   };
 
-  // Load xe mà user sở hữu + phần trăm sở hữu
+  // ======= Load xe mà user sở hữu + phần trăm sở hữu =======
   useEffect(() => {
     const boot = async () => {
       try {
@@ -112,12 +112,18 @@ const RegistercarPage = () => {
               ownMap[c._carId] = 100;
             }
           }
-        } catch (err) {
-          console.warn("Không lấy được phần trăm sở hữu:", err);
+        } catch {
           // fallback: coi như 100% cho tất cả xe
           for (const c of mapped) ownMap[c._carId] = 100;
         }
         setOwnershipMap(ownMap);
+
+        // 🔁 Auto chọn xe đầu tiên + load lịch
+        if (mapped.length > 0) {
+          const firstId = mapped[0]._carId;
+          setFormData((p) => ({ ...p, vehicleId: firstId }));
+          await loadSchedulesForCar(firstId, mapCU);
+        }
       } catch (err) {
         console.error(err);
         setErrorMsg(err?.message || "Không thể tải danh sách xe.");
@@ -127,6 +133,56 @@ const RegistercarPage = () => {
     };
     boot();
   }, []);
+
+  // ======= 🧩 Load lịch theo car (hydrate vào calendar) =======
+  const loadSchedulesForCar = async (carId, mapCU = null) => {
+    try {
+      const cuMap = mapCU ?? carUserMap;
+      const carUserId = cuMap[carId];
+      if (!carUserId) {
+        // không có liên kết CarUser → clear lịch
+        setRegisteredTimeSlots({});
+        setSelectedDates([]);
+        return;
+      }
+
+      // Ưu tiên query theo carUserId; bạn có thể đổi endpoint theo BE
+      const res = await api.get(`/Schedule?carUserId=${carUserId}`);
+      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+
+      const grouped = {};
+      for (const item of list) {
+        const startIso = item.startDate ?? item.StartDate;
+        const endIso = item.endDate ?? item.EndDate;
+        if (!startIso || !endIso) continue;
+
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+        const dateKey = start.toISOString().split("T")[0];
+
+        const startTime = `${String(start.getHours()).padStart(2, "0")}:${String(
+          start.getMinutes()
+        ).padStart(2, "0")}`;
+        const endTime = `${String(end.getHours()).padStart(2, "0")}:${String(
+          end.getMinutes()
+        ).padStart(2, "0")}`;
+
+        const id =
+          item.id ?? item.scheduleId ?? item.Id ?? item.ScheduleId ?? null;
+
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push({ startTime, endTime, id });
+      }
+
+      setRegisteredTimeSlots(grouped);
+      setSelectedDates(Object.keys(grouped));
+    } catch (err) {
+      console.warn("Không thể tải lịch:", err);
+      // lỗi thì clear để tránh hiển thị sai
+      setRegisteredTimeSlots({});
+      setSelectedDates([]);
+    }
+  };
 
   // ======= UI helpers (giữ nguyên) =======
   const monthNames = useMemo(
@@ -179,12 +235,6 @@ const RegistercarPage = () => {
     return selectedDates.includes(d.toISOString().split("T")[0]);
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
-  };
-
-  // ======= Time slots (giữ nguyên) =======
   const roundToNearest15 = (t) => {
     if (!t) return "";
     const [h, m] = t.split(":").map(Number);
@@ -214,10 +264,21 @@ const RegistercarPage = () => {
 
   const updateSlot = (i, field, val) =>
     setTimeSlots((p) =>
-      p.map((s, idx) => (idx === i ? { ...s, [field]: roundToNearest15(val) } : s))
+      p.map((s, idx) =>
+        idx === i ? { ...s, [field]: roundToNearest15(val) } : s
+      )
     );
   const addTimeSlot = () => setTimeSlots((p) => [...p, { startTime: "", endTime: "" }]);
   const removeTimeSlot = (i) => setTimeSlots((p) => p.filter((_, idx) => idx !== i));
+
+  const handleChange = async (e) => {
+    const { name, value } = e.target;
+    setFormData((p) => ({ ...p, [name]: value }));
+    // Khi đổi xe → load lại lịch từ BE
+    if (name === "vehicleId" && value) {
+      await loadSchedulesForCar(Number(value));
+    }
+  };
 
   const handleDateClick = (day) => {
     if (!day || isPastDate(day)) return;
@@ -235,7 +296,6 @@ const RegistercarPage = () => {
       if (!selectedDateForTime) return;
 
       if (timeSlots.length === 0) return alert("Vui lòng thêm ít nhất 1 khung giờ.");
-
       // Kiểm tra theo % sở hữu (maxDaily())
       for (let i = 0; i < timeSlots.length; i++) {
         const d = calcDuration(timeSlots[i].startTime, timeSlots[i].endTime);
@@ -299,6 +359,7 @@ const RegistercarPage = () => {
         });
       }
 
+      // Lưu local + đánh dấu ngày
       setRegisteredTimeSlots((prev) => ({ ...prev, [dateKey]: created }));
       setSelectedDates((p) => (p.includes(dateKey) ? p : [...p, dateKey]));
 
