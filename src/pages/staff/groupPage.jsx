@@ -35,18 +35,21 @@ export default function GroupPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // local state để nhớ thành viên từng nhóm (không phụ thuộc BE)
-  const [groupMembersMap, setGroupMembersMap] = useState({});
+  // carId -> [userId] (sở hữu xe)
+  const [carOwnersMap, setCarOwnersMap] = useState({});
 
   // modal states
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
 
-  // UI-only percent modal
+  // Percent modal
   const [isPercentModalVisible, setIsPercentModalVisible] = useState(false);
   const [selectedGroupForPercent, setSelectedGroupForPercent] = useState(null);
-  const [ownershipMap, setOwnershipMap] = useState({});
+  const [ownershipMap, setOwnershipMap] = useState({});        // userId -> percentage
+  const [carUserIdMap, setCarUserIdMap] = useState({});        // userId -> carUserId
+  const [percentIdMap, setPercentIdMap] = useState({});        // userId -> percentOwnershipId
+  const [usageLimitMap, setUsageLimitMap] = useState({});      // userId -> usageLimit (giữ 0 nếu không dùng)
 
   // filters
   const [keyword, setKeyword] = useState("");
@@ -57,52 +60,42 @@ export default function GroupPage() {
   const [formAdd] = Form.useForm();
   const [formEdit] = Form.useForm();
 
-  /* ========= Load data ========= */
-  const fetchGroups = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get("/Group");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      setGroups(list);
-    } catch {
-      message.error("Không tải được danh sách nhóm!");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCars = async () => {
-    try {
-      const res = await api.get("/Car");
-      setCars(res.data || []);
-    } catch {
-      message.error("Không tải được danh sách xe!");
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await api.get("/User");
-      const list = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      const mapped = list
-        .filter(Boolean)
-        .map((u) => ({
-          id: u.userId ?? u.id,
-          name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
-          email: u.email,
-          role: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
-        }))
-        .filter((u) => u.id != null);
-      setUsers(mapped);
-    } catch {
-      message.error("Không tải được danh sách thành viên!");
-    }
-  };
-
+  /* ========= Base fetch ========= */
   useEffect(() => {
-    fetchGroups();
-    fetchCars();
-    fetchUsers();
+    (async () => {
+      setLoading(true);
+      try {
+        const [gRes, cRes, uRes] = await Promise.all([
+          api.get("/Group"),
+          api.get("/Car"),
+          api.get("/User"),
+        ]);
+
+        const listGroups = Array.isArray(gRes.data) ? gRes.data : gRes.data ? [gRes.data] : [];
+        const listCars = cRes.data || [];
+        const rawUsers = Array.isArray(uRes.data) ? uRes.data : uRes.data ? [uRes.data] : [];
+        const listUsers = rawUsers
+          .filter(Boolean)
+          .map((u) => ({
+            id: u.userId ?? u.id,
+            name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
+            email: u.email,
+            role: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
+          }))
+          .filter((u) => u.id != null);
+
+        setGroups(listGroups);
+        setCars(listCars);
+        setUsers(listUsers);
+
+        await hydrateCarOwners(listCars, listUsers);
+      } catch (e) {
+        console.error(e);
+        message.error("Không tải được dữ liệu!");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   /* ========= Member options ========= */
@@ -120,28 +113,7 @@ export default function GroupPage() {
   /* ========= Helpers ========= */
   const getGroupId = (record) => record?.groupId ?? record?.id;
 
-  const getMemberIdsForGroup = (group) => {
-    const gid = getGroupId(group);
-    if (!gid) return [];
-    return Array.isArray(groupMembersMap[gid]) ? groupMembersMap[gid] : [];
-  };
-
-  const resolveMembers = (ids) =>
-    ids.map((id) => users.find((u) => Number(u.id) === Number(id))).filter(Boolean);
-
-  const setMembersForGroup = (groupId, userIds) => {
-    setGroupMembersMap((prev) => ({ ...prev, [groupId]: (userIds || []).map(Number) }));
-  };
-
-  const removeMembersForGroup = (groupId) => {
-    setGroupMembersMap((prev) => {
-      const next = { ...prev };
-      delete next[groupId];
-      return next;
-    });
-  };
-
-  /* ========= Car lookup ========= */
+  // Car lookup
   const carById = useMemo(() => {
     const map = new Map();
     (cars || []).forEach((c) => {
@@ -159,28 +131,23 @@ export default function GroupPage() {
     return carById.get(carId) || null;
   };
 
-  /* ========= CarUser API helpers ========= */
-  // Dùng API bạn cung cấp:
-  // GET /users/{userId}/cars  (không dùng ở đây)
-  // POST /cars/{carId}/users/{userId}/add
-  // DELETE /cars/{carId}/users/{userId}/remove
+  // Thành viên của group = các user đang sở hữu carId đó (đọc từ BE)
+  const getMemberIdsForGroup = (group) => {
+    const carId = Number(group?.car?.carId ?? group?.carId);
+    if (!carId) return [];
+    return Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
+  };
 
+  const resolveMembers = (ids) =>
+    ids.map((id) => users.find((u) => Number(u.id) === Number(id))).filter(Boolean);
+
+  /* ========= CarUser API ========= */
   async function addCarUser(carId, userId) {
-    try {
-      await api.post(`/cars/${carId}/users/${userId}/add`);
-    } catch (e) {
-      console.error("addCarUser failed", e?.response?.data || e);
-      throw e;
-    }
+    await api.post(`/cars/${carId}/users/${userId}/add`);
   }
 
   async function removeCarUser(carId, userId) {
-    try {
-      await api.delete(`/cars/${carId}/users/${userId}/remove`);
-    } catch (e) {
-      console.error("removeCarUser failed", e?.response?.data || e);
-      throw e;
-    }
+    await api.delete(`/cars/${carId}/users/${userId}/remove`);
   }
 
   async function syncCarUsersForGroup({ carId, prevMemberIds, nextMemberIds }) {
@@ -189,12 +156,117 @@ export default function GroupPage() {
     const toAdd = [...next].filter((id) => !prev.has(id));
     const toRemove = [...prev].filter((id) => !next.has(id));
 
-    // Gọi tuần tự để dễ debug; có thể Promise.all nếu backend chịu được
-    for (const uid of toAdd) {
-      await addCarUser(Number(carId), Number(uid));
+    for (const uid of toAdd) await addCarUser(Number(carId), Number(uid));
+    for (const uid of toRemove) await removeCarUser(Number(carId), Number(uid));
+  }
+
+  /* ========= Owners hydrate ========= */
+  async function tryGetUsersByCar(carId) {
+    try {
+      const res = await api.get(`/cars/${carId}/users`); // nếu BE có
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      return arr.map((u) => Number(u?.userId ?? u?.id)).filter((x) => Number.isFinite(x));
+    } catch {
+      return null;
     }
-    for (const uid of toRemove) {
-      await removeCarUser(Number(carId), Number(uid));
+  }
+
+  async function getUserCarIds(userId) {
+    try {
+      const r = await api.get(`/users/${userId}/cars`);
+      const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+      return new Set(
+        arr
+          .map((it) => Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id))
+          .filter((x) => Number.isFinite(x))
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
+  async function hydrateCarOwners(carsList, usersList) {
+    const next = {};
+
+    const fastResults = await Promise.allSettled(
+      (carsList || []).map(async (car) => {
+        const cid = Number(car?.carId ?? car?.id);
+        if (!Number.isFinite(cid)) return { cid, owners: [] };
+        const owners = await tryGetUsersByCar(cid);
+        return { cid, owners };
+      })
+    );
+
+    let needFallback = false;
+    fastResults.forEach((p) => {
+      const { cid, owners } = p.value || {};
+      if (cid == null) return;
+      if (owners === null) needFallback = true;
+      else next[cid] = owners;
+    });
+
+    if (needFallback) {
+      const userCarsMap = new Map();
+      await Promise.allSettled(
+        (usersList || []).map(async (u) => {
+          const set = await getUserCarIds(u.id);
+          userCarsMap.set(u.id, set);
+        })
+      );
+
+      (carsList || []).forEach((car) => {
+        const cid = Number(car?.carId ?? car?.id);
+        if (!Number.isFinite(cid)) return;
+        if (Array.isArray(next[cid])) return;
+        const owners = (usersList || [])
+          .filter((u) => userCarsMap.get(u.id)?.has(cid))
+          .map((u) => Number(u.id));
+        next[cid] = owners;
+      });
+    }
+
+    setCarOwnersMap(next);
+  }
+
+  /* ========= PercentOwnership API helpers ========= */
+  // Thử route không /api trước, lỗi mới thử có /api
+  async function poGetAll() {
+    try {
+      const r = await api.get("/PercentOwnership");
+      return Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+    } catch {
+      const r2 = await api.get("/api/PercentOwnership");
+      return Array.isArray(r2.data) ? r2.data : r2.data ? [r2.data] : [];
+    }
+  }
+  async function poPost(payload) {
+    try {
+      await api.post("/PercentOwnership", payload);
+    } catch {
+      await api.post("/api/PercentOwnership", payload);
+    }
+  }
+  async function poPut(id, payload) {
+    try {
+      await api.put(`/PercentOwnership/${id}`, payload);
+    } catch {
+      await api.put(`/api/PercentOwnership/${id}`, payload);
+    }
+  }
+
+  // Resolve carUserId cho (carId, userId)
+  async function resolveCarUserId(carId, userId) {
+    try {
+      const r = await api.get(`/users/${userId}/cars`);
+      const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+      const found = arr.find((it) => {
+        const cid = Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id);
+        return Number(cid) === Number(carId);
+      });
+      if (!found) return null;
+      return Number(found?.carUserId ?? found?.id); // tuỳ BE đặt tên
+    } catch {
+      return null;
     }
   }
 
@@ -214,31 +286,40 @@ export default function GroupPage() {
       message.success("Thêm nhóm thành công!");
       setIsAddModalVisible(false);
       formAdd.resetFields();
-      fetchGroups();
+
+      await fetchGroupsAndRehydrate();
     } catch {
       message.error("Không thể thêm nhóm!");
     }
   };
 
+  async function fetchGroupsAndRehydrate() {
+    const gRes = await api.get("/Group");
+    const listGroups = Array.isArray(gRes.data) ? gRes.data : gRes.data ? [gRes.data] : [];
+    setGroups(listGroups);
+    await hydrateCarOwners(cars, users);
+  }
+
   const handleDelete = async (groupId) => {
     try {
       const group = groups.find((g) => getGroupId(g) === groupId);
       const carId = Number(group?.car?.carId ?? group?.carId);
-      const currentMembers = getMemberIdsForGroup(group);
 
-      // Tháo link user–car trước khi xoá nhóm (nếu muốn)
+      const currentMembers = getMemberIdsForGroup(group).map(Number);
       if (carId && currentMembers?.length) {
         for (const uid of currentMembers) {
           try {
-            await removeCarUser(carId, Number(uid));
-          } catch {}
+            await removeCarUser(carId, uid);
+          } catch (e) {
+            console.warn(`Gỡ quan hệ car ${carId} ↔ user ${uid} thất bại`, e?.response?.data || e);
+          }
         }
       }
 
       await api.delete(`/Group/${groupId}/delete`);
-      removeMembersForGroup(groupId);
-      message.success("Xoá nhóm thành công!");
-      fetchGroups();
+      message.success("Đã xoá nhóm và gỡ liên kết sở hữu của các thành viên.");
+
+      await fetchGroupsAndRehydrate();
     } catch {
       message.error("Không thể xoá nhóm!");
     }
@@ -246,7 +327,8 @@ export default function GroupPage() {
 
   const openEditModal = (record) => {
     setEditingGroup(record);
-    const currentMemberIds = getMemberIdsForGroup(record);
+    const carId = Number(record?.car?.carId ?? record?.carId);
+    const currentMemberIds = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
     formEdit.setFieldsValue({
       groupName: record.groupName,
       groupImg: record.groupImg || "",
@@ -260,55 +342,131 @@ export default function GroupPage() {
       const id = getGroupId(editingGroup);
       if (!id) return;
 
-      // 1) Cập nhật info nhóm
       await api.put(`/Group/${id}/update`, {
         groupName: values.groupName,
         groupImg: values.groupImg || "",
       });
 
-      // 2) Đồng bộ Car–User theo danh sách memberIds mới
-      const prevMemberIds = getMemberIdsForGroup(editingGroup).map(Number);
-      const nextMemberIds = (values.memberIds || []).map(Number);
       const carId = Number(editingGroup?.car?.carId ?? editingGroup?.carId);
-
       if (carId) {
+        const prevMemberIds = (() => {
+          const cid = Number(carId);
+          return Array.isArray(carOwnersMap[cid]) ? carOwnersMap[cid] : [];
+        })();
+        const nextMemberIds = (values.memberIds || []).map(Number);
         await syncCarUsersForGroup({ carId, prevMemberIds, nextMemberIds });
       }
 
-      // 3) Cập nhật state local
-      setMembersForGroup(id, nextMemberIds);
-      setGroups((prev) =>
-        prev.map((g) =>
-          getGroupId(g) === id
-            ? { ...g, groupName: values.groupName, groupImg: values.groupImg }
-            : g
-        )
-      );
-
       message.success("Cập nhật nhóm thành công!");
       setIsEditModalVisible(false);
+
+      await hydrateCarOwners(cars, users);
     } catch (e) {
       console.error(e);
       message.error("Không thể cập nhật nhóm!");
     }
   };
 
-  /* ========= Modal phần trăm (UI only – không gọi API) ========= */
-  const handleOpenPercentModal = (record) => {
-    const ids = getMemberIdsForGroup(record);
+  /* ========= Percent modal ========= */
+  const handleOpenPercentModal = async (record) => {
+    const carId = Number(record?.car?.carId ?? record?.carId);
+    if (!carId) {
+      message.warning("Nhóm chưa gắn xe, không thể chỉnh phần trăm.");
+      return;
+    }
+
+    // Các user đang sở hữu xe này
+    const ids = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
     const members = resolveMembers(ids);
-    const initMap = {};
-    members.forEach((m) => (initMap[m.id] = 0));
-    setSelectedGroupForPercent({ ...record, members });
-    setOwnershipMap(initMap);
+
+    // Resolve carUserId cho từng user
+    const mapUserToCarUserId = {};
+    await Promise.all(
+      members.map(async (m) => {
+        const cuid = await resolveCarUserId(carId, m.id);
+        if (cuid) mapUserToCarUserId[m.id] = cuid;
+      })
+    );
+
+    // Lấy toàn bộ PercentOwnership, prefill nếu có
+    const allPO = await poGetAll();
+    const nextOwnership = {};
+    const nextPercentId = {};
+    const nextUsageLimit = {};
+
+    members.forEach((m) => {
+      const cuid = mapUserToCarUserId[m.id];
+      if (!cuid) {
+        nextOwnership[m.id] = 0;
+        nextUsageLimit[m.id] = 0;
+        return;
+      }
+      const exist = (allPO || []).find(
+        (p) => Number(p?.carUserId ?? p?.caruserId ?? p?.car_user_id) === Number(cuid)
+      );
+      if (exist) {
+        nextOwnership[m.id] = Number(exist?.percentage ?? 0);
+        nextUsageLimit[m.id] = Number(exist?.usageLimit ?? 0);
+        nextPercentId[m.id] = Number(exist?.id ?? exist?.percentOwnershipId);
+      } else {
+        nextOwnership[m.id] = 0;
+        nextUsageLimit[m.id] = 0;
+      }
+    });
+
+    setSelectedGroupForPercent({ ...record, members, carId });
+    setCarUserIdMap(mapUserToCarUserId);
+    setPercentIdMap(nextPercentId);
+    setOwnershipMap(nextOwnership);
+    setUsageLimitMap(nextUsageLimit);
     setIsPercentModalVisible(true);
   };
 
-  const handleSavePercent = () => {
-    const total = Object.values(ownershipMap).reduce((sum, v) => sum + Number(v || 0), 0);
-    if (total !== 100) return message.warning("Tổng phần trăm phải bằng 100%!");
-    message.success("Lưu phần trăm thành công (chỉ giao diện)!");
-    setIsPercentModalVisible(false);
+  const handleSavePercent = async () => {
+    // Tổng phải bằng 100
+    const total = Object.values(ownershipMap).reduce(
+      (sum, v) => sum + Number(v || 0),
+      0
+    );
+    if (total !== 100) {
+      message.warning("Tổng phần trăm phải bằng 100%!");
+      return;
+    }
+
+    try {
+      const carId = Number(selectedGroupForPercent?.carId ?? selectedGroupForPercent?.car?.carId);
+      const members = selectedGroupForPercent?.members || [];
+
+      // Lưu lần lượt (có thể chuyển Promise.all nếu BE chịu tải)
+      for (const m of members) {
+        const cuid = carUserIdMap[m.id];
+        if (!cuid) {
+          console.warn("Không tìm thấy carUserId cho user", m.id);
+          continue;
+        }
+        const body = {
+          carUserId: Number(cuid),
+          percentage: Number(ownershipMap[m.id] || 0),
+          usageLimit: Number(usageLimitMap[m.id] || 0),
+        };
+
+        const existId = percentIdMap[m.id];
+        if (existId != null) {
+          await poPut(Number(existId), body);
+        } else {
+          await poPost(body);
+        }
+      }
+
+      message.success("Đã lưu phần trăm đồng sở hữu!");
+      setIsPercentModalVisible(false);
+
+      // Sau khi lưu có thể refetch cho chắc
+      await hydrateCarOwners(cars, users);
+    } catch (e) {
+      console.error(e);
+      message.error("Lưu phần trăm thất bại!");
+    }
   };
 
   /* ========= Filter + Pagination ========= */
@@ -322,14 +480,19 @@ export default function GroupPage() {
           .some((t) => String(t).toLowerCase().includes(kw));
 
       const matchCar =
-        carFilter === "all" ? true : Number(g?.car?.carId ?? g?.carId) === Number(carFilter);
+        carFilter === "all"
+          ? true
+          : Number(g?.car?.carId ?? g?.carId) === Number(carFilter);
 
       return matchKW && matchCar;
     });
   }, [groups, keyword, carFilter]);
 
   const totalItems = filteredGroups.length;
-  const currentRows = filteredGroups.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const currentRows = filteredGroups.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   /* ========= Columns ========= */
   const columns = [
@@ -354,7 +517,8 @@ export default function GroupPage() {
       title: "Thành viên",
       key: "membersCount",
       render: (_, record) => {
-        const count = getMemberIdsForGroup(record).length;
+        const carId = Number(record?.car?.carId ?? record?.carId);
+        const count = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId].length : 0;
         return <Tag color="blue">{count} thành viên</Tag>;
       },
       width: 140,
@@ -374,7 +538,9 @@ export default function GroupPage() {
             <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
           </Tooltip>
           <Popconfirm
-            title="Xác nhận xoá nhóm này?"
+            title="Xác nhận xoá nhóm?"
+            okText="Xoá nhóm & gỡ liên kết"
+            cancelText="Huỷ"
             onConfirm={() => handleDelete(getGroupId(record))}
           >
             <Button danger icon={<DeleteOutlined />} />
@@ -418,7 +584,7 @@ export default function GroupPage() {
                 </Option>
               ))}
             </Select>
-            <Button icon={<ReloadOutlined />} onClick={fetchGroups}>
+            <Button icon={<ReloadOutlined />} onClick={() => hydrateCarOwners(cars, users)}>
               Làm mới
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
@@ -525,7 +691,7 @@ export default function GroupPage() {
         </Form>
       </Modal>
 
-      {/* Modal phần trăm (UI only) */}
+      {/* Modal phần trăm */}
       <Modal
         title="Chỉnh sửa phần trăm đồng sở hữu"
         open={isPercentModalVisible}
@@ -547,11 +713,11 @@ export default function GroupPage() {
                   min={0}
                   max={100}
                   suffix="%"
-                  value={ownershipMap[m.id] || ""}
+                  value={ownershipMap[m.id] ?? ""}
                   onChange={(e) =>
                     setOwnershipMap((prev) => ({
                       ...prev,
-                      [m.id]: Number(e.target.value),
+                      [m.id]: e.target.value === "" ? "" : Number(e.target.value),
                     }))
                   }
                   style={{ width: 120 }}
@@ -560,7 +726,7 @@ export default function GroupPage() {
             ))}
           </div>
         ) : (
-          <Empty description="Nhóm chưa có thành viên" />
+          <Empty description="Xe hiện chưa có ai sở hữu" />
         )}
       </Modal>
     </div>

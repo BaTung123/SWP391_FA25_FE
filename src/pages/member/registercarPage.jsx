@@ -16,8 +16,9 @@ const RegistercarPage = () => {
   });
 
   const [user, setUser] = useState(null);
-  const [cars, setCars] = useState([]); // danh sách xe user sở hữu (kèm _carId, _carUserId)
-  const [carUserMap, setCarUserMap] = useState({}); // { [carId]: carUserId }
+  const [cars, setCars] = useState([]);               // danh sách xe user sở hữu (kèm _carId, _carUserId)
+  const [carUserMap, setCarUserMap] = useState({});   // { [carId]: carUserId }
+  const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: percentage }  <-- NEW
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -33,20 +34,19 @@ const RegistercarPage = () => {
   // Lưu các slot đã đăng ký theo ngày: { 'YYYY-MM-DD': [{startTime, endTime, id}] }
   const [registeredTimeSlots, setRegisteredTimeSlots] = useState({});
 
-  // demo quota giờ/ngày cho UI
-  const userOwnershipPercentage = 25;
-
   // Lấy user hiện tại
   const getCurrentUser = async () => {
     try {
       const fromStorage = localStorage.getItem("user");
       if (fromStorage) return JSON.parse(fromStorage);
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     const me = await api.get("/Auth/me").catch(() => null);
     return me?.data?.data || me?.data || null;
   };
 
-  // Load xe mà user sở hữu: GET /users/{userId}/cars
+  // Load xe mà user sở hữu + phần trăm sở hữu
   useEffect(() => {
     const boot = async () => {
       try {
@@ -59,6 +59,7 @@ const RegistercarPage = () => {
         if (!userId) throw new Error("Thiếu userId để tra cứu xe.");
         setUser(me);
 
+        // 1) Lấy danh sách xe mà user đang sở hữu
         const res = await api.get(`/users/${userId}/cars`);
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
@@ -90,11 +91,33 @@ const RegistercarPage = () => {
 
         setCars(mapped);
 
-        const map = {};
-        for (const c of mapped) {
-          if (c._carUserId != null) map[c._carId] = c._carUserId;
+        const mapCU = {};
+        for (const c of mapped) if (c._carUserId != null) mapCU[c._carId] = c._carUserId;
+        setCarUserMap(mapCU);
+
+        // 2) Lấy phần trăm sở hữu theo carUserId từ /PercentOwnership
+        const ownMap = {};
+        try {
+          const poRes = await api.get("/PercentOwnership");
+          const listPO = Array.isArray(poRes.data) ? poRes.data : poRes.data?.data || [];
+
+          for (const c of mapped) {
+            const po = listPO.find(
+              (p) => Number(p.carUserId ?? p.CarUserId) === Number(c._carUserId)
+            );
+            if (po && po.percentage != null) {
+              ownMap[c._carId] = Number(po.percentage);
+            } else {
+              // nếu chưa có dữ liệu phần trăm → mặc định full quyền 100%
+              ownMap[c._carId] = 100;
+            }
+          }
+        } catch (err) {
+          console.warn("Không lấy được phần trăm sở hữu:", err);
+          // fallback: coi như 100% cho tất cả xe
+          for (const c of mapped) ownMap[c._carId] = 100;
         }
-        setCarUserMap(map);
+        setOwnershipMap(ownMap);
       } catch (err) {
         console.error(err);
         setErrorMsg(err?.message || "Không thể tải danh sách xe.");
@@ -177,10 +200,22 @@ const RegistercarPage = () => {
     const [eh, em] = e.split(":").map(Number);
     return (eh * 60 + em - (sh * 60 + sm)) / 60;
   };
-  const maxDaily = () => (userOwnershipPercentage / 100) * 24;
-  const totalHours = () => timeSlots.reduce((t, sl) => t + calcDuration(sl.startTime, sl.endTime), 0);
+
+  // ======= QUY TẮC GIỚI HẠN GIỜ/TỶ LỆ SỞ HỮU =======
+  // Xe có 100% quyền sử dụng. User được (percentage/100) * 24h/ngày.
+  const maxDaily = () => {
+    const carId = Number(formData.vehicleId);
+    const percent = ownershipMap[carId] ?? 100;      // nếu thiếu dữ liệu → 100%
+    return (percent / 100) * 24;
+  };
+
+  const totalHours = () =>
+    timeSlots.reduce((t, sl) => t + calcDuration(sl.startTime, sl.endTime), 0);
+
   const updateSlot = (i, field, val) =>
-    setTimeSlots((p) => p.map((s, idx) => (idx === i ? { ...s, [field]: roundToNearest15(val) } : s)));
+    setTimeSlots((p) =>
+      p.map((s, idx) => (idx === i ? { ...s, [field]: roundToNearest15(val) } : s))
+    );
   const addTimeSlot = () => setTimeSlots((p) => [...p, { startTime: "", endTime: "" }]);
   const removeTimeSlot = (i) => setTimeSlots((p) => p.filter((_, idx) => idx !== i));
 
@@ -200,13 +235,17 @@ const RegistercarPage = () => {
       if (!selectedDateForTime) return;
 
       if (timeSlots.length === 0) return alert("Vui lòng thêm ít nhất 1 khung giờ.");
+
+      // Kiểm tra theo % sở hữu (maxDaily())
       for (let i = 0; i < timeSlots.length; i++) {
         const d = calcDuration(timeSlots[i].startTime, timeSlots[i].endTime);
         if (d < 1) return alert(`Khung giờ ${i + 1} tối thiểu 1 giờ`);
-        if (d > maxDaily()) return alert(`Khung giờ ${i + 1} vượt quá ${maxDaily()}h`);
+        if (d > maxDaily())
+          return alert(`Khung giờ ${i + 1} vượt quá giới hạn ${maxDaily()}h/ngày theo % sở hữu`);
       }
       const sum = totalHours();
-      if (sum > maxDaily()) return alert(`Tổng thời gian ${sum.toFixed(2)}h > giới hạn ${maxDaily()}h`);
+      if (sum > maxDaily())
+        return alert(`Tổng thời gian ${sum.toFixed(2)}h > giới hạn ${maxDaily()}h/ngày theo % sở hữu`);
 
       const carId = Number(formData.vehicleId);
       const carUserId = carUserMap[carId];
@@ -291,7 +330,7 @@ const RegistercarPage = () => {
       }
     } catch (e) {
       console.error(e);
-      // vẫn clear local để UI phản hồi; nếu muốn chặt chẽ có thể giữ lại khi lỗi
+      // vẫn clear local để UI phản hồi
     }
 
     setRegisteredTimeSlots((p) => {

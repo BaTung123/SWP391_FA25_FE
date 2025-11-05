@@ -9,7 +9,6 @@ const DepositPage = () => {
   const handleTopUp = () => {
     const value = parseFloat(amount);
     if (value >= 10000 && value <= 10000000) {
-      // Chuyển sang trang QR thanh toán
       navigate('/member/qrcode', { 
         state: { amount: value } 
       });
