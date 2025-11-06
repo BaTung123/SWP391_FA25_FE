@@ -534,10 +534,10 @@ const RegistercarPage = () => {
     <div className="min-h-screen bg-[#F5F7FB]">
       <Header />
       {/* HERO */}
-      <section className="relative pt-24 pb-32 bg-gradient-to-br from-indigo-800 via-purple-700 to-indigo-900 overflow-hidden">
+      <section className="relative pt-24 pb-32 bg-gradient-to-br from-indigo-800 via-blue-700 to-indigo-900 overflow-hidden">
         {/* Hiệu ứng nền */}
         <div className="absolute inset-0 opacity-30 bg-[url('https://images.unsplash.com/photo-1605559424843-9ef0eaf9a097?q=80&w=1600&auto=format&fit=crop')] bg-cover bg-center"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-indigo-800/40 to-purple-700/50 backdrop-blur-sm"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-indigo-800/40 to-blue-700/50 backdrop-blur-sm"></div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 lg:px-20 flex flex-col items-center text-center space-y-6">
           {/* Tiêu đề */}
@@ -547,7 +547,7 @@ const RegistercarPage = () => {
         </div>
 
         {/* Hiệu ứng ánh sáng */}
-        <div className="absolute top-1/3 left-0 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse"></div>
+        <div className="absolute top-1/3 left-0 w-72 h-72 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse"></div>
         <div className="absolute bottom-10 right-0 w-72 h-72 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse delay-1000"></div>
       </section>
 
