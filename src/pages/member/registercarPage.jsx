@@ -3,68 +3,141 @@ import Header from "../../components/header/header";
 import api from "../../config/axios";
 
 const RegistercarPage = () => {
-  const [formData, setFormData] = useState({
-    vehicleId: "", // carId
-    startDate: "",
-    endDate: "",
-    startTime: "",
-    endTime: "",
-    purpose: "",
-    destination: "",
-    estimatedDistance: "",
-    notes: "",
-  });
+  // ================== STATE ==================
+  const [me, setMe] = useState(null); // {userId/...}
+  const [cars, setCars] = useState([]);
+  const [carUserMap, setCarUserMap] = useState({}); // { [carId]: myCarUserId }
+  const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: % của tôi }
 
-  const [user, setUser] = useState(null);
-  const [cars, setCars] = useState([]);               // danh sách xe user sở hữu (kèm _carId, _carUserId)
-  const [carUserMap, setCarUserMap] = useState({});   // { [carId]: carUserId }
-  const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: percentage }
+  const [formData, setFormData] = useState({ vehicleId: "" });
+
+  // Calendar
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDateForTime, setSelectedDateForTime] = useState(null);
+  const [selectedDates, setSelectedDates] = useState([]);
+
+  // Lịch của TÔI theo ngày: { 'YYYY-MM-DD': [{ startTime,endTime,id, ownerCarUserId, ownerUserId }]}
+  const [mySlotsByDate, setMySlotsByDate] = useState({});
+  // Lịch của ĐỒNG SỞ HỮU (read-only): { 'YYYY-MM-DD': [{ startTime,endTime,id, ownerCarUserId, ownerUserId, ownerName }]}
+  const [othersSlotsByDate, setOthersSlotsByDate] = useState({});
+  // Form tạo mới trong ngày
+  const [newSlots, setNewSlots] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Calendar / modal states (UI giữ nguyên)
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDates, setSelectedDates] = useState([]);
-  const [showTimeModal, setShowTimeModal] = useState(false);
-  const [selectedDateForTime, setSelectedDateForTime] = useState(null);
-
-  // timeSlots đang chỉnh trong modal hiện tại
-  const [timeSlots, setTimeSlots] = useState([]); // [{startTime, endTime, id?}]
-  // Lưu các slot đã đăng ký theo ngày: { 'YYYY-MM-DD': [{startTime, endTime, id}] }
-  const [registeredTimeSlots, setRegisteredTimeSlots] = useState({});
-
-  // Lấy user hiện tại
-  const getCurrentUser = async () => {
-    try {
-      const fromStorage = localStorage.getItem("user");
-      if (fromStorage) return JSON.parse(fromStorage);
-    } catch {
-      /* ignore */
-    }
-    const me = await api.get("/Auth/me").catch(() => null);
-    return me?.data?.data || me?.data || null;
+  // ================== DATE HELPERS ==================
+  const toLocalDateKey = (d) => {
+    if (!(d instanceof Date)) d = new Date(d);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  // local ISO "YYYY-MM-DDTHH:mm:ss" (không Z)
+  const toLocalIso = (d) => {
+    const t = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return t.toISOString().slice(0, 19);
   };
 
-  // ======= Load xe mà user sở hữu + phần trăm sở hữu =======
+  // ================== MISC HELPERS ==================
+  const hmToMin = (hm) => {
+    const [h, m] = (hm || "00:00").split(":").map(Number);
+    return h * 60 + m;
+  };
+  const duration = (s, e) => (hmToMin(e) - hmToMin(s)) / 60;
+  const overlap = (a, b) =>
+    hmToMin(a.startTime) < hmToMin(b.endTime) &&
+    hmToMin(b.startTime) < hmToMin(a.endTime);
+
+  const maxDaily = () => {
+    const carId = Number(formData.vehicleId);
+    const percent = ownershipMap[carId] ?? 100;
+    return (percent / 100) * 24;
+  };
+
+  const monthNames = useMemo(
+    () => [
+      "Tháng 1",
+      "Tháng 2",
+      "Tháng 3",
+      "Tháng 4",
+      "Tháng 5",
+      "Tháng 6",
+      "Tháng 7",
+      "Tháng 8",
+      "Tháng 9",
+      "Tháng 10",
+      "Tháng 11",
+      "Tháng 12",
+    ],
+    []
+  );
+  const dayNames = useMemo(
+    () => ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
+    []
+  );
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    const days = [];
+    for (let i = 0; i < startingDay; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+    return days;
+  };
+
+  const isPastDate = (day) => {
+    if (!day) return false;
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return d < today;
+  };
+  const isToday = (day) => {
+    if (!day) return false;
+    const t = new Date();
+    return (
+      day === t.getDate() &&
+      currentDate.getMonth() === t.getMonth() &&
+      currentDate.getFullYear() === t.getFullYear()
+    );
+  };
+  const isSelected = (day) => {
+    if (!day) return false;
+    const k = toLocalDateKey(
+      new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+    );
+    return selectedDates.includes(k);
+  };
+
+  // ================== BOOT ==================
+  const getMe = async () => {
+    try {
+      const s = localStorage.getItem("user");
+      if (s) return JSON.parse(s);
+    } catch {}
+    const r = await api.get("/Auth/me").catch(() => null);
+    return r?.data?.data || r?.data || null;
+  };
+
   useEffect(() => {
     const boot = async () => {
       try {
         setLoading(true);
-        setErrorMsg("");
+        const me0 = await getMe();
+        if (!me0) throw new Error("Bạn chưa đăng nhập.");
+        const userId = me0.userId ?? me0.id ?? me0.Id;
+        setMe({ ...me0, _id: userId });
 
-        const me = await getCurrentUser();
-        if (!me) throw new Error("Bạn chưa đăng nhập.");
-        const userId = me.userId ?? me.id ?? me.Id;
-        if (!userId) throw new Error("Thiếu userId để tra cứu xe.");
-        setUser(me);
-
-        // 1) Lấy danh sách xe mà user đang sở hữu
-        const res = await api.get(`/users/${userId}/cars`);
-        const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-
-        const mapped = list
-          .filter(Boolean)
+        // Xe tôi sở hữu
+        const r = await api.get(`/users/${userId}/cars`);
+        const arr = Array.isArray(r.data) ? r.data : r.data?.data || [];
+        const mapped = arr
           .map((it) => {
             const carId = it.carId ?? it.id ?? it.CarId ?? it.Id;
             const carUserId =
@@ -75,9 +148,7 @@ const RegistercarPage = () => {
               it.linkId ??
               it.CarUserLinkId ??
               null;
-
             return {
-              ...it,
               _carId: carId,
               _carUserId: carUserId,
               carName: it.carName ?? it.name ?? it.CarName,
@@ -90,43 +161,39 @@ const RegistercarPage = () => {
           .filter((x) => x._carId != null);
 
         setCars(mapped);
+        const cuMap = {};
+        mapped.forEach((c) => {
+          if (c._carUserId != null) cuMap[c._carId] = c._carUserId;
+        });
+        setCarUserMap(cuMap);
 
-        const mapCU = {};
-        for (const c of mapped) if (c._carUserId != null) mapCU[c._carId] = c._carUserId;
-        setCarUserMap(mapCU);
-
-        // 2) Lấy phần trăm sở hữu theo carUserId từ /PercentOwnership
+        // % sở hữu
+        const pos = await api
+          .get("/PercentOwnership")
+          .catch(() => ({ data: [] }));
+        const listPO = Array.isArray(pos.data)
+          ? pos.data
+          : pos.data?.data || [];
+        const percentMap = {};
+        listPO.forEach((p) => {
+          percentMap[Number(p.carUserId ?? p.CarUserId)] = Number(
+            p.percentage ?? p.Percentage ?? 0
+          );
+        });
         const ownMap = {};
-        try {
-          const poRes = await api.get("/PercentOwnership");
-          const listPO = Array.isArray(poRes.data) ? poRes.data : poRes.data?.data || [];
-
-          for (const c of mapped) {
-            const po = listPO.find(
-              (p) => Number(p.carUserId ?? p.CarUserId) === Number(c._carUserId)
-            );
-            if (po && po.percentage != null) {
-              ownMap[c._carId] = Number(po.percentage);
-            } else {
-              // nếu chưa có dữ liệu phần trăm → mặc định full quyền 100%
-              ownMap[c._carId] = 100;
-            }
-          }
-        } catch {
-          // fallback: coi như 100% cho tất cả xe
-          for (const c of mapped) ownMap[c._carId] = 100;
-        }
+        mapped.forEach((c) => {
+          ownMap[c._carId] = percentMap[c._carUserId] ?? 100;
+        });
         setOwnershipMap(ownMap);
 
-        // 🔁 Auto chọn xe đầu tiên + load lịch
-        if (mapped.length > 0) {
+        if (mapped.length) {
           const firstId = mapped[0]._carId;
-          setFormData((p) => ({ ...p, vehicleId: firstId }));
-          await loadSchedulesForCar(firstId, mapCU);
+          setFormData((s) => ({ ...s, vehicleId: firstId }));
+          await loadSchedulesForCar(firstId, me0, cuMap);
         }
-      } catch (err) {
-        console.error(err);
-        setErrorMsg(err?.message || "Không thể tải danh sách xe.");
+      } catch (e) {
+        console.error(e);
+        setErrorMsg(e?.message || "Không thể tải dữ liệu.");
       } finally {
         setLoading(false);
       }
@@ -134,194 +201,260 @@ const RegistercarPage = () => {
     boot();
   }, []);
 
-  // ======= 🧩 Load lịch theo car (hydrate vào calendar) =======
-  const loadSchedulesForCar = async (carId, mapCU = null) => {
+  // ================== NORMALIZE & LOAD ==================
+  // BỎ bản ghi đã xoá (soft-delete) & chuẩn hoá
+  const normalizeSchedule = (item) => {
+    const deleted =
+      item?.deleteAt ||
+      item?.deletedAt ||
+      item?.DeleteAt ||
+      item?.DeletedAt ||
+      item?.isDeleted ||
+      item?.IsDeleted ||
+      item?.deleted ||
+      item?.Deleted ||
+      item?.status === -1 ||
+      item?.Status === -1;
+    if (deleted) return null;
+
+    const start = new Date(item.startDate ?? item.StartDate);
+    const end = new Date(item.endDate ?? item.EndDate);
+    const key = toLocalDateKey(start);
+
+    const startTime = `${String(start.getHours()).padStart(2, "0")}:${String(
+      start.getMinutes()
+    ).padStart(2, "0")}`;
+    const endTime = `${String(end.getHours()).padStart(2, "0")}:${String(
+      end.getMinutes()
+    ).padStart(2, "0")}`;
+
+    return {
+      key,
+      startTime,
+      endTime,
+      id:
+        item.id ??
+        item.scheduleId ??
+        item.ScheduleId ??
+        item.Id ??
+        item.scheduleID ??
+        item.ScheduleID ??
+        null,
+      ownerCarUserId: item.carUserId ?? item.CarUserId ?? null,
+      ownerUserId: item.userId ?? item.UserId ?? null,
+      carId: item.carId ?? item.CarId ?? null,
+      ownerName: item.userName ?? item.fullName ?? item.FullName,
+    };
+  };
+
+  const loadSchedulesForCar = async (carId, me0 = me, cuMap0 = carUserMap) => {
     try {
-      const cuMap = mapCU ?? carUserMap;
-      const carUserId = cuMap[carId];
-      if (!carUserId) {
-        // không có liên kết CarUser → clear lịch
-        setRegisteredTimeSlots({});
-        setSelectedDates([]);
-        return;
-      }
+      const myCarUserId = cuMap0[carId];
+      const userId = me0.userId ?? me0.id ?? me0.Id;
 
-      // Ưu tiên query theo carUserId; bạn có thể đổi endpoint theo BE
-      const res = await api.get(`/Schedule?carUserId=${carUserId}`);
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+      // Lịch của TÔI
+      const rMy = await api
+        .get(`/Schedule/user/${userId}`)
+        .catch(() => ({ data: [] }));
+      const rawMy = Array.isArray(rMy.data) ? rMy.data : rMy.data?.data || [];
+      const normMy = rawMy
+        .map(normalizeSchedule)
+        .filter(Boolean)
+        .filter(
+          (s) =>
+            (myCarUserId
+              ? Number(s.ownerCarUserId) === Number(myCarUserId)
+              : true) && (s.carId ? Number(s.carId) === Number(carId) : true)
+        );
 
-      const grouped = {};
-      for (const item of list) {
-        const startIso = item.startDate ?? item.StartDate;
-        const endIso = item.endDate ?? item.EndDate;
-        if (!startIso || !endIso) continue;
+      const myGrouped = {};
+      normMy.forEach((s) => {
+        if (!myGrouped[s.key]) myGrouped[s.key] = [];
+        myGrouped[s.key].push({
+          startTime: s.startTime,
+          endTime: s.endTime,
+          id: s.id,
+          ownerCarUserId: s.ownerCarUserId,
+          ownerUserId: s.ownerUserId,
+        });
+      });
+      setMySlotsByDate(myGrouped);
+      setSelectedDates(Object.keys(myGrouped));
 
-        const start = new Date(startIso);
-        const end = new Date(endIso);
-        const dateKey = start.toISOString().split("T")[0];
+      // Lịch của NGƯỜI KHÁC
+      const rAll = await api.get(`/Schedule`).catch(() => ({ data: [] }));
+      const rawAll = Array.isArray(rAll.data)
+        ? rAll.data
+        : rAll.data?.data || [];
+      const normAll = rawAll.map(normalizeSchedule).filter(Boolean);
 
-        const startTime = `${String(start.getHours()).padStart(2, "0")}:${String(
-          start.getMinutes()
-        ).padStart(2, "0")}`;
-        const endTime = `${String(end.getHours()).padStart(2, "0")}:${String(
-          end.getMinutes()
-        ).padStart(2, "0")}`;
+      const others = normAll.filter((s) => {
+        const sameCar = s.carId ? Number(s.carId) === Number(carId) : true;
+        const notMine =
+          (myCarUserId
+            ? Number(s.ownerCarUserId) !== Number(myCarUserId)
+            : true) &&
+          (s.ownerUserId ? Number(s.ownerUserId) !== Number(userId) : true);
+        return sameCar && notMine;
+      });
 
-        const id =
-          item.id ?? item.scheduleId ?? item.Id ?? item.ScheduleId ?? null;
-
-        if (!grouped[dateKey]) grouped[dateKey] = [];
-        grouped[dateKey].push({ startTime, endTime, id });
-      }
-
-      setRegisteredTimeSlots(grouped);
-      setSelectedDates(Object.keys(grouped));
-    } catch (err) {
-      console.warn("Không thể tải lịch:", err);
-      // lỗi thì clear để tránh hiển thị sai
-      setRegisteredTimeSlots({});
+      const othersGrouped = {};
+      others.forEach((s) => {
+        if (!othersGrouped[s.key]) othersGrouped[s.key] = [];
+        othersGrouped[s.key].push({
+          startTime: s.startTime,
+          endTime: s.endTime,
+          id: s.id,
+          ownerCarUserId: s.ownerCarUserId,
+          ownerUserId: s.ownerUserId,
+          ownerName: s.ownerName,
+        });
+      });
+      setOthersSlotsByDate(othersGrouped);
+    } catch (e) {
+      console.warn("loadSchedulesForCar error", e);
+      setMySlotsByDate({});
+      setOthersSlotsByDate({});
       setSelectedDates([]);
     }
   };
 
-  // ======= UI helpers (giữ nguyên) =======
-  const monthNames = useMemo(
-    () => [
-      "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
-      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
-    ],
-    []
-  );
-  const dayNames = useMemo(() => ["CN", "T2", "T3", "T4", "T5", "T6", "T7"], []);
-
-  const getDaysInMonth = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    const days = [];
-    for (let i = 0; i < startingDayOfWeek; i++) days.push(null);
-    for (let d = 1; d <= daysInMonth; d++) days.push(d);
-    return days;
+  // ================== EVENTS ==================
+  const onChangeVehicle = async (e) => {
+    const v = Number(e.target.value);
+    setFormData((s) => ({ ...s, vehicleId: v }));
+    setSelectedDateForTime(null);
+    setNewSlots([]);
+    await loadSchedulesForCar(v);
   };
 
-  const goToPreviousMonth = () =>
-    setCurrentDate((p) => new Date(p.getFullYear(), p.getMonth() - 1, 1));
-  const goToNextMonth = () =>
-    setCurrentDate((p) => new Date(p.getFullYear(), p.getMonth() + 1, 1));
-  const goToToday = () => setCurrentDate(new Date());
-
-  const isToday = (day) => {
-    if (!day) return false;
-    const today = new Date();
-    return (
-      day === today.getDate() &&
-      currentDate.getMonth() === today.getMonth() &&
-      currentDate.getFullYear() === today.getFullYear()
-    );
-  };
-  const isPastDate = (day) => {
-    if (!day) return false;
+  const onClickDay = (day) => {
+    if (!day || isPastDate(day)) return;
     const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return d < today;
-  };
-  const isSelected = (day) => {
-    if (!day) return false;
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    return selectedDates.includes(d.toISOString().split("T")[0]);
+    setSelectedDateForTime(d);
+    setNewSlots([]);
   };
 
-  const roundToNearest15 = (t) => {
-    if (!t) return "";
-    const [h, m] = t.split(":").map(Number);
-    const tot = h * 60 + m;
-    const r = Math.round(tot / 15) * 15;
-    const H = String(Math.floor(r / 60)).padStart(2, "0");
-    const M = String(r % 60).padStart(2, "0");
-    return `${H}:${M}`;
-  };
-  const calcDuration = (s, e) => {
-    if (!s || !e) return 0;
-    const [sh, sm] = s.split(":").map(Number);
-    const [eh, em] = e.split(":").map(Number);
-    return (eh * 60 + em - (sh * 60 + sm)) / 60;
-  };
-
-  // ======= QUY TẮC GIỚI HẠN GIỜ/TỶ LỆ SỞ HỮU =======
-  // Xe có 100% quyền sử dụng. User được (percentage/100) * 24h/ngày.
-  const maxDaily = () => {
-    const carId = Number(formData.vehicleId);
-    const percent = ownershipMap[carId] ?? 100;      // nếu thiếu dữ liệu → 100%
-    return (percent / 100) * 24;
-  };
-
-  const totalHours = () =>
-    timeSlots.reduce((t, sl) => t + calcDuration(sl.startTime, sl.endTime), 0);
-
-  const updateSlot = (i, field, val) =>
-    setTimeSlots((p) =>
-      p.map((s, idx) =>
-        idx === i ? { ...s, [field]: roundToNearest15(val) } : s
-      )
+  const addNewSlot = () =>
+    setNewSlots((p) => [...p, { startTime: "", endTime: "" }]);
+  const updateNewSlot = (i, field, val) =>
+    setNewSlots((p) =>
+      p.map((s, idx) => (idx === i ? { ...s, [field]: val } : s))
     );
-  const addTimeSlot = () => setTimeSlots((p) => [...p, { startTime: "", endTime: "" }]);
-  const removeTimeSlot = (i) => setTimeSlots((p) => p.filter((_, idx) => idx !== i));
+  const removeNewSlot = (i) =>
+    setNewSlots((p) => p.filter((_, idx) => idx !== i));
 
-  const handleChange = async (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
-    // Khi đổi xe → load lại lịch từ BE
-    if (name === "vehicleId" && value) {
-      await loadSchedulesForCar(Number(value));
+  const deleteMySlot = async (slot) => {
+    try {
+      const carId = Number(formData.vehicleId);
+      const myCarUserId = carUserMap[carId];
+
+      // Chặn xoá nếu không phải của tôi
+      if (Number(slot.ownerCarUserId) !== Number(myCarUserId)) {
+        alert("Bạn không có quyền xoá lịch của người khác.");
+        return;
+      }
+
+      const scheduleId =
+        slot?.id ?? slot?.scheduleId ?? slot?.ScheduleId ?? slot?.Id;
+      if (!scheduleId) {
+        console.warn("Không tìm thấy scheduleId để xoá:", slot);
+        return;
+      }
+
+      const res = await api
+        .delete(`/Schedule/${Number(scheduleId)}`)
+        .catch((e) => {
+          console.error("DELETE /Schedule/{id} error:", e);
+          throw e;
+        });
+      if (!(res?.status === 200 || res?.status === 204)) {
+        console.warn("DELETE trả mã không mong đợi:", res?.status);
+      }
+
+      // Refetch server để đồng bộ
+      await loadSchedulesForCar(carId);
+
+      // Cập nhật UI tức thời
+      const key = selectedDateForTime
+        ? toLocalDateKey(selectedDateForTime)
+        : "";
+      setMySlotsByDate((prev) => {
+        const list = (prev[key] || []).filter(
+          (x) => (x.id ?? x.scheduleId ?? x.ScheduleId) !== Number(scheduleId)
+        );
+        return { ...prev, [key]: list };
+      });
+    } catch (e) {
+      console.error(e);
+      alert("Xoá lịch thất bại. Vui lòng thử lại.");
     }
   };
 
-  const handleDateClick = (day) => {
-    if (!day || isPastDate(day)) return;
-    const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const key = d.toISOString().split("T")[0];
-    setSelectedDateForTime(d);
-    setTimeSlots(registeredTimeSlots[key] ?? []);
-    setShowTimeModal(true);
-  };
-
-  // ======= POST /Schedule cho mỗi slot =======
-  const confirmSlots = async () => {
+  const confirmNewSlots = async () => {
     try {
       if (!formData.vehicleId) return alert("Vui lòng chọn xe trước.");
       if (!selectedDateForTime) return;
+      if (newSlots.length === 0) return alert("Vui lòng thêm khung giờ.");
 
-      if (timeSlots.length === 0) return alert("Vui lòng thêm ít nhất 1 khung giờ.");
-      // Kiểm tra theo % sở hữu (maxDaily())
-      for (let i = 0; i < timeSlots.length; i++) {
-        const d = calcDuration(timeSlots[i].startTime, timeSlots[i].endTime);
+      // min/max cho từng slot
+      for (let i = 0; i < newSlots.length; i++) {
+        const d = duration(newSlots[i].startTime, newSlots[i].endTime);
+        if (d <= 0) return alert(`Khung giờ ${i + 1} chưa hợp lệ`);
         if (d < 1) return alert(`Khung giờ ${i + 1} tối thiểu 1 giờ`);
         if (d > maxDaily())
-          return alert(`Khung giờ ${i + 1} vượt quá giới hạn ${maxDaily()}h/ngày theo % sở hữu`);
+          return alert(`Khung giờ ${i + 1} vượt quá ${maxDaily()}h/ngày`);
       }
-      const sum = totalHours();
-      if (sum > maxDaily())
-        return alert(`Tổng thời gian ${sum.toFixed(2)}h > giới hạn ${maxDaily()}h/ngày theo % sở hữu`);
+
+      const k = toLocalDateKey(selectedDateForTime);
+      const myToday = mySlotsByDate[k] || [];
+      const myUsed = myToday.reduce(
+        (t, s) => t + duration(s.startTime, s.endTime),
+        0
+      );
+      const remain = Math.max(0, maxDaily() - myUsed);
+      const newSum = newSlots.reduce(
+        (t, s) => t + duration(s.startTime, s.endTime),
+        0
+      );
+      if (newSum > remain)
+        return alert(
+          `Bạn còn ${remain.toFixed(2)}h trong ngày (đã dùng ${myUsed.toFixed(
+            2
+          )}h).`
+        );
+
+      // tránh trùng với tôi
+      for (const ns of newSlots) {
+        for (const ms of myToday) {
+          if (overlap(ns, ms)) {
+            return alert(
+              `Trùng lịch của bạn: ${ns.startTime}–${ns.endTime} vs ${ms.startTime}–${ms.endTime}`
+            );
+          }
+        }
+      }
+      // tránh trùng với đồng sở hữu
+      const othersToday = othersSlotsByDate[k] || [];
+      for (const ns of newSlots) {
+        for (const os of othersToday) {
+          if (overlap(ns, os)) {
+            return alert(
+              `Trùng lịch đồng sở hữu: ${ns.startTime}–${ns.endTime} vs ${os.startTime}–${os.endTime}`
+            );
+          }
+        }
+      }
 
       const carId = Number(formData.vehicleId);
-      const carUserId = carUserMap[carId];
-      if (!carUserId) {
-        return alert(
-          "Không tìm thấy carUserId của xe đã chọn. Kiểm tra response /users/{userId}/cars có trả carUserId không."
-        );
-      }
+      const myCarUserId = carUserMap[carId];
+      if (!myCarUserId)
+        return alert("Không tìm thấy carUserId của bạn trên xe này.");
 
-      const dateKey = selectedDateForTime.toISOString().split("T")[0];
       const created = [];
-
-      for (const slot of timeSlots) {
+      for (const slot of newSlots) {
         const [sh, sm] = slot.startTime.split(":").map(Number);
         const [eh, em] = slot.endTime.split(":").map(Number);
-
         const start = new Date(
           selectedDateForTime.getFullYear(),
           selectedDateForTime.getMonth(),
@@ -342,295 +475,481 @@ const RegistercarPage = () => {
         );
 
         const body = {
-          carUserId,
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
+          carUserId: myCarUserId,
+          startDate: toLocalIso(start),
+          endDate: toLocalIso(end),
           status: 0,
         };
-
         const res = await api.post("/Schedule", body);
         const saved = res?.data?.data || res?.data || {};
-        const scheduleId = saved.id ?? saved.scheduleId ?? saved.Id ?? saved.ScheduleId ?? undefined;
-
         created.push({
           startTime: slot.startTime,
           endTime: slot.endTime,
-          id: scheduleId,
+          id:
+            saved.id ??
+            saved.scheduleId ??
+            saved.Id ??
+            saved.ScheduleId ??
+            null,
+          ownerCarUserId: myCarUserId,
+          ownerUserId: me?._id,
         });
       }
 
-      // Lưu local + đánh dấu ngày
-      setRegisteredTimeSlots((prev) => ({ ...prev, [dateKey]: created }));
-      setSelectedDates((p) => (p.includes(dateKey) ? p : [...p, dateKey]));
+      setMySlotsByDate((prev) => ({
+        ...prev,
+        [k]: [...(prev[k] || []), ...created],
+      }));
+      setSelectedDates((p) => (p.includes(k) ? p : [...p, k]));
+      setNewSlots([]);
 
-      alert(
-        `Đăng ký thành công ngày ${selectedDateForTime.toLocaleDateString(
-          "vi-VN"
-        )} với ${timeSlots.length} khung giờ (${sum.toFixed(2)}h).`
-      );
-      setShowTimeModal(false);
-      setSelectedDateForTime(null);
-      setTimeSlots([]);
+      await loadSchedulesForCar(carId);
+      alert("Đặt lịch thành công.");
     } catch (e) {
       console.error(e);
       alert("Không thể lưu lịch. Vui lòng thử lại.");
     }
   };
 
-  // ======= DELETE /Schedule/{id} để hủy =======
-  const cancelRegistration = async () => {
-    if (!selectedDateForTime) return;
-    const key = selectedDateForTime.toISOString().split("T")[0];
-    const slots = registeredTimeSlots[key] || [];
+  // ================== UI ==================
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Đang tải…
+      </div>
+    );
 
-    try {
-      for (const s of slots) {
-        if (s?.id != null) {
-          await api.delete(`/Schedule/${s.id}`);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      // vẫn clear local để UI phản hồi
-    }
-
-    setRegisteredTimeSlots((p) => {
-      const n = { ...p };
-      delete n[key];
-      return n;
-    });
-    setSelectedDates((p) => p.filter((d) => d !== key));
-    alert(`Đã hủy đăng ký ngày ${selectedDateForTime.toLocaleDateString("vi-VN")}`);
-    setShowTimeModal(false);
-    setSelectedDateForTime(null);
-    setTimeSlots([]);
-  };
-
-  // ======= Render (UI giữ nguyên) =======
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Đang tải…</div>;
+  const selectedKey = selectedDateForTime
+    ? toLocalDateKey(selectedDateForTime)
+    : "";
+  const myToday = mySlotsByDate[selectedKey] || [];
+  const myUsed = myToday.reduce(
+    (t, s) => t + duration(s.startTime, s.endTime),
+    0
+  );
+  const remain = Math.max(0, maxDaily() - myUsed);
+  const othersToday = othersSlotsByDate[selectedKey] || [];
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-24 pb-8">
+    <div className="min-h-screen bg-[#F5F7FB]">
       <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-indigo-900 mb-4">Đăng ký lịch sử dụng xe</h1>
+      {/* HERO */}
+      <section className="relative pt-24 pb-32 bg-gradient-to-br from-indigo-800 via-purple-700 to-indigo-900 overflow-hidden">
+        {/* Hiệu ứng nền */}
+        <div className="absolute inset-0 opacity-30 bg-[url('https://images.unsplash.com/photo-1605559424843-9ef0eaf9a097?q=80&w=1600&auto=format&fit=crop')] bg-cover bg-center"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-indigo-800/40 to-purple-700/50 backdrop-blur-sm"></div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 lg:px-20 flex flex-col items-center text-center space-y-6">
+          {/* Tiêu đề */}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white drop-shadow-lg leading-tight">
+            Quản Lý & Đặt Lịch Sử Dụng Xe
+          </h1>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-12">
-          {/* chọn xe */}
-          <div className="bg-white rounded-xl shadow-lg p-8 xl:col-span-1">
-            <h2 className="text-2xl font-bold text-indigo-900 mb-8 text-center">Thông tin đăng ký</h2>
-            <div className="mb-8">
+        {/* Hiệu ứng ánh sáng */}
+        <div className="absolute top-1/3 left-0 w-72 h-72 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse"></div>
+        <div className="absolute bottom-10 right-0 w-72 h-72 bg-indigo-400 rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse delay-1000"></div>
+      </section>
+
+      {/* CONTENT */}
+      <div className="relative -mt-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* CALENDAR */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() =>
+                    setCurrentDate(
+                      (p) => new Date(p.getFullYear(), p.getMonth() - 1, 1)
+                    )
+                  }
+                  className="p-2 rounded-lg hover:bg-gray-100"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    {monthNames[currentDate.getMonth()]}{" "}
+                    {currentDate.getFullYear()}
+                  </h3>
+                  <button
+                    onClick={() => setCurrentDate(new Date())}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Hôm nay
+                  </button>
+                </div>
+                <button
+                  onClick={() =>
+                    setCurrentDate(
+                      (p) => new Date(p.getFullYear(), p.getMonth() + 1, 1)
+                    )
+                  }
+                  className="p-2 rounded-lg hover:bg-gray-100"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="border rounded-xl p-4">
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {dayNames.map((d) => (
+                    <div
+                      key={d}
+                      className="text-center text-sm font-semibold text-gray-500 uppercase tracking-wider py-2"
+                    >
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {getDaysInMonth(currentDate).map((day, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => onClickDay(day)}
+                      disabled={isPastDate(day)}
+                      className={[
+                        "relative h-16 rounded-lg border transition-all",
+                        day
+                          ? isPastDate(day)
+                            ? "bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed"
+                            : "bg-white hover:bg-indigo-50 hover:border-indigo-200 border-gray-100 cursor-pointer"
+                          : "bg-gray-50 border-gray-100",
+                        isToday(day)
+                          ? "ring-2 ring-green-400 border-green-300"
+                          : "",
+                        isSelected(day) ? "bg-indigo-50 border-indigo-300" : "",
+                      ].join(" ")}
+                    >
+                      {day && (
+                        <span className="absolute top-2 left-2 text-sm font-medium">
+                          {day}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT PANEL */}
+          <div className="space-y-6">
+            {/* PICK CAR */}
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <svg
+                  className="w-5 h-5 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 13h18M5 16h14M6 10l1-2h10l1 2"
+                  />
+                </svg>
+                <h2 className="text-lg font-semibold text-gray-900">Chọn xe</h2>
+              </div>
               <select
                 name="vehicleId"
                 value={formData.vehicleId}
-                onChange={handleChange}
-                required
-                className="w-full px-6 py-4 text-lg border-2 border-indigo-100 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
+                onChange={onChangeVehicle}
+                className="w-full px-4 py-3 text-base border-2 border-indigo-100 rounded-lg focus:border-indigo-500 focus:outline-none transition-colors"
               >
-                <option value="">-- Chọn xe --</option>
+                <option value="">Chọn xe muốn sử dụng</option>
                 {cars.map((v) => (
                   <option key={v._carId} value={v._carId}>
                     {v.carName} - {v.plateNumber}
                   </option>
                 ))}
               </select>
-            </div>
-
-            {formData.vehicleId && (
-              <div className="space-y-2 bg-indigo-50 rounded-lg p-4">
-                {(() => {
-                  const v = cars.find((x) => String(x._carId) === String(formData.vehicleId));
+              {formData.vehicleId &&
+                (() => {
+                  const v = cars.find(
+                    (x) => String(x._carId) === String(formData.vehicleId)
+                  );
                   if (!v) return null;
                   return (
-                    <>
+                    <div className="mt-4 rounded-lg bg-indigo-50 p-4">
                       <div className="text-sm text-gray-600">Xe đã chọn</div>
                       <div className="font-semibold">{v.carName}</div>
                       <div className="text-sm text-gray-600">
                         {v.brand} • {v.plateNumber} • {v.color}
                       </div>
                       {v.image && (
-                        <img className="w-full h-40 object-cover rounded-lg mt-2" src={v.image} alt={v.carName} />
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-
-          {/* calendar */}
-          <div className="bg-white rounded-xl shadow-lg p-8 xl:col-span-2">
-            <h2 className="text-2xl font-bold text-indigo-900 mb-8 text-center">Chọn ngày sử dụng</h2>
-
-            <div className="flex items-center justify-between mb-6">
-              <button onClick={goToPreviousMonth} className="p-3 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Tháng trước">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-              </button>
-
-              <div className="text-center">
-                <h3 className="text-2xl font-bold text-indigo-900">
-                  {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-                </h3>
-                <button onClick={goToToday} className="text-base text-indigo-600 hover:text-indigo-800 font-medium">Hôm nay</button>
-              </div>
-
-              <button onClick={goToNextMonth} className="p-3 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Tháng sau">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-              </button>
-            </div>
-
-            <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
-              <div className="grid grid-cols-7 gap-2 mb-4">
-                {dayNames.map((d) => (
-                  <div key={d} className="p-3 text-center text-base font-semibold text-gray-500 uppercase tracking-wider">
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2">
-                {getDaysInMonth(currentDate).map((day, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleDateClick(day)}
-                    disabled={isPastDate(day)}
-                    className={`relative p-4 min-h-[60px] border-2 transition-all duration-200
-                      ${day ? (isPastDate(day) ? "bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed"
-                        : "hover:bg-indigo-50 hover:border-indigo-200 border-gray-100 cursor-pointer")
-                        : "bg-gray-50 border-gray-100"}
-                      ${isToday(day) ? "bg-green-100 border-green-300 text-green-900 font-bold" : ""}
-                      ${isSelected(day) ? "bg-green-200 border-green-400 text-green-900 font-semibold" : ""}`}
-                  >
-                    {day && <span className="text-base">{day}</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* modal chọn khung giờ */}
-        {showTimeModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-indigo-900">
-                  {registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]]
-                    ? `Khung giờ đã đăng ký - ${selectedDateForTime?.toLocaleDateString("vi-VN")}`
-                    : `Chọn khung giờ cho ngày ${selectedDateForTime?.toLocaleDateString("vi-VN")}`}
-                </h3>
-                <button onClick={() => { setShowTimeModal(false); setSelectedDateForTime(null); setTimeSlots([]); }} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
-              </div>
-
-              <div className="space-y-4">
-                {timeSlots.map((slot, index) => {
-                  const dur = calcDuration(slot.startTime, slot.endTime);
-                  const valid = dur >= 1 && dur <= maxDaily();
-                  const viewing = !!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]];
-
-                  return (
-                    <div
-                      key={index}
-                      className={`flex items-center space-x-4 p-4 border rounded-lg ${
-                        valid ? "border-gray-200" : "border-red-300 bg-red-50"
-                      } ${viewing ? "bg-green-50 border-green-200" : ""}`}
-                    >
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Giờ bắt đầu</label>
-                        <input
-                          type="time"
-                          value={slot.startTime}
-                          onChange={(e) => updateSlot(index, "startTime", e.target.value)}
-                          disabled={viewing}
-                          className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none ${
-                            viewing ? "bg-gray-100 cursor-not-allowed" : ""
-                          }`}
+                        <img
+                          className="w-full h-36 object-cover rounded-lg mt-2"
+                          src={v.image}
+                          alt={v.carName}
                         />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Giờ kết thúc</label>
-                        <input
-                          type="time"
-                          value={slot.endTime}
-                          onChange={(e) => updateSlot(index, "endTime", e.target.value)}
-                          disabled={viewing}
-                          className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none ${
-                            viewing ? "bg-gray-100 cursor-not-allowed" : ""
-                          }`}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Thời lượng</label>
-                        <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                          viewing ? "text-green-600 bg-green-100" : valid ? "text-green-600 bg-green-100" : "text-red-600 bg-red-100"
-                        }`}>
-                          {dur > 0 ? `${dur.toFixed(2)}h` : "Chưa chọn"}
-                        </div>
-                      </div>
-                      {!viewing && (
-                        <button
-                          onClick={() => removeTimeSlot(index)}
-                          className="text-red-500 hover:text-red-700 p-2"
-                          title="Xóa khung giờ"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
                       )}
                     </div>
                   );
-                })}
+                })()}
+            </div>
 
-                {!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
-                  <button
-                    onClick={addTimeSlot}
-                    className="w-full py-3 border-2 border-dashed border-indigo-300 text-indigo-600 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition"
-                  >
-                    + Thêm khung giờ
-                  </button>
-                )}
+            {/* DAY DETAILS */}
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <svg
+                  className="w-5 h-5 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {selectedDateForTime ? `Ngày ${selectedKey}` : "Đặt lịch"}
+                </h2>
               </div>
 
-              <div className="flex justify-between items-center mt-8">
-                <div className="text-sm text-gray-600">
-                  <p>Tổng thời gian: <span className="font-semibold text-indigo-600">{totalHours().toFixed(2)}h</span></p>
-                  {!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
-                    <p>Giới hạn: <span className="font-semibold text-gray-700">{maxDaily()}h</span></p>
-                  )}
-                </div>
-                <div className="flex space-x-4">
-                  {registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
-                    <button
-                      onClick={async () => { await cancelRegistration(); }}
-                      className="px-6 py-3 rounded-lg transition bg-red-600 text-white hover:bg-red-700"
-                    >
-                      Hủy đăng ký
-                    </button>
-                  )}
+              {!selectedDateForTime ? (
+                <p className="text-sm text-gray-500">
+                  Chọn 1 ngày trên lịch để xem & tạo khung giờ.
+                </p>
+              ) : (
+                <>
+                  {/* MY SLOTS */}
+                  <div className="mb-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
+                      <p className="text-sm font-semibold text-gray-900">
+                        Lịch của tôi
+                      </p>
+                    </div>
+                    {myToday.length === 0 ? (
+                      <div className="text-sm text-gray-500">
+                        Chưa có lịch trong ngày này.
+                      </div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {myToday
+                          .slice()
+                          .sort((a, b) =>
+                            a.startTime.localeCompare(b.startTime)
+                          )
+                          .map((s, i) => (
+                            <li
+                              key={s.id || i}
+                              className="flex items-center justify-between px-3 py-2 rounded-md bg-green-50 border border-green-200"
+                            >
+                              <span className="text-sm text-green-800 font-medium">
+                                {s.startTime} – {s.endTime}
+                              </span>
+                              <button
+                                onClick={() => deleteMySlot(s)}
+                                className="text-red-600 hover:text-red-700 text-xs font-medium"
+                                title="Xoá slot của tôi"
+                              >
+                                Xoá
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                    <div className="mt-2 text-xs text-gray-600">
+                      Đã dùng: <b>{myUsed.toFixed(2)}h</b> • Còn lại hôm nay:{" "}
+                      <b>{remain.toFixed(2)}h</b>
+                    </div>
+                    <hr className="my-4" />
+                  </div>
 
-                  {!registeredTimeSlots[selectedDateForTime?.toISOString().split("T")[0]] && (
+                  {/* OTHERS' SLOTS (READ-ONLY) */}
+                  <div className="mb-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                      <p className="text-sm font-semibold text-gray-900">
+                        Lịch đồng sở hữu
+                      </p>
+                    </div>
+                    {othersToday.length === 0 ? (
+                      <div className="text-sm text-gray-500">
+                        Không có lịch trùng trong ngày này.
+                      </div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {othersToday
+                          .slice()
+                          .sort((a, b) =>
+                            a.startTime.localeCompare(b.startTime)
+                          )
+                          .map((s, i) => (
+                            <li
+                              key={s.id || i}
+                              className="px-3 py-2 rounded-md bg-red-50 border border-red-200 text-sm text-red-700"
+                            >
+                              {s.startTime} – {s.endTime}
+                              {s.ownerName ? (
+                                <span className="ml-2 text-red-600/70">
+                                  ({s.ownerName})
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                    <hr className="my-4" />
+                  </div>
+
+                  {/* ADD NEW SLOTS */}
+                  <div className="space-y-4">
+                    {newSlots.map((slot, idx) => {
+                      const d = duration(slot.startTime, slot.endTime);
+                      const valid = d >= 1 && d <= maxDaily();
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-4 border rounded-lg ${
+                            valid
+                              ? "border-gray-200"
+                              : "border-red-300 bg-red-50"
+                          }`}
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Giờ bắt đầu *
+                              </label>
+                              <input
+                                type="time"
+                                value={slot.startTime}
+                                onChange={(e) =>
+                                  updateNewSlot(
+                                    idx,
+                                    "startTime",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Giờ kết thúc *
+                              </label>
+                              <input
+                                type="time"
+                                value={slot.endTime}
+                                onChange={(e) =>
+                                  updateNewSlot(idx, "endTime", e.target.value)
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Thời lượng
+                              </label>
+                              <div
+                                className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                                  valid
+                                    ? "text-green-700 bg-green-100"
+                                    : "text-red-700 bg-red-100"
+                                }`}
+                              >
+                                {d > 0 ? `${d.toFixed(2)}h` : "Chưa chọn"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex justify-end">
+                            <button
+                              onClick={() => removeNewSlot(idx)}
+                              className="text-red-600 hover:text-red-700 text-sm"
+                            >
+                              Xoá khung giờ
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
                     <button
-                      onClick={async () => { await confirmSlots(); }}
-                      disabled={totalHours() === 0 || totalHours() > maxDaily()}
-                      className={`px-6 py-3 rounded-lg transition ${
-                        totalHours() === 0 || totalHours() > maxDaily()
-                          ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                      onClick={addNewSlot}
+                      className="w-full py-3 border-2 border-dashed border-indigo-300 text-indigo-600 rounded-lg hover:border-indigo-400 hover:bg-indigo-50 transition"
+                    >
+                      + Thêm khung giờ
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-gray-600">
+                      <p>
+                        Tổng thời gian thêm mới:{" "}
+                        <span className="font-semibold text-indigo-600">
+                          {newSlots
+                            .reduce(
+                              (t, s) => t + duration(s.startTime, s.endTime),
+                              0
+                            )
+                            .toFixed(2)}
+                          h
+                        </span>
+                      </p>
+                      <p>
+                        Còn lại hôm nay:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {remain.toFixed(2)}h
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={confirmNewSlots}
+                      disabled={newSlots.length === 0}
+                      className={`px-5 py-3 rounded-lg transition ${
+                        newSlots.length === 0
+                          ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                           : "bg-indigo-600 text-white hover:bg-indigo-700"
                       }`}
                     >
-                      Đăng ký
+                      Đặt lịch
                     </button>
-                  )}
-                </div>
-              </div>
+                  </div>
+                </>
+              )}
             </div>
+
+            {errorMsg && (
+              <div className="rounded-lg bg-red-50 text-red-700 px-4 py-3 border border-red-200">
+                {errorMsg}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

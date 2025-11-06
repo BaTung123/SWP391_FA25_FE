@@ -127,10 +127,11 @@ const LoginPage = () => {
       }
 
       // 6️⃣ Điều hướng sau đăng nhập
-      if (role === 1) {
+      if (role === 1 ) {
         message.success("Đăng nhập Admin thành công!");
         navigate("/admin", { replace: true });
-      } else if (role === 0) {
+      }
+       else if (role === 0) {
         message.success("Đăng nhập Member thành công!");
         navigate("/member", { replace: true });
       } else {
