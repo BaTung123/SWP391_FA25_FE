@@ -94,17 +94,14 @@ export default function VehicleManagementPage() {
 
     try {
       if (editingVehicle) {
-        // --- SỬA: dùng PUT ---
         const id = editingVehicle.id ?? editingVehicle.carId;
         try {
-          // 1) /Car/{id}
           await api.put(`/Car/${id}/update`, payload);
         } catch (e) {
           // Empty
         }
         message.success("Cập nhật xe thành công!");
       } else {
-        // --- THÊM: dùng POST ---
         await api.post("/Car", payload);
         message.success("Thêm xe thành công!");
       }
@@ -231,9 +228,7 @@ export default function VehicleManagementPage() {
                 size="small"
                 icon={<EditOutlined />}
                 onClick={() => openEditModal(record)}
-              >
-                Sửa
-              </Button>
+              ></Button>
             </Tooltip>
 
             <Popconfirm
@@ -250,9 +245,7 @@ export default function VehicleManagementPage() {
                   danger
                   icon={<DeleteOutlined />}
                   loading={deleting}
-                >
-                  Xoá
-                </Button>
+                ></Button>
               </Tooltip>
             </Popconfirm>
           </Space>
