@@ -418,153 +418,66 @@ const handleSave = async () => {
   };
  
 
-  // --- DỮ LIỆU MẪU CHO XE/BẢO HIỂM (giữ nguyên giao diện) ---
-  const vehicleData = [
-    {
-      id: 1,
-      vehicleName: "Tesla Model 3",
-      licensePlate: "30A-12345",
-      ownershipPercentage: 25,
-      purchaseDate: "2024-01-15",
-      status: "Active",
-      monthlyCost: 2500000,
-      nextPayment: "2024-12-15",
-      coOwners: [
-        {
-          name: "John Doe",
-          email: "john.doe@example.com",
-          percentage: 25,
-          phone: "0123456789",
-        },
-        {
-          name: "Nguyễn Văn A",
-          email: "nguyenvana@example.com",
-          percentage: 30,
-          phone: "0987654321",
-        },
-        {
-          name: "Trần Thị B",
-          email: "tranthib@example.com",
-          percentage: 25,
-          phone: "0912345678",
-        },
-        {
-          name: "Lê Văn C",
-          email: "levanc@example.com",
-          percentage: 20,
-          phone: "0923456789",
-        },
-      ],
-      insurance: {
-        provider: "Bảo Việt",
-        policyNumber: "BV-2024-001234",
-        startDate: "2024-01-15",
-        endDate: "2025-01-15",
-        premium: 4500000,
-        coverage: "Toàn diện",
-        deductible: 500000,
-        monthlyPayment: 375000,
-        nextPayment: "2024-12-15",
-        status: "Active",
-      },
-    },
-    {
-      id: 2,
-      vehicleName: "BYD Atto 3",
-      licensePlate: "29B-67890",
-      ownershipPercentage: 15,
-      purchaseDate: "2024-03-20",
-      status: "Active",
-      monthlyCost: 1800000,
-      nextPayment: "2024-12-20",
-      coOwners: [
-        {
-          name: "John Doe",
-          email: "john.doe@example.com",
-          percentage: 15,
-          phone: "0123456789",
-        },
-        {
-          name: "Phạm Văn D",
-          email: "phamvand@example.com",
-          percentage: 35,
-          phone: "0934567890",
-        },
-        {
-          name: "Hoàng Thị E",
-          email: "hoangthie@example.com",
-          percentage: 30,
-          phone: "0945678901",
-        },
-        {
-          name: "Vũ Văn F",
-          email: "vuvanf@example.com",
-          percentage: 20,
-          phone: "0956789012",
-        },
-      ],
-      insurance: {
-        provider: "Prudential",
-        policyNumber: "PRU-2024-005678",
-        startDate: "2024-03-20",
-        endDate: "2025-03-20",
-        premium: 3200000,
-        coverage: "Cơ bản",
-        deductible: 300000,
-        monthlyPayment: 266667,
-        nextPayment: "2024-12-20",
-        status: "Active",
-      },
-    },
-    {
-      id: 3,
-      vehicleName: "VinFast VF8",
-      licensePlate: "30C-11111",
-      ownershipPercentage: 20,
-      purchaseDate: "2024-06-10",
-      status: "Maintenance",
-      monthlyCost: 2200000,
-      nextPayment: "2024-12-10",
-      coOwners: [
-        {
-          name: "John Doe",
-          email: "john.doe@example.com",
-          percentage: 20,
-          phone: "0123456789",
-        },
-        {
-          name: "Đặng Văn G",
-          email: "dangvang@example.com",
-          percentage: 25,
-          phone: "0967890123",
-        },
-        {
-          name: "Bùi Thị H",
-          email: "buithih@example.com",
-          percentage: 30,
-          phone: "0978901234",
-        },
-        {
-          name: "Đinh Văn I",
-          email: "dinhvani@example.com",
-          percentage: 25,
-          phone: "0989012345",
-        },
-      ],
-      insurance: {
-        provider: "Bảo Minh",
-        policyNumber: "BM-2024-009012",
-        startDate: "2024-06-10",
-        endDate: "2025-06-10",
-        premium: 3800000,
-        coverage: "Toàn diện",
-        deductible: 400000,
-        monthlyPayment: 316667,
-        nextPayment: "2024-12-10",
-        status: "Active",
-      },
-    },
-  ];
+  // State: danh sách xe lấy từ backend
+  const [vehicleData, setVehicleData] = useState([]);
+
+  // Khi vào tab SỞ HỮU XE thì gọi API thật: /api/users/{userId}/cars
+  useEffect(() => {
+    if (activeTab !== "vehicles" || !userId) return;
+    let mounted = true;
+    setLoading(true);
+    (async () => {
+      try {
+        // gọi danh sách CarUser (hoặc tương đương) từ BE
+        const res = await api.get(`/users/${userId}/cars`);
+        const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+
+        // chuẩn hoá dữ liệu về dạng mà UI đang sử dụng
+        const mapped = (list || [])
+          .filter(Boolean)
+          .map((it) => {
+            const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
+            const carUserId =
+              it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.carUserId ?? it.linkId ?? null;
+
+            return {
+              id: carId,
+              carUserId,
+              vehicleName: it.carName ?? it.name ?? it.VehicleName ?? it.vehicleName ?? "",
+              licensePlate: it.plateNumber ?? it.plate ?? it.PlateNumber ?? it.licensePlate ?? "",
+              purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
+              status: it.status ?? it.Status ?? "Active",
+              insurance: it.insurance ?? it.Insurance ?? { provider: "", policyNumber: "", startDate: null, endDate: null, premium: 0, monthlyPayment: 0, nextPayment: null, status: "Active" },
+            };
+          });
+
+        // lấy phần trăm sở hữu từ /PercentOwnership (nếu API tồn tại)
+        try {
+          const poRes = await api.get("/PercentOwnership");
+          const poList = Array.isArray(poRes.data) ? poRes.data : poRes.data?.data || [];
+          for (const v of mapped) {
+            const po = poList.find(
+              (p) => Number(p.carUserId ?? p.CarUserId) === Number(v.carUserId)
+            );
+            v.ownershipPercentage = po && po.percentage != null ? Number(po.percentage) : 100;
+          }
+        } catch (e) {
+          // fallback: 100% nếu không có endpoint
+          for (const v of mapped) v.ownershipPercentage = 100;
+        }
+
+        if (mounted) setVehicleData(mapped);
+      } catch (err) {
+        console.error("Lỗi khi lấy xe:", err);
+        if (mounted) setVehicleData([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, userId]);
 
   return (
     <div className="w-full">
@@ -909,6 +822,15 @@ const handleSave = async () => {
                       </td>
                     </tr>
                   ))}
+                  {vehicleData.length === 0 && !loading && (
+                    <tbody>
+                      <tr>
+                        <td className="border border-indigo-200 px-4 py-6 text-center text-gray-500" colSpan={6}>
+                          Chưa có xe đăng ký thuộc sở hữu của bạn.
+                        </td>
+                      </tr>
+                    </tbody>
+                  )}
                 </tbody>
               </table>
             </div>
