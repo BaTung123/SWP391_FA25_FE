@@ -1196,8 +1196,92 @@ const handleSave = async () => {
                   </div>
                 </div>
 
-                {/* Nội dung hợp đồng giữ nguyên như trước (table + terms) */}
-                {/* ... (để ngắn gọn, không thay phần UI) ... */}
+                {/* Contract content - styled to match provided layout */}
+                <div className="p-8">
+                  {/* Centered title */}
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-semibold text-gray-900">Hợp đồng sở hữu xe</h2>
+                    <p className="text-gray-600">Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.</p>
+                  </div>
+
+                  {/* Vehicle details */}
+                  <div className="grid grid-cols-2 gap-6 mb-8 bg-gray-50 p-6 rounded-lg">
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Tên xe</p>
+                      <p className="text-gray-900">{selectedVehicle.vehicleName || '---'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Biển số</p>
+                      <p className="text-gray-900">{selectedVehicle.licensePlate || '---'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Ngày mua / Hiệu lực</p>
+                      <p className="text-gray-900">{selectedVehicle.purchaseDate ? new Date(selectedVehicle.purchaseDate).toLocaleDateString('vi-VN') : '---'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Trạng thái hợp đồng</p>
+                      <p className="text-gray-900">{selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}</p>
+                    </div>
+                  </div>
+
+                  {/* (Table of co-owners removed as requested) */}
+
+                  {/* Contract terms (numbered) */}
+                  <div className="mb-8">
+                    <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
+                        <p>
+                          Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
+                        <p>
+                          Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
+                        <p>
+                          Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
+                        <p>
+                          Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
+                        <p>
+                          Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.
+                        </p>
+                      </div>
+                      <div>
+                        <h4 className="text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
+                        <p>
+                          Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signature section - notes + single leader signature */}
+                  <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-200">
+                    <div>
+                      <p className="text-gray-900 mb-2">Ghi chú</p>
+                      <p className="text-gray-700 text-sm">Hợp đồng này được lập làm bằng chứng phân chia quyền sở hữu giữa các bên. Các bên cam kết thông tin trên là chính xác.</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-gray-900 mb-2">Chữ ký</p>
+                      <div className="h-16 mb-2" />
+                      <p className="text-gray-700">Trưởng nhóm</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
