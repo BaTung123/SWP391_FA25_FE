@@ -96,7 +96,7 @@ export default function HomePage() {
           </p>
           <div className="flex justify-center space-x-4">
             <a
-              href="#warehouse"
+              href="warehouse"
               className="px-6 py-3 bg-blue-600 rounded shadow hover:bg-blue-700"
             >
               Khám phá xe dùng chung

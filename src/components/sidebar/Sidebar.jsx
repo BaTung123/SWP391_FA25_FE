@@ -16,39 +16,46 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const user = JSON.parse(localStorage.getItem("user"));
-  const role = user?.role || "Member";
+  const userData = localStorage.getItem("user");
+  const user = userData ? JSON.parse(userData) : null;
+  const role = user?.role !== undefined && user?.role !== null 
+    ? (typeof user.role === "number" ? user.role : Number(user.role))
+    : 0;
 
-  console.log("User data:", user);
-  console.log("Current role:", role);
+  // --- ADMIN MENU ITEMS ---
+  const dashboardItem = {
+    key: "/admin",
+    icon: <FaTachometerAlt />,
+    label: "Dashboard",
+    path: "/admin"
+  };
 
-  // --- ADMIN MENU ---
+  const userManagementItem = {
+    key: "/admin/user-management",
+    icon: <FaUsers />,
+    label: "User Management",
+    path: "/admin/user-management"
+  };
+
+  const vehicleManagementItem = {
+    key: "/admin/vehicle-management",
+    icon: <FaCar />,
+    label: "Vehicle Management",
+    path: "/admin/vehicle-management"
+  };
+
+  // --- ADMIN MENU (full) ---
   const adminMenu = [
-    {
-      key: "/admin",
-      icon: <FaTachometerAlt />,
-      label: "Dashboard",
-      path: "/admin"
-    },
-    {
-      key: "/admin/user-management",
-      icon: <FaUsers />,
-      label: "User Management",
-      path: "/admin/user-management"
-    },
-    {
-      key: "/admin/vehicle-management",
-      icon: <FaCar />,
-      label: "Vehicle Management",
-      path: "/admin/vehicle-management"
-    }
+    dashboardItem,
+    userManagementItem,
+    vehicleManagementItem
   ];
 
   // --- STAFF MENU ---
   const staffMenu = [
     {
       key: "/group-management",
-      icon: <FaUsers />, // ✅ sửa FaGroup thành FaUsers
+      icon: <FaUsers />,
       label: "Group Management",
       path: "/staff/group-management"
     },
@@ -100,14 +107,15 @@ const Sidebar = () => {
   // Xác định menu dựa theo role
   let roleMenus = [];
 
-  if (role === "Admin") {
-    roleMenus = adminMenu;
-  } else if (role === "Staff") {
-    roleMenus = staffMenu;
-  } else {
-    // Nếu không có role cụ thể → hiển thị tất cả để test
-    console.log("Role:", role, "- Hiển thị tất cả menu để test");
+  if (role === 1) {
+    // Admin: xem được toàn bộ menu
     roleMenus = [...adminMenu, ...staffMenu];
+  } else if (role === 2) {
+    // Staff: không xem được Dashboard và User Management, nhưng xem được Vehicle Management + tất cả staff menu
+    roleMenus = [vehicleManagementItem, ...staffMenu];
+  } else {
+    // Member hoặc role khác: không hiển thị menu admin/staff
+    roleMenus = [];
   }
 
   const allMenuItems = [...roleMenus, ...informationMenu, logoutItem];
@@ -115,7 +123,9 @@ const Sidebar = () => {
   // Logout function
   const handleLogout = () => {
     localStorage.removeItem("user");
-    navigate("/");
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    navigate("/auth/login", { replace: true });
   };
 
   const handleMenuClick = (item) => {

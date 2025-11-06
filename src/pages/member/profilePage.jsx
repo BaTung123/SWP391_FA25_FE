@@ -156,6 +156,9 @@ const ProfilePage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Validation errors state
+  const [validationErrors, setValidationErrors] = useState({});
+
   // server-backed user state (ảnh, email)
   const [user, setUser] = useState({
     email: "",
@@ -227,6 +230,9 @@ const ProfilePage = () => {
           gender: safe(data.gender),
           dob: safe(data.dob),
         });
+        
+        // Clear validation errors when data is loaded
+        setValidationErrors({});
       } catch (e) {
         console.error(e);
         setError("Không tải được dữ liệu người dùng. Vui lòng thử lại.");
@@ -239,10 +245,158 @@ const ProfilePage = () => {
     return () => controller.abort();
   }, [userId]);
 
-  // ---- 3) Handlers
+  // ---- 3) Validation functions
+  const validateField = (name, value) => {
+    let error = "";
+
+    switch (name) {
+      case "name":
+      case "fullName":
+        // For name/fullName, use the provided value (which should be the combined value)
+        const displayName = value || "";
+        
+        if (!displayName || displayName.trim().length === 0) {
+          error = "Họ và tên không được để trống";
+        } else if (displayName.trim().length < 2) {
+          error = "Họ và tên phải có ít nhất 2 ký tự";
+        } else if (displayName.trim().length > 100) {
+          error = "Họ và tên không được vượt quá 100 ký tự";
+        } else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(displayName.trim())) {
+          error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
+        }
+        break;
+
+      case "phone":
+        if (!value || value.trim().length === 0) {
+          error = "Số điện thoại không được để trống";
+        } else {
+          const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
+          const cleanedPhone = value.replace(/\s+/g, "");
+          if (!phoneRegex.test(cleanedPhone)) {
+            error = "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)";
+          }
+        }
+        break;
+
+      case "dob":
+        if (!value) {
+          error = "Ngày sinh không được để trống";
+        } else {
+          const selectedDate = new Date(value);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          if (isNaN(selectedDate.getTime())) {
+            error = "Ngày sinh không hợp lệ";
+          } else if (selectedDate > today) {
+            error = "Ngày sinh không được trong tương lai";
+          } else {
+            const age = today.getFullYear() - selectedDate.getFullYear();
+            const monthDiff = today.getMonth() - selectedDate.getMonth();
+            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate()) 
+              ? age - 1 
+              : age;
+            
+            if (actualAge < 18) {
+              error = "Bạn phải đủ 18 tuổi trở lên";
+            } else if (actualAge > 120) {
+              error = "Ngày sinh không hợp lệ";
+            }
+          }
+        }
+        break;
+
+      case "licenseNumber":
+        if (value && value.trim().length > 0) {
+          if (value.trim().length < 5) {
+            error = "Số bằng lái xe phải có ít nhất 5 ký tự";
+          } else if (value.trim().length > 20) {
+            error = "Số bằng lái xe không được vượt quá 20 ký tự";
+          }
+        }
+        break;
+
+      case "gender":
+        // Gender is optional, no validation needed
+        break;
+
+      default:
+        break;
+    }
+
+    return error;
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    // Validate name/fullName
+    const nameError = validateField("name", form.name || form.fullName);
+    if (nameError) {
+      errors.name = nameError;
+      errors.fullName = nameError;
+    }
+
+    // Validate phone
+    const phoneError = validateField("phone", form.phone);
+    if (phoneError) errors.phone = phoneError;
+
+    // Validate dob
+    const dobError = validateField("dob", form.dob);
+    if (dobError) errors.dob = dobError;
+
+    // Validate licenseNumber (optional but if provided, must be valid)
+    const licenseError = validateField("licenseNumber", form.licenseNumber);
+    if (licenseError) errors.licenseNumber = licenseError;
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // ---- 4) Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    
+    // Update form state
+    setForm((prev) => {
+      const updatedForm = { ...prev, [name]: value };
+      
+      // Validate field on change with updated form values
+      const error = validateField(name, name === "name" || name === "fullName" 
+        ? (name === "name" ? value : (value || prev.name))
+        : value);
+      
+      setValidationErrors((prevErrors) => {
+        const newErrors = { ...prevErrors };
+        
+        // Handle name/fullName validation together
+        if (name === "name" || name === "fullName") {
+          const nameValue = name === "name" ? value : updatedForm.name;
+          const fullNameValue = name === "fullName" ? value : updatedForm.fullName;
+          const displayName = nameValue || fullNameValue;
+          
+          const nameError = validateField("name", displayName);
+          if (nameError) {
+            newErrors.name = nameError;
+            newErrors.fullName = nameError;
+          } else {
+            delete newErrors.name;
+            delete newErrors.fullName;
+          }
+        } else {
+          // Handle other fields
+          if (error) {
+            newErrors[name] = error;
+          } else {
+            delete newErrors[name];
+          }
+        }
+        
+        return newErrors;
+      });
+      
+      return updatedForm;
+    });
   };
 
   // Upload ảnh CCCD (preview local)
@@ -328,6 +482,12 @@ const ProfilePage = () => {
 const handleSave = async () => {
   if (!userId) {
     alert("Không xác định được người dùng.");
+    return;
+  }
+
+  // Validate form before submitting
+  if (!validateForm()) {
+    alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
     return;
   }
 
@@ -599,14 +759,23 @@ const handleSave = async () => {
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
-                            HỌ VÀ TÊN
+                            HỌ VÀ TÊN <span className="text-red-500">*</span>
                           </label>
                           <input
                             name="name"
                             value={form.name || form.fullName || ""}
                             onChange={handleChange}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              validationErrors.name || validationErrors.fullName
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : "border-gray-200"
+                            }`}
                           />
+                          {(validationErrors.name || validationErrors.fullName) && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {validationErrors.name || validationErrors.fullName}
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
@@ -624,15 +793,24 @@ const handleSave = async () => {
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
-                            SỐ ĐIỆN THOẠI
+                            SỐ ĐIỆN THOẠI <span className="text-red-500">*</span>
                           </label>
                           <input
                             name="phone"
                             value={form.phone || ""}
                             onChange={handleChange}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              validationErrors.phone
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : "border-gray-200"
+                            }`}
                             placeholder="Nhập số điện thoại"
                           />
+                          {validationErrors.phone && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {validationErrors.phone}
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
@@ -655,15 +833,25 @@ const handleSave = async () => {
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
-                            NGÀY SINH
+                            NGÀY SINH <span className="text-red-500">*</span>
                           </label>
                           <input
                             name="dob"
                             type="date"
                             value={form.dob || ""}
                             onChange={handleChange}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            max={new Date().toISOString().split('T')[0]}
+                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              validationErrors.dob
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : "border-gray-200"
+                            }`}
                           />
+                          {validationErrors.dob && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {validationErrors.dob}
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700 text-left">
@@ -673,17 +861,26 @@ const handleSave = async () => {
                             name="licenseNumber"
                             value={form.licenseNumber || ""}
                             onChange={handleChange}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                              validationErrors.licenseNumber
+                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                : "border-gray-200"
+                            }`}
                             placeholder="Nhập bằng lái xe"
                           />
+                          {validationErrors.licenseNumber && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {validationErrors.licenseNumber}
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex justify-center mt-8">
                         <button
                           onClick={handleSave}
-                          disabled={saving}
-                          className="px-12 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+                          disabled={saving || Object.keys(validationErrors).length > 0}
+                          className="px-12 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           {saving ? "ĐANG LƯU..." : "LƯU"}
                         </button>
