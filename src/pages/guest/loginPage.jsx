@@ -57,10 +57,19 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  // ✅ message API để hiện toast
+  const [msgApi, contextHolder] = message.useMessage();
+
+  // ✅ helper: hiển thị toast rồi mới điều hướng
+  const showAndGo = async (content, path) => {
+    await msgApi.open({ type: "success", content, duration: 1 });
+    navigate(path, { replace: true });
+  };
+
   const handleSubmit = async (values) => {
     const { userName, password, remember } = values || {};
     if (!userName || !password) {
-      message.warning("Vui lòng nhập Tên đăng nhập và Mật khẩu.");
+      msgApi.warning("Vui lòng nhập Tên đăng nhập và Mật khẩu.");
       return;
     }
 
@@ -73,28 +82,12 @@ const LoginPage = () => {
         password: password, // Không trim password
       };
 
-      console.log("🔐 Attempting login with:", {
-        userName: trimmedUserName,
-        passwordLength: password?.length || 0,
-        payload: { ...loginPayload, password: "***" } // Ẩn password trong log
-      });
-
       const res = await api.post("/User/login", loginPayload, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers: { "Content-Type": "application/json" },
       });
 
       const data = res?.data || {};
       const token = data.token;
-
-      console.log("✅ Login response received:", {
-        hasToken: !!token,
-        dataKeys: Object.keys(data),
-        role: data.role || data.isRole,
-        fullData: data
-      });
-
       if (!token) throw new Error("Không nhận được token từ máy chủ.");
 
       // 2️⃣ Lưu token + header
@@ -105,14 +98,13 @@ const LoginPage = () => {
 
       // Parse JWT để lấy thông tin user
       const jwtClaims = parseJwt(token) || {};
-      
-      // 3️⃣ Lấy thông tin user (thông qua API /User)
+
+      // 3️⃣ Lấy thông tin user (thông qua API /User) để xác định role
       let matchedUser = null;
       let role = null;
-      
+
       try {
         const userRes = await api.get("/User");
-        // Nếu backend trả danh sách -> lấy user đầu tiên khớp userName
         const users = Array.isArray(userRes.data)
           ? userRes.data
           : userRes.data?.data || [];
@@ -124,103 +116,93 @@ const LoginPage = () => {
               String(userName).toLowerCase()
           ) || users[0];
 
-        // Ưu tiên lấy role từ matchedUser
         if (matchedUser?.role !== undefined && matchedUser?.role !== null) {
-          role = typeof matchedUser.role === "number" ? matchedUser.role : Number(matchedUser.role);
+          role =
+            typeof matchedUser.role === "number"
+              ? matchedUser.role
+              : Number(matchedUser.role);
         }
-      } catch (userError) {
-        console.warn("⚠️ Không thể lấy thông tin user từ API /User:", userError);
+      } catch {
+        // có thể BE không hỗ trợ /User — bỏ qua
       }
 
-      // Nếu chưa có role, thử lấy từ login response (isRole hoặc role)
+      // fallback: role từ login response hoặc JWT
       if (role === null || role === undefined || isNaN(role)) {
         if (data.isRole !== undefined && data.isRole !== null) {
-          role = typeof data.isRole === "number" ? data.isRole : Number(data.isRole);
+          role =
+            typeof data.isRole === "number" ? data.isRole : Number(data.isRole);
         } else if (data.role !== undefined && data.role !== null) {
           role = typeof data.role === "number" ? data.role : Number(data.role);
         }
       }
-
-      // Nếu vẫn chưa có role, thử lấy từ JWT claims
       if ((role === null || role === undefined || isNaN(role)) && jwtClaims) {
         if (jwtClaims.role !== undefined && jwtClaims.role !== null) {
-          role = typeof jwtClaims.role === "number" ? jwtClaims.role : Number(jwtClaims.role);
+          role =
+            typeof jwtClaims.role === "number"
+              ? jwtClaims.role
+              : Number(jwtClaims.role);
         } else if (jwtClaims.isRole !== undefined && jwtClaims.isRole !== null) {
-          role = typeof jwtClaims.isRole === "number" ? jwtClaims.isRole : Number(jwtClaims.isRole);
+          role =
+            typeof jwtClaims.isRole === "number"
+              ? jwtClaims.isRole
+              : Number(jwtClaims.isRole);
         }
       }
-
-      // Mặc định role = 0 (Member) nếu không xác định được
       if (role === null || role === undefined || isNaN(role)) {
-        console.warn("⚠️ Không xác định được role, mặc định là Member (0)");
-        role = 0;
+        role = 0; // mặc định Member
       }
 
       const userId =
-        extractUserId(matchedUser) || extractUserId(jwtClaims) || extractUserId(data) || null;
-
-      if (!userId) {
-        console.warn("⚠️ Không xác định được userId. Hãy kiểm tra API /User trả về gì.");
-      }
+        extractUserId(matchedUser) ||
+        extractUserId(jwtClaims) ||
+        extractUserId(data) ||
+        null;
 
       // 4️⃣ Lưu user vào localStorage
       const userObj = {
         ...(matchedUser || {}),
         userName: (matchedUser?.userName ?? userName).trim(),
-        role: Number(role), // Đảm bảo role luôn là number
+        role: Number(role),
         token,
         userId,
       };
-
-      console.log("✅ Login successful - Role:", role, "User:", userObj);
-
       localStorage.setItem("user", JSON.stringify(userObj));
       if (userId != null) localStorage.setItem("userId", String(userId));
 
       // 5️⃣ Nhớ username nếu cần
       if (remember) {
         localStorage.setItem("remember_userName", userName.trim());
+        msgApi.success("Đã lưu tên đăng nhập cho lần sau.");
       } else {
         localStorage.removeItem("remember_userName");
       }
 
-      // 6️⃣ Điều hướng sau đăng nhập
+      // 6️⃣ THÔNG BÁO THÀNH CÔNG + ĐIỀU HƯỚNG (đợi toast xong rồi navigate)
+      const welcome = `Chào mừng, ${userObj.userName}!`;
       if (role === 1) {
-        message.success("Đăng nhập Admin thành công!");
-        navigate("/admin", { replace: true });
+        await showAndGo(`${welcome} Bạn đang đăng nhập với vai trò Admin.`, "/admin");
       } else if (role === 2) {
-        message.success("Đăng nhập Staff thành công!");
-        navigate("/staff/group-management", { replace: true });
+        await showAndGo(
+          `${welcome} Bạn đang đăng nhập với vai trò Staff.`,
+          "/staff/group-management"
+        );
       } else if (role === 0) {
-        message.success("Đăng nhập Member thành công!");
-        navigate("/member", { replace: true });
+        await showAndGo(`${welcome} Bạn đang đăng nhập với vai trò Member.`, "/member");
       } else {
-        message.success("Đăng nhập thành công!");
-        navigate("/", { replace: true });
+        await showAndGo(`${welcome} Đăng nhập thành công!`, "/");
       }
     } catch (e) {
-      console.error("Login error:", e?.response?.data || e?.message);
-      console.error("Error details:", {
-        status: e?.response?.status,
-        statusText: e?.response?.statusText,
-        data: e?.response?.data,
-        message: e?.message,
-        requestUrl: e?.config?.url,
-        requestMethod: e?.config?.method,
-        requestData: e?.config?.data ? JSON.parse(e.config.data) : null
-      });
-      
+      // cleanup
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("userId");
       delete api.defaults.headers.common.Authorization;
 
       let apiMsg = "Đăng nhập thất bại. Vui lòng thử lại.";
-      
       if (e?.response?.status === 401) {
-        // Hiển thị message từ backend nếu có, nếu không thì dùng message mặc định
         const backendMsg = e?.response?.data?.message || e?.response?.data?.error;
-        apiMsg = backendMsg || "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
+        apiMsg =
+          backendMsg || "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
       } else if (e?.response?.data?.message) {
         apiMsg = e.response.data.message;
       } else if (e?.response?.data?.error) {
@@ -228,8 +210,7 @@ const LoginPage = () => {
       } else if (e?.message) {
         apiMsg = e.message;
       }
-      
-      message.error(apiMsg);
+      message.error(apiMsg); // dùng message global để chắc chắn hiển thị
     } finally {
       setIsLoading(false);
     }
@@ -237,6 +218,9 @@ const LoginPage = () => {
 
   return (
     <>
+      {/* holder cho message.useMessage() */}
+      {contextHolder}
+
       <style>{`
         @keyframes fadeZoom {
           0% { opacity: 0; transform: scale(1.08); }
@@ -297,11 +281,11 @@ const LoginPage = () => {
                   </Form.Item>
 
                   <Form.Item
-                        name="remember"
-                        valuePropName="checked"
-                        className="flex justify-start mb-4"
-                        style={{ marginBottom: "12px" }}
-                      >
+                    name="remember"
+                    valuePropName="checked"
+                    className="flex justify-start mb-4"
+                    style={{ marginBottom: "12px" }}
+                  >
                     <Checkbox>Lưu Mật Khẩu</Checkbox>
                   </Form.Item>
 
@@ -348,7 +332,7 @@ const LoginPage = () => {
               <div
                 className="absolute inset-0 logo-anim"
                 style={{
-                  backgroundImage: `url(${logoGarage})`,
+                  backgroundImage: `url(${logoGarage})}`,
                   backgroundSize: "70%",
                   backgroundRepeat: "no-repeat",
                   backgroundPosition: "center",
