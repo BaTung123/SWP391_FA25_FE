@@ -146,6 +146,9 @@ const ProfilePage = () => {
   const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [showInsuranceModal, setShowInsuranceModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [coOwnersData, setCoOwnersData] = useState([]);
+  const [loadingCoOwners, setLoadingCoOwners] = useState(false);
+  const [groupInfo, setGroupInfo] = useState(null);
 
   // auth/session
   const [userRole, setUserRole] = useState(null);
@@ -196,6 +199,14 @@ const ProfilePage = () => {
       setUserId(null);
     }
   }, []);
+
+  // Đảm bảo admin/staff chỉ xem tab profile
+  useEffect(() => {
+    const roleNum = typeof userRole === "number" ? userRole : Number(userRole ?? 0);
+    if ((roleNum === 1 || roleNum === 2) && activeTab !== "profile") {
+      setActiveTab("profile");
+    }
+  }, [userRole, activeTab]);
 
   // ---- 2) Fetch hồ sơ user từ API khi có userId
   useEffect(() => {
@@ -429,13 +440,161 @@ const ProfilePage = () => {
     if (fileInput) fileInput.value = "";
   };
 
-  const handleViewCoOwners = (vehicle) => {
+  // Helper: Resolve carUserId cho (carId, userId)
+  const resolveCarUserId = async (carId, userId) => {
+    try {
+      const r = await api.get(`/users/${userId}/cars`);
+      const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+      const found = arr.find((it) => {
+        const cid = Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id);
+        return Number(cid) === Number(carId);
+      });
+      if (!found) return null;
+      return Number(found?.carUserId ?? found?.CarUserId ?? found?.id);
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper: Lấy users sở hữu xe
+  const getUsersByCar = async (carId) => {
+    try {
+      const res = await api.get(`/cars/${carId}/users`);
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      return arr.map((u) => Number(u?.userId ?? u?.id)).filter((x) => Number.isFinite(x));
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper: Lấy thông tin user từ userId
+  const getUserInfo = async (userId) => {
+    try {
+      const res = await api.get(`/User/${userId}`);
+      const data = res?.data ?? {};
+      return {
+        id: userId,
+        name: data.fullName || data.name || data.email || `User #${userId}`,
+        email: data.email || '',
+        phone: data.phone || '',
+      };
+    } catch {
+      return {
+        id: userId,
+        name: `User #${userId}`,
+        email: '',
+        phone: '',
+      };
+    }
+  };
+
+  // Helper: Lấy PercentOwnership
+  const getPercentOwnership = async () => {
+    try {
+      const r = await api.get("/PercentOwnership");
+      return Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+    } catch {
+      try {
+        const r2 = await api.get("/api/PercentOwnership");
+        return Array.isArray(r2.data) ? r2.data : r2.data ? [r2.data] : [];
+      } catch {
+        return [];
+      }
+    }
+  };
+
+  const handleViewCoOwners = async (vehicle) => {
     setSelectedVehicle(vehicle);
     setShowCoOwnersModal(true);
+    setLoadingCoOwners(true);
+    setCoOwnersData([]);
+    setGroupInfo(null);
+
+    try {
+      const carId = vehicle.id || vehicle.carId;
+      if (!carId) {
+        alert('Không tìm thấy thông tin xe.');
+        setLoadingCoOwners(false);
+        return;
+      }
+
+      // 1. Lấy thông tin group theo carId
+      try {
+        const groupRes = await api.get('/Group');
+        const groups = Array.isArray(groupRes.data) ? groupRes.data : groupRes.data ? [groupRes.data] : [];
+        const group = groups.find(g => Number(g.carId) === Number(carId));
+        if (group) {
+          setGroupInfo(group);
+        }
+      } catch (e) {
+        console.error('Lỗi khi lấy thông tin nhóm:', e);
+      }
+
+      // 2. Lấy danh sách userIds sở hữu xe này
+      const ownerIds = await getUsersByCar(carId);
+      if (!ownerIds || ownerIds.length === 0) {
+        setCoOwnersData([]);
+        setLoadingCoOwners(false);
+        return;
+      }
+
+      // 3. Resolve carUserId cho từng user, lấy thông tin user và ownershipPercentage từ API
+      const ownersWithInfo = await Promise.all(
+        ownerIds.map(async (uid) => {
+          // Lấy thông tin user
+          const userInfo = await getUserInfo(uid);
+          
+          // Lấy thông tin xe của user để có ownershipPercentage
+          let percentage = 0;
+          try {
+            const userCarsRes = await api.get(`/users/${uid}/cars`);
+            const userCars = Array.isArray(userCarsRes.data) ? userCarsRes.data : userCarsRes.data ? [userCarsRes.data] : [];
+            const carMatch = userCars.find(c => Number(c.carId ?? c.id) === Number(carId));
+            if (carMatch && carMatch.ownershipPercentage != null) {
+              percentage = Number(carMatch.ownershipPercentage);
+            }
+          } catch (e) {
+            console.error(`Lỗi khi lấy ownershipPercentage cho user ${uid}:`, e);
+          }
+          
+          // Resolve carUserId
+          const cuid = await resolveCarUserId(carId, uid);
+          
+          return { 
+            ...userInfo, 
+            carUserId: cuid,
+            percentage: percentage || 0
+          };
+        })
+      );
+
+      // Nếu không có phần trăm, phân chia đều
+      if (ownersWithInfo.every(o => o.percentage === 0) && ownersWithInfo.length > 0) {
+        const equalPercent = Math.floor(100 / ownersWithInfo.length);
+        const remainder = 100 - (equalPercent * ownersWithInfo.length);
+        ownersWithInfo.forEach((o, idx) => {
+          o.percentage = equalPercent + (idx === 0 ? remainder : 0);
+        });
+      }
+
+      // Sắp xếp theo phần trăm giảm dần để dễ nhìn
+      ownersWithInfo.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+
+      setCoOwnersData(ownersWithInfo);
+    } catch (e) {
+      console.error('Lỗi khi tải thông tin đồng sở hữu:', e);
+      alert('Không thể tải thông tin đồng sở hữu. Vui lòng thử lại.');
+      setCoOwnersData([]);
+    } finally {
+      setLoadingCoOwners(false);
+    }
   };
+
   const closeModal = () => {
     setShowCoOwnersModal(false);
     setSelectedVehicle(null);
+    setCoOwnersData([]);
+    setGroupInfo(null);
   };
 
   const handleViewAgreement = (vehicle) => {
@@ -455,6 +614,9 @@ const ProfilePage = () => {
   const handlePrintAgreement = () => window.print();
 
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
+  const isAdmin = userRole === 1 || userRole === "1" || Number(userRole) === 1;
+  const isStaff = userRole === 2 || userRole === "2" || Number(userRole) === 2;
+  const isAdminOrStaff = isAdmin || isStaff;
 
   const toIsoDateOnly = (v) => {
   if (!v) return '';
@@ -608,23 +770,10 @@ const handleSave = async () => {
               purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
               status: it.status ?? it.Status ?? "Active",
               insurance: it.insurance ?? it.Insurance ?? { provider: "", policyNumber: "", startDate: null, endDate: null, premium: 0, monthlyPayment: 0, nextPayment: null, status: "Active" },
+              // Sử dụng ownershipPercentage trực tiếp từ API response
+              ownershipPercentage: it.ownershipPercentage != null ? Number(it.ownershipPercentage) : 100,
             };
           });
-
-        // lấy phần trăm sở hữu từ /PercentOwnership (nếu API tồn tại)
-        try {
-          const poRes = await api.get("/PercentOwnership");
-          const poList = Array.isArray(poRes.data) ? poRes.data : poRes.data?.data || [];
-          for (const v of mapped) {
-            const po = poList.find(
-              (p) => Number(p.carUserId ?? p.CarUserId) === Number(v.carUserId)
-            );
-            v.ownershipPercentage = po && po.percentage != null ? Number(po.percentage) : 100;
-          }
-        } catch (e) {
-          // fallback: 100% nếu không có endpoint
-          for (const v of mapped) v.ownershipPercentage = 100;
-        }
 
         if (mounted) setVehicleData(mapped);
       } catch (err) {
@@ -659,36 +808,40 @@ const handleSave = async () => {
           >
             HỒ SƠ
           </div>
-          <div
-            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
-              activeTab === "vehicles"
-                ? "text-indigo-900 border-b-3 border-indigo-900"
-                : "text-indigo-600 hover:text-indigo-800"
-            }`}
-            onClick={() => setActiveTab("vehicles")}
-          >
-            SỞ HỮU XE
-          </div>
-          <div
-            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
-              activeTab === "insurance"
-                ? "text-indigo-900 border-b-3 border-indigo-900"
-                : "text-indigo-600 hover:text-indigo-800"
-            }`}
-            onClick={() => setActiveTab("insurance")}
-          >
-            BẢO HIỂM
-          </div>
-          <div
-            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
-              activeTab === 'votes' 
-                ? 'text-indigo-900 border-b-3 border-indigo-900' 
-                : 'text-indigo-600 hover:text-indigo-800'
-            }`}
-            onClick={() => setActiveTab('votes')}
-          >
-            ĐÁNH GIÁ
-          </div>
+          {!isAdminOrStaff && (
+            <>
+              <div
+                className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+                  activeTab === "vehicles"
+                    ? "text-indigo-900 border-b-3 border-indigo-900"
+                    : "text-indigo-600 hover:text-indigo-800"
+                }`}
+                onClick={() => setActiveTab("vehicles")}
+              >
+                SỞ HỮU XE
+              </div>
+              <div
+                className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+                  activeTab === "insurance"
+                    ? "text-indigo-900 border-b-3 border-indigo-900"
+                    : "text-indigo-600 hover:text-indigo-800"
+                }`}
+                onClick={() => setActiveTab("insurance")}
+              >
+                BẢO HIỂM
+              </div>
+              <div
+                className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+                  activeTab === 'votes' 
+                    ? 'text-indigo-900 border-b-3 border-indigo-900' 
+                    : 'text-indigo-600 hover:text-indigo-800'
+                }`}
+                onClick={() => setActiveTab('votes')}
+              >
+                ĐÁNH GIÁ
+              </div>
+            </>
+          )}
         </div>
 
         {activeTab === "profile" && (
@@ -1153,7 +1306,7 @@ const handleSave = async () => {
         {/* Co-owners Modal */}
         {showCoOwnersModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto" style={{ maxWidth: '700px' }}>
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-2xl font-bold text-indigo-900">
@@ -1179,88 +1332,122 @@ const handleSave = async () => {
                   </button>
                 </div>
 
-                <div className="mb-4 p-4 bg-indigo-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-indigo-600 font-medium">
-                        Biển số xe
-                      </p>
-                      <p className="text-lg font-bold text-indigo-900">
-                        {selectedVehicle.licensePlate}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-indigo-600 font-medium">
-                        Tổng sở hữu
-                      </p>
-                      <p className="text-lg font-bold text-indigo-900">
-                        {selectedVehicle.coOwners.reduce(
-                          (sum, owner) => sum + owner.percentage,
-                          0
-                        )}
-                        %
-                      </p>
-                    </div>
+                {loadingCoOwners ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <p className="mt-4 text-gray-600">Đang tải thông tin đồng sở hữu...</p>
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                    Danh sách đồng sở hữu
-                  </h4>
-                  {selectedVehicle.coOwners.map((owner, index) => (
-                    <div
-                      key={index}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                    >
+                ) : coOwnersData.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chưa có thông tin đồng sở hữu.</p>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Thông tin xe */}
+                    <div className="mb-4 p-4 bg-indigo-50 rounded-lg">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                              <span className="text-indigo-600 font-semibold text-sm">
-                                {owner.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <h5 className="font-semibold text-gray-900">
-                                {owner.name}
-                              </h5>
-                              <p className="text-sm text-gray-600">
-                                {owner.email}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {owner.phone}
-                              </p>
-                            </div>
-                          </div>
+                        <div>
+                          <p className="text-sm text-indigo-600 font-medium">Xe</p>
+                          <p className="text-lg font-bold text-indigo-900">
+                            {selectedVehicle.vehicleName || "Chưa có tên"}
+                          </p>
+                          {selectedVehicle.licensePlate && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Biển số: {selectedVehicle.licensePlate}
+                            </p>
+                          )}
+                          {groupInfo && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Nhóm: {groupInfo.groupName || 'Chưa có tên nhóm'}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-20 bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-indigo-600 h-2 rounded-full"
-                                style={{ width: `${owner.percentage}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-lg font-bold text-indigo-900 min-w-[3rem]">
-                              {owner.percentage}%
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {owner.percentage ===
-                            selectedVehicle.ownershipPercentage
-                              ? "(Bạn)"
-                              : ""}
+                          <p className="text-sm text-indigo-600 font-medium">Tổng sở hữu</p>
+                          <p className="text-lg font-bold text-indigo-900">
+                            {coOwnersData.reduce(
+                              (sum, owner) => sum + (owner.percentage || 0),
+                              0
+                            )}
+                            %
                           </p>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Danh sách đồng sở hữu */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-lg font-semibold text-gray-900">
+                          Danh sách đồng sở hữu
+                        </h4>
+                        <span className="text-sm text-gray-600">
+                          Tổng: {coOwnersData.length} người
+                        </span>
+                      </div>
+
+                      {coOwnersData.map((owner, index) => {
+                        const isCurrentUser = userId && Number(owner.id) === Number(userId);
+                        const percentage = owner.percentage || 0;
+                        return (
+                          <div
+                            key={owner.id || index}
+                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                    <span className="text-indigo-600 font-semibold text-sm">
+                                      {owner.name
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")
+                                        .toUpperCase()
+                                        .substring(0, 2)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <h5 className="font-semibold text-gray-900">
+                                      {owner.name}
+                                      {isCurrentUser && (
+                                        <span className="ml-2 text-xs text-indigo-600 font-normal">(Bạn)</span>
+                                      )}
+                                    </h5>
+                                    {owner.email && (
+                                      <p className="text-sm text-gray-600">
+                                        {owner.email}
+                                      </p>
+                                    )}
+                                    {owner.phone && (
+                                      <p className="text-sm text-gray-500">
+                                        {owner.phone}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-500 mb-1">Phần trăm đóng góp</p>
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-20 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-indigo-600 h-2 rounded-full transition-all"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-sm font-medium text-indigo-900 min-w-[2.5rem]">
+                                    {percentage}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1315,9 +1502,7 @@ const handleSave = async () => {
                   </div>
                 </div>
 
-                {/* Contract content - styled to match provided layout */}
                 <div className="p-8">
-                  {/* Centered title */}
                   <div className="text-center mb-8">
                     <h2 className="text-2xl font-semibold text-gray-900">Hợp đồng sở hữu xe</h2>
                     <p className="text-gray-600">Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.</p>
@@ -1343,9 +1528,7 @@ const handleSave = async () => {
                     </div>
                   </div>
 
-                  {/* (Table of co-owners removed as requested) */}
 
-                  {/* Contract terms (numbered) */}
                   <div className="mb-8">
                     <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
                     <div className="space-y-4 text-sm text-gray-700">
@@ -1388,7 +1571,6 @@ const handleSave = async () => {
                     </div>
                   </div>
 
-                  {/* Signature section - notes + single leader signature */}
                   <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-200">
                     <div>
                       <p className="text-gray-900 mb-2">Ghi chú</p>

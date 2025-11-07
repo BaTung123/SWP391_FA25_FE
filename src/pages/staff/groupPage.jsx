@@ -50,6 +50,7 @@ export default function GroupPage() {
   const [carUserIdMap, setCarUserIdMap] = useState({});        // userId -> carUserId
   const [percentIdMap, setPercentIdMap] = useState({});        // userId -> percentOwnershipId
   const [usageLimitMap, setUsageLimitMap] = useState({});      // userId -> usageLimit (giữ 0 nếu không dùng)
+  const [loadingPercent, setLoadingPercent] = useState(false);
 
   // filters
   const [keyword, setKeyword] = useState("");
@@ -375,51 +376,70 @@ export default function GroupPage() {
       return;
     }
 
-    // Các user đang sở hữu xe này
-    const ids = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
-    const members = resolveMembers(ids);
+    setIsPercentModalVisible(true);
+    setLoadingPercent(true);
 
-    // Resolve carUserId cho từng user
-    const mapUserToCarUserId = {};
-    await Promise.all(
-      members.map(async (m) => {
-        const cuid = await resolveCarUserId(carId, m.id);
-        if (cuid) mapUserToCarUserId[m.id] = cuid;
-      })
-    );
+    try {
+      // Các user đang sở hữu xe này
+      const ids = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
+      const members = resolveMembers(ids);
 
-    // Lấy toàn bộ PercentOwnership, prefill nếu có
-    const allPO = await poGetAll();
-    const nextOwnership = {};
-    const nextPercentId = {};
-    const nextUsageLimit = {};
-
-    members.forEach((m) => {
-      const cuid = mapUserToCarUserId[m.id];
-      if (!cuid) {
-        nextOwnership[m.id] = 0;
-        nextUsageLimit[m.id] = 0;
+      if (members.length === 0) {
+        message.warning("Xe này chưa có người sở hữu.");
+        setIsPercentModalVisible(false);
+        setLoadingPercent(false);
         return;
       }
-      const exist = (allPO || []).find(
-        (p) => Number(p?.carUserId ?? p?.caruserId ?? p?.car_user_id) === Number(cuid)
-      );
-      if (exist) {
-        nextOwnership[m.id] = Number(exist?.percentage ?? 0);
-        nextUsageLimit[m.id] = Number(exist?.usageLimit ?? 0);
-        nextPercentId[m.id] = Number(exist?.id ?? exist?.percentOwnershipId);
-      } else {
-        nextOwnership[m.id] = 0;
-        nextUsageLimit[m.id] = 0;
-      }
-    });
 
-    setSelectedGroupForPercent({ ...record, members, carId });
-    setCarUserIdMap(mapUserToCarUserId);
-    setPercentIdMap(nextPercentId);
-    setOwnershipMap(nextOwnership);
-    setUsageLimitMap(nextUsageLimit);
-    setIsPercentModalVisible(true);
+      // Resolve carUserId cho từng user
+      const mapUserToCarUserId = {};
+      await Promise.all(
+        members.map(async (m) => {
+          const cuid = await resolveCarUserId(carId, m.id);
+          if (cuid) mapUserToCarUserId[m.id] = cuid;
+        })
+      );
+
+      // Lấy toàn bộ PercentOwnership từ API
+      const allPO = await poGetAll();
+      const nextOwnership = {};
+      const nextPercentId = {};
+      const nextUsageLimit = {};
+
+      members.forEach((m) => {
+        const cuid = mapUserToCarUserId[m.id];
+        if (!cuid) {
+          nextOwnership[m.id] = 0;
+          nextUsageLimit[m.id] = 0;
+          return;
+        }
+        // Tìm phần trăm sở hữu từ API theo carUserId
+        const exist = (allPO || []).find(
+          (p) => Number(p?.carUserId ?? p?.CarUserId ?? p?.caruserId ?? p?.car_user_id) === Number(cuid)
+        );
+        if (exist) {
+          nextOwnership[m.id] = Number(exist?.percentage ?? exist?.Percentage ?? 0);
+          nextUsageLimit[m.id] = Number(exist?.usageLimit ?? exist?.UsageLimit ?? 0);
+          nextPercentId[m.id] = Number(exist?.id ?? exist?.Id ?? exist?.percentOwnershipId ?? 0);
+        } else {
+          // Nếu chưa có trong API, mặc định là 0
+          nextOwnership[m.id] = 0;
+          nextUsageLimit[m.id] = 0;
+        }
+      });
+
+      setSelectedGroupForPercent({ ...record, members, carId });
+      setCarUserIdMap(mapUserToCarUserId);
+      setPercentIdMap(nextPercentId);
+      setOwnershipMap(nextOwnership);
+      setUsageLimitMap(nextUsageLimit);
+    } catch (e) {
+      console.error("Lỗi khi tải phần trăm đồng sở hữu:", e);
+      message.error("Không thể tải phần trăm đồng sở hữu. Vui lòng thử lại.");
+      setIsPercentModalVisible(false);
+    } finally {
+      setLoadingPercent(false);
+    }
   };
 
   const handleSavePercent = async () => {
@@ -584,9 +604,6 @@ export default function GroupPage() {
                 </Option>
               ))}
             </Select>
-            <Button icon={<ReloadOutlined />} onClick={() => hydrateCarOwners(cars, users)}>
-              Làm mới
-            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
               Thêm nhóm
             </Button>
@@ -695,35 +712,137 @@ export default function GroupPage() {
       <Modal
         title="Chỉnh sửa phần trăm đồng sở hữu"
         open={isPercentModalVisible}
-        onCancel={() => setIsPercentModalVisible(false)}
+        onCancel={() => {
+          setIsPercentModalVisible(false);
+          setLoadingPercent(false);
+        }}
         onOk={handleSavePercent}
         okText="Lưu"
         cancelText="Hủy"
         destroyOnClose
+        width={700}
       >
-        {selectedGroupForPercent && selectedGroupForPercent.members?.length ? (
-          <div className="space-y-3">
-            {selectedGroupForPercent.members.map((m) => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ flex: 1 }}>
-                  {m.name} {m.email ? `(${m.email})` : ""}
+        {loadingPercent ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <p className="mt-4 text-gray-600">Đang tải phần trăm đồng sở hữu...</p>
+          </div>
+        ) : selectedGroupForPercent && selectedGroupForPercent.members?.length ? (
+          <div>
+            {/* Thông tin xe */}
+            {(() => {
+              const carInfo = getCarInfoOfGroup(selectedGroupForPercent);
+              return (
+                <div className="mb-4 p-4 bg-indigo-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-indigo-600 font-medium">Xe</p>
+                      <p className="text-lg font-bold text-indigo-900">
+                        {carInfo?.carName || carInfo?.name || selectedGroupForPercent.groupName || "Chưa có tên"}
+                      </p>
+                      {carInfo?.plateNumber && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Biển số: {carInfo.plateNumber}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-indigo-600 font-medium">Tổng sở hữu</p>
+                      <p className="text-lg font-bold text-indigo-900">
+                        {Object.values(ownershipMap).reduce(
+                          (sum, v) => sum + Number(v || 0),
+                          0
+                        )}
+                        %
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Danh sách đồng sở hữu */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-lg font-semibold text-gray-900">
+                  Danh sách đồng sở hữu
+                </h4>
+                <span className="text-sm text-gray-600">
+                  Tổng: {selectedGroupForPercent.members.length} người
                 </span>
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  suffix="%"
-                  value={ownershipMap[m.id] ?? ""}
-                  onChange={(e) =>
-                    setOwnershipMap((prev) => ({
-                      ...prev,
-                      [m.id]: e.target.value === "" ? "" : Number(e.target.value),
-                    }))
-                  }
-                  style={{ width: 120 }}
-                />
               </div>
-            ))}
+
+              {/* Sắp xếp members theo phần trăm giảm dần */}
+              {[...selectedGroupForPercent.members]
+                .sort((a, b) => (ownershipMap[b.id] || 0) - (ownershipMap[a.id] || 0))
+                .map((m) => {
+                  const percentage = ownershipMap[m.id] || 0;
+                  return (
+                    <div
+                      key={m.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                              <span className="text-indigo-600 font-semibold text-sm">
+                                {m.name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h5 className="font-semibold text-gray-900">
+                                {m.name}
+                              </h5>
+                              {m.email && (
+                                <p className="text-sm text-gray-600">
+                                  {m.email}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right flex items-center space-x-3">
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500 mb-1">Phần trăm đóng góp</p>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-indigo-600 h-2 rounded-full transition-all"
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm font-medium text-indigo-900 min-w-[2.5rem]">
+                                {percentage}%
+                              </span>
+                            </div>
+                          </div>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            suffix="%"
+                            value={ownershipMap[m.id] ?? ""}
+                            onChange={(e) =>
+                              setOwnershipMap((prev) => ({
+                                ...prev,
+                                [m.id]: e.target.value === "" ? "" : Number(e.target.value),
+                              }))
+                            }
+                            style={{ width: 100 }}
+                            className="ml-2"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         ) : (
           <Empty description="Xe hiện chưa có ai sở hữu" />
