@@ -29,7 +29,12 @@ import api from "../../config/axios";
 const { Text } = Typography;
 const { Option } = Select;
 
-const roleLabel = (roleNumber) => (Number(roleNumber) === 1 ? "Nhân viên" : "Thành viên");
+const roleLabel = (roleNumber) => {
+  const num = Number(roleNumber);
+  if (num === 2) return "Nhân viên";
+  if (num === 0) return "Thành viên";
+  return "Không xác định";
+};
 const statusLabel = (deleteAt) => (deleteAt ? "Ngừng hoạt động" : "Hoạt động");
 
 export default function UserManagementPage() {
@@ -58,17 +63,20 @@ export default function UserManagementPage() {
       const res = await api.get("/User");
       const list = Array.isArray(res.data) ? res.data : [res.data];
 
-      const mapped = list.map((u) => ({
-        id: u.userId ?? u.id ?? 0,
-        name: u.fullName ?? u.userName ?? "",
-        email: u.email ?? "",
-        roleNumber: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
-        roleText:
-          typeof u.role === "number" ? roleLabel(u.role) : roleLabel(Number(u.role ?? 0)),
-        statusText: statusLabel(u.deleteAt),
-        deleteAt: u.deleteAt ?? null,
-        raw: u,
-      }));
+      const mapped = list
+        .map((u) => ({
+          id: u.userId ?? u.id ?? 0,
+          name: u.fullName ?? u.userName ?? "",
+          email: u.email ?? "",
+          roleNumber: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
+          roleText:
+            typeof u.role === "number" ? roleLabel(u.role) : roleLabel(Number(u.role ?? 0)),
+          statusText: statusLabel(u.deleteAt),
+          deleteAt: u.deleteAt ?? null,
+          raw: u,
+        }))
+        // Lọc bỏ admin (role === 1), chỉ giữ lại staff (role === 2) và member (role === 0)
+        .filter((u) => Number(u.roleNumber) !== 1);
 
       setUsersRaw(mapped);
       setCurrentPage(1);
@@ -111,7 +119,7 @@ export default function UserManagementPage() {
         fullName: values.name,
         email: values.email,
         password: values.password,
-        role: 1, // Nhân viên
+        role: 2, // Nhân viên (Staff)
       });
 
       await fetchUsers();
@@ -195,7 +203,7 @@ export default function UserManagementPage() {
       align: "center",
       width: 140,
       render: (text, record) => (
-        <Tag color={record.roleNumber === 1 ? "geekblue" : "green"}>{text}</Tag>
+        <Tag color={record.roleNumber === 2 ? "geekblue" : "green"}>{text}</Tag>
       ),
     },
     {
@@ -272,7 +280,7 @@ export default function UserManagementPage() {
             >
               <Option value="all">Tất cả vai trò</Option>
               <Option value={0}>Thành viên</Option>
-              <Option value={1}>Nhân viên</Option>
+              <Option value={2}>Nhân viên</Option>
             </Select>
             <Select
               value={statusFilter}

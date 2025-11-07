@@ -66,16 +66,16 @@ const Sidebar = () => {
       path: "/staff/booking-management"
     },
     {
-      key: "/staff/maintenance",
-      icon: <FaCog />,
-      label: "Maintenance",
-      path: "/staff/maintenance"
-    },
-    {
       key: "/staff/vote",
       icon: <FaRegClipboard />,
       label: "Vote",
       path: "/staff/vote"
+    },
+    {
+      key: "/staff/maintenance",
+      icon: <FaCog />,
+      label: "Maintenance",
+      path: "/staff/maintenance"
     },
     {
       key: "/staff/payment",
