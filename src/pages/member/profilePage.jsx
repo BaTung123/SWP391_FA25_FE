@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../../components/header/header';
 import api from '../../config/axios';
 
-// Danh sách đánh giá (vote) cho member
+// ======================= VoteList (Member) =======================
 const VoteList = () => {
   const [votes, setVotes] = useState([
     {
@@ -44,11 +44,12 @@ const VoteList = () => {
     const vote = votes.find((v) => v.id === id);
     if (!vote) return;
 
-    // Lấy userId từ localStorage
+    // Lấy userId từ localStorage (tối ưu)
     let userId = null;
     try {
-      const userData = localStorage.getItem('user');
-      userId = userData ? JSON.parse(userData)?.id ?? JSON.parse(userData)?.userId : null;
+      const raw = localStorage.getItem('user');
+      const u = raw ? JSON.parse(raw) : null;
+      userId = u?.id ?? u?.userId ?? null;
     } catch {}
 
     if (userId == null) {
@@ -58,7 +59,7 @@ const VoteList = () => {
 
     setSubmittingId(id);
     try {
-      // API GET /Vote với query params
+      // API GET /Vote với query params (giữ nguyên theo BE hiện tại)
       await api.get('/Vote', {
         params: {
           userId,
@@ -122,11 +123,13 @@ const VoteList = () => {
                   </div>
                 ) : (
                   <div className="text-center">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      vote.choice === 'Đồng ý'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-semibold ${
+                        vote.choice === 'Đồng ý'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
                       {vote.choice}
                     </span>
                   </div>
@@ -140,6 +143,7 @@ const VoteList = () => {
   );
 };
 
+// ======================= ProfilePage =======================
 const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [showCoOwnersModal, setShowCoOwnersModal] = useState(false);
@@ -159,7 +163,7 @@ const ProfilePage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Validation errors state
+  // Validation errors
   const [validationErrors, setValidationErrors] = useState({});
 
   // server-backed user state (ảnh, email)
@@ -169,7 +173,7 @@ const ProfilePage = () => {
     idCardImageUrl: null,
   });
 
-  // form info (điền hồ sơ)
+  // form info
   const [form, setForm] = useState({
     name: "",
     fullName: "",
@@ -185,12 +189,10 @@ const ProfilePage = () => {
     try {
       const raw = localStorage.getItem("user");
       if (!raw) return;
-
       const parsed = JSON.parse(raw);
-      const id =
-        parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
 
-      const role = parsed?.role ?? parsed?.Role ?? null;
+      const id = parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
+      const role = parsed?.role ?? parsed?.isRole ?? parsed?.Role ?? null;
 
       setUserRole(role);
       setUserId(id);
@@ -241,8 +243,7 @@ const ProfilePage = () => {
           gender: safe(data.gender),
           dob: safe(data.dob),
         });
-        
-        // Clear validation errors when data is loaded
+
         setValidationErrors({});
       } catch (e) {
         console.error(e);
@@ -256,17 +257,15 @@ const ProfilePage = () => {
     return () => controller.abort();
   }, [userId]);
 
-  // ---- 3) Validation functions
+  // ---- 3) Validation
   const validateField = (name, value) => {
     let error = "";
 
     switch (name) {
       case "name":
-      case "fullName":
-        // For name/fullName, use the provided value (which should be the combined value)
+      case "fullName": {
         const displayName = value || "";
-        
-        if (!displayName || displayName.trim().length === 0) {
+        if (!displayName.trim()) {
           error = "Họ và tên không được để trống";
         } else if (displayName.trim().length < 2) {
           error = "Họ và tên phải có ít nhất 2 ký tự";
@@ -276,27 +275,27 @@ const ProfilePage = () => {
           error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
         }
         break;
-
-      case "phone":
+      }
+      case "phone": {
         if (!value || value.trim().length === 0) {
           error = "Số điện thoại không được để trống";
         } else {
           const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
-          const cleanedPhone = value.replace(/\s+/g, "");
-          if (!phoneRegex.test(cleanedPhone)) {
-            error = "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)";
+          const cleaned = value.replace(/\s+/g, "");
+          if (!phoneRegex.test(cleaned)) {
+            error = "Số điện thoại không hợp lệ. Vui lòng nhập số Việt Nam (10 số, bắt đầu bằng 0)";
           }
         }
         break;
-
-      case "dob":
+      }
+      case "dob": {
         if (!value) {
           error = "Ngày sinh không được để trống";
         } else {
           const selectedDate = new Date(value);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
+
           if (isNaN(selectedDate.getTime())) {
             error = "Ngày sinh không hợp lệ";
           } else if (selectedDate > today) {
@@ -304,10 +303,10 @@ const ProfilePage = () => {
           } else {
             const age = today.getFullYear() - selectedDate.getFullYear();
             const monthDiff = today.getMonth() - selectedDate.getMonth();
-            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate()) 
-              ? age - 1 
-              : age;
-            
+            const actualAge =
+              monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate())
+                ? age - 1
+                : age;
             if (actualAge < 18) {
               error = "Bạn phải đủ 18 tuổi trở lên";
             } else if (actualAge > 120) {
@@ -316,21 +315,14 @@ const ProfilePage = () => {
           }
         }
         break;
-
-      case "licenseNumber":
+      }
+      case "licenseNumber": {
         if (value && value.trim().length > 0) {
-          if (value.trim().length < 5) {
-            error = "Số bằng lái xe phải có ít nhất 5 ký tự";
-          } else if (value.trim().length > 20) {
-            error = "Số bằng lái xe không được vượt quá 20 ký tự";
-          }
+          if (value.trim().length < 5) error = "Số bằng lái xe phải có ít nhất 5 ký tự";
+          else if (value.trim().length > 20) error = "Số bằng lái xe không được vượt quá 20 ký tự";
         }
         break;
-
-      case "gender":
-        // Gender is optional, no validation needed
-        break;
-
+      }
       default:
         break;
     }
@@ -340,23 +332,19 @@ const ProfilePage = () => {
 
   const validateForm = () => {
     const errors = {};
-    
-    // Validate name/fullName
+
     const nameError = validateField("name", form.name || form.fullName);
     if (nameError) {
       errors.name = nameError;
       errors.fullName = nameError;
     }
 
-    // Validate phone
     const phoneError = validateField("phone", form.phone);
     if (phoneError) errors.phone = phoneError;
 
-    // Validate dob
     const dobError = validateField("dob", form.dob);
     if (dobError) errors.dob = dobError;
 
-    // Validate licenseNumber (optional but if provided, must be valid)
     const licenseError = validateField("licenseNumber", form.licenseNumber);
     if (licenseError) errors.licenseNumber = licenseError;
 
@@ -367,50 +355,38 @@ const ProfilePage = () => {
   // ---- 4) Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    // Update form state
+
     setForm((prev) => {
-      const updatedForm = { ...prev, [name]: value };
-      
-      // Validate field on change with updated form values
-      const error = validateField(name, name === "name" || name === "fullName" 
-        ? (name === "name" ? value : (value || prev.name))
-        : value);
-      
+      const updated = { ...prev, [name]: value };
+
       setValidationErrors((prevErrors) => {
         const newErrors = { ...prevErrors };
-        
-        // Handle name/fullName validation together
+
         if (name === "name" || name === "fullName") {
-          const nameValue = name === "name" ? value : updatedForm.name;
-          const fullNameValue = name === "fullName" ? value : updatedForm.fullName;
+          const nameValue = name === "name" ? value : updated.name;
+          const fullNameValue = name === "fullName" ? value : updated.fullName;
           const displayName = nameValue || fullNameValue;
-          
-          const nameError = validateField("name", displayName);
-          if (nameError) {
-            newErrors.name = nameError;
-            newErrors.fullName = nameError;
+          const err = validateField("name", displayName);
+          if (err) {
+            newErrors.name = err;
+            newErrors.fullName = err;
           } else {
             delete newErrors.name;
             delete newErrors.fullName;
           }
         } else {
-          // Handle other fields
-          if (error) {
-            newErrors[name] = error;
-          } else {
-            delete newErrors[name];
-          }
+          const err = validateField(name, value);
+          if (err) newErrors[name] = err;
+          else delete newErrors[name];
         }
-        
+
         return newErrors;
       });
-      
-      return updatedForm;
+
+      return updated;
     });
   };
 
-  // Upload ảnh CCCD (preview local)
   const handleIdCardChange = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -440,7 +416,6 @@ const ProfilePage = () => {
     if (fileInput) fileInput.value = "";
   };
 
-  // Helper: Resolve carUserId cho (carId, userId)
   const resolveCarUserId = async (carId, userId) => {
     try {
       const r = await api.get(`/users/${userId}/cars`);
@@ -456,7 +431,6 @@ const ProfilePage = () => {
     }
   };
 
-  // Helper: Lấy users sở hữu xe
   const getUsersByCar = async (carId) => {
     try {
       const res = await api.get(`/cars/${carId}/users`);
@@ -467,39 +441,23 @@ const ProfilePage = () => {
     }
   };
 
-  // Helper: Lấy thông tin user từ userId
-  const getUserInfo = async (userId) => {
+  const getUserInfo = async (uid) => {
     try {
-      const res = await api.get(`/User/${userId}`);
+      const res = await api.get(`/User/${uid}`);
       const data = res?.data ?? {};
       return {
-        id: userId,
-        name: data.fullName || data.name || data.email || `User #${userId}`,
+        id: uid,
+        name: data.fullName || data.name || data.email || `User #${uid}`,
         email: data.email || '',
         phone: data.phone || '',
       };
     } catch {
       return {
-        id: userId,
-        name: `User #${userId}`,
+        id: uid,
+        name: `User #${uid}`,
         email: '',
         phone: '',
       };
-    }
-  };
-
-  // Helper: Lấy PercentOwnership
-  const getPercentOwnership = async () => {
-    try {
-      const r = await api.get("/PercentOwnership");
-      return Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
-    } catch {
-      try {
-        const r2 = await api.get("/api/PercentOwnership");
-        return Array.isArray(r2.data) ? r2.data : r2.data ? [r2.data] : [];
-      } catch {
-        return [];
-      }
     }
   };
 
@@ -523,9 +481,7 @@ const ProfilePage = () => {
         const groupRes = await api.get('/Group');
         const groups = Array.isArray(groupRes.data) ? groupRes.data : groupRes.data ? [groupRes.data] : [];
         const group = groups.find(g => Number(g.carId) === Number(carId));
-        if (group) {
-          setGroupInfo(group);
-        }
+        if (group) setGroupInfo(group);
       } catch (e) {
         console.error('Lỗi khi lấy thông tin nhóm:', e);
       }
@@ -538,13 +494,10 @@ const ProfilePage = () => {
         return;
       }
 
-      // 3. Resolve carUserId cho từng user, lấy thông tin user và ownershipPercentage từ API
+      // 3. Resolve carUserId + user info + ownershipPercentage
       const ownersWithInfo = await Promise.all(
         ownerIds.map(async (uid) => {
-          // Lấy thông tin user
           const userInfo = await getUserInfo(uid);
-          
-          // Lấy thông tin xe của user để có ownershipPercentage
           let percentage = 0;
           try {
             const userCarsRes = await api.get(`/users/${uid}/cars`);
@@ -554,17 +507,10 @@ const ProfilePage = () => {
               percentage = Number(carMatch.ownershipPercentage);
             }
           } catch (e) {
-            console.error(`Lỗi khi lấy ownershipPercentage cho user ${uid}:`, e);
+            console.error(`Lỗi ownershipPercentage cho user ${uid}:`, e);
           }
-          
-          // Resolve carUserId
           const cuid = await resolveCarUserId(carId, uid);
-          
-          return { 
-            ...userInfo, 
-            carUserId: cuid,
-            percentage: percentage || 0
-          };
+          return { ...userInfo, carUserId: cuid, percentage: percentage || 0 };
         })
       );
 
@@ -577,9 +523,7 @@ const ProfilePage = () => {
         });
       }
 
-      // Sắp xếp theo phần trăm giảm dần để dễ nhìn
       ownersWithInfo.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
-
       setCoOwnersData(ownersWithInfo);
     } catch (e) {
       console.error('Lỗi khi tải thông tin đồng sở hữu:', e);
@@ -619,115 +563,100 @@ const ProfilePage = () => {
   const isAdminOrStaff = isAdmin || isStaff;
 
   const toIsoDateOnly = (v) => {
-  if (!v) return '';
-  // nếu input type="date" -> đã là yyyy-MM-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  // nếu dd/MM/yyyy -> convert
-  const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    const [ , d, mo, y ] = m;
-    const dd = String(d).padStart(2, '0');
-    const mm = String(mo).padStart(2, '0');
-    return `${y}-${mm}-${dd}`;
-  }
-  // fallback: Date.parse
-  const dt = new Date(v);
-  if (!isNaN(dt)) {
-    const yyyy = dt.getFullYear();
-    const mm = String(dt.getMonth()+1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return '';
-};
+    if (!v) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      const [, d, mo, y] = m;
+      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+    const dt = new Date(v);
+    if (!isNaN(dt.getTime())) {
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return '';
+  };
 
-const handleSave = async () => {
-  if (!userId) {
-    alert("Không xác định được người dùng.");
-    return;
-  }
+  const handleSave = async () => {
+    if (!userId) {
+      alert("Không xác định được người dùng.");
+      return;
+    }
+    if (!validateForm()) {
+      alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
+      return;
+    }
 
-  // Validate form before submitting
-  if (!validateForm()) {
-    alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
-    return;
-  }
+    setSaving(true);
+    setError("");
 
-  setSaving(true);
-  setError("");
+    try {
+      const fd = new FormData();
+      const dobIso = toIsoDateOnly(form.dob);
 
-  try {
-    // 1) Tạo FormData đúng với [FromForm] UpdateProfileDto updateProfileDto
-    const fd = new FormData();
+      const entries = {
+        email: user.email || "",
+        fullName: form.fullName || form.name || "",
+        name: form.name || form.fullName || "",
+        gender: form.gender || "",
+        dob: dobIso || "",
+        phone: form.phone || "",
+        nationalId: form.nationalId || "",
+        licenseNumber: form.licenseNumber || "",
+        cccdFront: user.idCardImageUrl || "",
+        cccdBack: ""
+      };
 
-    // giá trị đã chuẩn hoá ngày
-    const dobIso = toIsoDateOnly(form.dob);
+      Object.entries(entries).forEach(([k, v]) => {
+        fd.append(k, v ?? "");
+        fd.append(`updateProfileDto.${k}`, v ?? "");
+      });
 
-    // append cả dạng có prefix (updateProfileDto.*) và không prefix để an toàn
-    const entries = {
-      email: user.email || "",
-      fullName: form.fullName || form.name || "",
-      name: form.name || form.fullName || "",
-      gender: form.gender || "",
-      dob: dobIso || "",
-      phone: form.phone || "",
-      nationalId: form.nationalId || "",
-      licenseNumber: form.licenseNumber || "",
-      // nếu backend nhận chuỗi URL/base64 cho CCCD:
-      cccdFront: user.idCardImageUrl || "",
-      cccdBack: ""
-    };
+      const res = await api.put(`/api/User/${userId}`, fd, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
 
-    Object.entries(entries).forEach(([k, v]) => {
-      fd.append(k, v ?? "");
-      fd.append(`updateProfileDto.${k}`, v ?? "");
-    });
+      const updated = res?.data && Object.keys(res.data).length ? res.data : entries;
 
-    // 2) Gọi PUT multipart
-    const res = await api.put(`/api/User/${userId}`, fd, {
-      headers: { "Content-Type": "multipart/form-data" }
-    });
+      setUser((u) => ({
+        ...u,
+        email: updated.email ?? u.email,
+        avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
+        idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
+      }));
 
-    // 3) Đồng bộ UI (nếu server không trả body thì lấy form hiện tại)
-    const updated = res?.data && Object.keys(res.data).length ? res.data : entries;
+      setForm((f) => ({
+        ...f,
+        name: updated.name ?? f.name,
+        fullName: updated.fullName ?? f.fullName,
+        phone: updated.phone ?? f.phone,
+        nationalId: updated.nationalId ?? f.nationalId,
+        licenseNumber: updated.licenseNumber ?? f.licenseNumber,
+        gender: updated.gender ?? f.gender,
+        dob: toIsoDateOnly(updated.dob) || f.dob
+      }));
 
-    setUser((u) => ({
-      ...u,
-      email: updated.email ?? u.email,
-      avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
-      idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
-    }));
+      updateLocalStorageUser({
+        name: updated.name,
+        fullName: updated.fullName,
+        phone: updated.phone,
+        email: updated.email,
+        avatarImageUrl: updated.avatarImageUrl,
+        idCardImageUrl: updated.idCardImageUrl
+      });
 
-    setForm((f) => ({
-      ...f,
-      name: updated.name ?? f.name,
-      fullName: updated.fullName ?? f.fullName,
-      phone: updated.phone ?? f.phone,
-      nationalId: updated.nationalId ?? f.nationalId,
-      licenseNumber: updated.licenseNumber ?? f.licenseNumber,
-      gender: updated.gender ?? f.gender,
-      dob: toIsoDateOnly(updated.dob) || f.dob
-    }));
-
-    // 4) Cập nhật localStorage nếu app dùng ở nơi khác
-    updateLocalStorageUser({
-      name: updated.name,
-      fullName: updated.fullName,
-      phone: updated.phone,
-      email: updated.email,
-      avatarImageUrl: updated.avatarImageUrl,
-      idCardImageUrl: updated.idCardImageUrl
-    });
-
-    alert("Thông tin thành viên đã được lưu thành công!");
-  } catch (e) {
-    console.error(e);
-    setError("Cập nhật không thành công. Vui lòng kiểm tra định dạng ngày sinh và dạng gửi (multipart/form-data).");
-    alert("Cập nhật không thành công. Kiểm tra lại ngày sinh (YYYY-MM-DD) và dạng gửi.");
-  } finally {
-    setSaving(false);
-  }
-};
+      alert("Thông tin thành viên đã được lưu thành công!");
+    } catch (e) {
+      console.error(e);
+      setError("Cập nhật không thành công. Vui lòng kiểm tra định dạng ngày sinh và dạng gửi (multipart/form-data).");
+      alert("Cập nhật không thành công. Kiểm tra lại ngày sinh (YYYY-MM-DD) và dạng gửi.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const updateLocalStorageUser = (patch) => {
     try {
@@ -738,7 +667,6 @@ const handleSave = async () => {
       localStorage.setItem("user", JSON.stringify(next));
     } catch {}
   };
- 
 
   // State: danh sách xe lấy từ backend
   const [vehicleData, setVehicleData] = useState([]);
@@ -750,17 +678,15 @@ const handleSave = async () => {
     setLoading(true);
     (async () => {
       try {
-        // gọi danh sách CarUser (hoặc tương đương) từ BE
         const res = await api.get(`/users/${userId}/cars`);
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
-        // chuẩn hoá dữ liệu về dạng mà UI đang sử dụng
         const mapped = (list || [])
           .filter(Boolean)
           .map((it) => {
             const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
             const carUserId =
-              it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.carUserId ?? it.linkId ?? null;
+              it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.linkId ?? null;
 
             return {
               id: carId,
@@ -769,8 +695,16 @@ const handleSave = async () => {
               licensePlate: it.plateNumber ?? it.plate ?? it.PlateNumber ?? it.licensePlate ?? "",
               purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
               status: it.status ?? it.Status ?? "Active",
-              insurance: it.insurance ?? it.Insurance ?? { provider: "", policyNumber: "", startDate: null, endDate: null, premium: 0, monthlyPayment: 0, nextPayment: null, status: "Active" },
-              // Sử dụng ownershipPercentage trực tiếp từ API response
+              insurance: it.insurance ?? it.Insurance ?? {
+                provider: "",
+                policyNumber: "",
+                startDate: null,
+                endDate: null,
+                premium: 0,
+                monthlyPayment: 0,
+                nextPayment: null,
+                status: "Active"
+              },
               ownershipPercentage: it.ownershipPercentage != null ? Number(it.ownershipPercentage) : 100,
             };
           });
@@ -783,10 +717,11 @@ const handleSave = async () => {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [activeTab, userId]);
+
+  // Helpers: render safe date
+  const renderDate = (d) => (d ? new Date(d).toLocaleDateString("vi-VN") : '---');
 
   return (
     <div className="w-full">
@@ -1046,7 +981,7 @@ const handleSave = async () => {
           </>
         )}
 
-        {/* Tab SỞ HỮU XE + BẢO HIỂM giữ nguyên giao diện */}
+        {/* Tab SỞ HỮU XE */}
         {activeTab === "vehicles" && (
           <div className="mb-8">
             <div className="overflow-x-auto">
@@ -1074,112 +1009,77 @@ const handleSave = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {vehicleData.map((vehicle) => (
-                    <tr
-                      key={vehicle.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <div className="font-medium text-gray-900">
-                          {vehicle.vehicleName}
-                        </div>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-sm font-medium">
-                          {vehicle.licensePlate}
-                        </span>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <div className="flex items-center">
-                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                            <div
-                              className="bg-indigo-600 h-2 rounded-full"
-                              style={{
-                                width: `${vehicle.ownershipPercentage}%`,
-                              }}
-                            ></div>
+                  {vehicleData.length > 0 ? (
+                    vehicleData.map((vehicle) => (
+                      <tr key={vehicle.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="border border-indigo-200 px-4 py-3">
+                          <div className="font-medium text-gray-900">
+                            {vehicle.vehicleName}
                           </div>
-                          <span className="text-sm font-medium">
-                            {vehicle.ownershipPercentage}%
+                        </td>
+                        <td className="border border-indigo-200 px-4 py-3">
+                          <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-sm font-medium">
+                            {vehicle.licensePlate}
                           </span>
-                        </div>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3 text-gray-700">
-                        {new Date(vehicle.purchaseDate).toLocaleDateString(
-                          "vi-VN"
-                        )}
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            vehicle.status === "Active"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {vehicle.status === "Active"
-                            ? "Hoạt động"
-                            : "Bảo trì"}
-                        </span>
-                      </td>
-                      <td className="border border-indigo-200 px-4 py-3">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleViewCoOwners(vehicle)}
-                            className="text-indigo-600 hover:text-indigo-800 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                            title="Xem đồng sở hữu"
+                        </td>
+                        <td className="border border-indigo-200 px-4 py-3">
+                          <div className="flex items-center">
+                            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                              <div
+                                className="bg-indigo-600 h-2 rounded-full"
+                                style={{ width: `${vehicle.ownershipPercentage}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">
+                              {vehicle.ownershipPercentage}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="border border-indigo-200 px-4 py-3 text-gray-700">
+                          {renderDate(vehicle.purchaseDate)}
+                        </td>
+                        <td className="border border-indigo-200 px-4 py-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              vehicle.status === "Active"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
                           >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                            {vehicle.status === "Active" ? "Hoạt động" : "Bảo trì"}
+                          </span>
+                        </td>
+                        <td className="border border-indigo-200 px-4 py-3">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleViewCoOwners(vehicle)}
+                              className="text-indigo-600 hover:text-indigo-800 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                              title="Xem đồng sở hữu"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                              />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                              />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleViewAgreement(vehicle)}
-                            className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
-                            title="Xem bảng hợp đồng sở hữu"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleViewAgreement(vehicle)}
+                              className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
+                              title="Xem bảng hợp đồng sở hữu"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {vehicleData.length === 0 && !loading && (
-                    <tbody>
-                      <tr>
-                        <td className="border border-indigo-200 px-4 py-6 text-center text-gray-500" colSpan={6}>
-                          Chưa có xe đăng ký thuộc sở hữu của bạn.
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    </tbody>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="border border-indigo-200 px-4 py-6 text-center text-gray-500" colSpan={6}>
+                        Chưa có xe đăng ký thuộc sở hữu của bạn.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -1187,14 +1087,12 @@ const handleSave = async () => {
           </div>
         )}
 
+        {/* Tab BẢO HIỂM */}
         {activeTab === "insurance" && (
           <div className="mb-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
               {vehicleData.map((vehicle) => (
-                <div
-                  key={vehicle.id}
-                  className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                >
+                <div key={vehicle.id} className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow">
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-lg font-semibold text-indigo-900">
@@ -1202,85 +1100,57 @@ const handleSave = async () => {
                       </h4>
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          vehicle.insurance.status === "Active"
+                          vehicle.insurance?.status === "Active"
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {vehicle.insurance.status === "Active"
-                          ? "Hoạt động"
-                          : "Hết hạn"}
+                        {vehicle.insurance?.status === "Active" ? "Hoạt động" : "Hết hạn"}
                       </span>
                     </div>
                     <div className="space-y-3 mb-4">
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Nhà bảo hiểm:
-                        </span>
+                        <span className="text-sm text-gray-600">Nhà bảo hiểm:</span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance.provider}
+                          {vehicle.insurance?.provider || '---'}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Số hợp đồng:
-                        </span>
+                        <span className="text-sm text-gray-600">Số hợp đồng:</span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance.policyNumber}
+                          {vehicle.insurance?.policyNumber || '---'}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Loại bảo hiểm:
-                        </span>
+                        <span className="text-sm text-gray-600">Loại bảo hiểm:</span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance.coverage}
+                          {vehicle.insurance?.coverage || '---'}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Phí bảo hiểm/năm:
-                        </span>
+                        <span className="text-sm text-gray-600">Phí bảo hiểm/năm:</span>
                         <span className="text-sm font-bold text-indigo-900">
-                          {vehicle.insurance.premium.toLocaleString("vi-VN")}{" "}
-                          VNĐ
+                          {(vehicle.insurance?.premium || 0).toLocaleString("vi-VN")} VNĐ
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Phần của bạn:
-                        </span>
+                        <span className="text-sm text-gray-600">Phần của bạn:</span>
                         <span className="text-sm font-bold text-red-600">
-                          {Math.round(
-                            (vehicle.insurance.monthlyPayment *
-                              vehicle.ownershipPercentage) /
-                              100
-                          ).toLocaleString("vi-VN")}{" "}
-                          VNĐ
+                          {Math.round(((vehicle.insurance?.monthlyPayment || 0) * (vehicle.ownershipPercentage || 0)) / 100).toLocaleString("vi-VN")} VNĐ
                         </span>
                       </div>
                     </div>
                     <div className="border-t border-gray-200 pt-4">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-600">
-                          Hạn thanh toán tiếp:
-                        </span>
+                        <span className="text-gray-600">Hạn thanh toán tiếp:</span>
                         <span className="font-medium text-gray-900">
-                          {new Date(
-                            vehicle.insurance.nextPayment
-                          ).toLocaleDateString("vi-VN")}
+                          {renderDate(vehicle.insurance?.nextPayment)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Hiệu lực:</span>
                         <span className="font-medium text-gray-900">
-                          {new Date(
-                            vehicle.insurance.startDate
-                          ).toLocaleDateString("vi-VN")}{" "}
-                          -{" "}
-                          {new Date(
-                            vehicle.insurance.endDate
-                          ).toLocaleDateString("vi-VN")}
+                          {renderDate(vehicle.insurance?.startDate)} - {renderDate(vehicle.insurance?.endDate)}
                         </span>
                       </div>
                     </div>
@@ -1292,13 +1162,18 @@ const handleSave = async () => {
                   </div>
                 </div>
               ))}
+              {vehicleData.length === 0 && (
+                <div className="col-span-full text-center text-gray-500 py-6">
+                  Chưa có dữ liệu bảo hiểm.
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* Tab ĐÁNH GIÁ */}
         {activeTab === 'votes' && (
           <div className="mb-8">
-            {/* Mock votes - có thể thay bằng API */}
             <VoteList />
           </div>
         )}
@@ -1316,18 +1191,8 @@ const handleSave = async () => {
                     onClick={closeModal}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
@@ -1365,11 +1230,7 @@ const handleSave = async () => {
                         <div className="text-right">
                           <p className="text-sm text-indigo-600 font-medium">Tổng sở hữu</p>
                           <p className="text-lg font-bold text-indigo-900">
-                            {coOwnersData.reduce(
-                              (sum, owner) => sum + (owner.percentage || 0),
-                              0
-                            )}
-                            %
+                            {coOwnersData.reduce((sum, owner) => sum + (owner.percentage || 0), 0)}%
                           </p>
                         </div>
                       </div>
@@ -1415,14 +1276,10 @@ const handleSave = async () => {
                                       )}
                                     </h5>
                                     {owner.email && (
-                                      <p className="text-sm text-gray-600">
-                                        {owner.email}
-                                      </p>
+                                      <p className="text-sm text-gray-600">{owner.email}</p>
                                     )}
                                     {owner.phone && (
-                                      <p className="text-sm text-gray-500">
-                                        {owner.phone}
-                                      </p>
+                                      <p className="text-sm text-gray-500">{owner.phone}</p>
                                     )}
                                   </div>
                                 </div>
@@ -1434,7 +1291,7 @@ const handleSave = async () => {
                                     <div
                                       className="bg-indigo-600 h-2 rounded-full transition-all"
                                       style={{ width: `${percentage}%` }}
-                                    ></div>
+                                    />
                                   </div>
                                   <span className="text-sm font-medium text-indigo-900 min-w-[2.5rem]">
                                     {percentage}%
@@ -1453,6 +1310,7 @@ const handleSave = async () => {
           </div>
         )}
 
+        {/* Agreement Modal */}
         {showAgreementModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1466,37 +1324,17 @@ const handleSave = async () => {
                       onClick={handlePrintAgreement}
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                     >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                        />
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                       </svg>
                       <span>In</span>
                     </button>
                     <button
-                      onClick={closeAgreementModal}
+                      onClick={() => setShowAgreementModal(false)}
                       className="text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
@@ -1508,7 +1346,6 @@ const handleSave = async () => {
                     <p className="text-gray-600">Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.</p>
                   </div>
 
-                  {/* Vehicle details */}
                   <div className="grid grid-cols-2 gap-6 mb-8 bg-gray-50 p-6 rounded-lg">
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Tên xe</p>
@@ -1520,53 +1357,42 @@ const handleSave = async () => {
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Ngày mua / Hiệu lực</p>
-                      <p className="text-gray-900">{selectedVehicle.purchaseDate ? new Date(selectedVehicle.purchaseDate).toLocaleDateString('vi-VN') : '---'}</p>
+                      <p className="text-gray-900">{renderDate(selectedVehicle.purchaseDate)}</p>
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Trạng thái hợp đồng</p>
-                      <p className="text-gray-900">{selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}</p>
+                      <p className="text-gray-900">
+                        {selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}
+                      </p>
                     </div>
                   </div>
-
 
                   <div className="mb-8">
                     <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
                     <div className="space-y-4 text-sm text-gray-700">
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
-                        <p>
-                          Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.
-                        </p>
+                        <p>…</p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
-                        <p>
-                          Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.
-                        </p>
+                        <p>…</p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
-                        <p>
-                          Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.
-                        </p>
+                        <p>…</p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
-                        <p>
-                          Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.
-                        </p>
+                        <p>…</p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
-                        <p>
-                          Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.
-                        </p>
+                        <p>…</p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
-                        <p>
-                          Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.
-                        </p>
+                        <p>…</p>
                       </div>
                     </div>
                   </div>
@@ -1583,11 +1409,13 @@ const handleSave = async () => {
                     </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
         )}
 
+        {/* Insurance Modal (placeholder nội dung chi tiết) */}
         {showInsuranceModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1597,31 +1425,21 @@ const handleSave = async () => {
                     Chi tiết bảo hiểm - {selectedVehicle.vehicleName}
                   </h3>
                   <button
-                    onClick={closeInsuranceModal}
+                    onClick={() => setShowInsuranceModal(false)}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
-
-                {/* Nội dung chi tiết bảo hiểm giữ nguyên */}
-                {/* ... */}
+                {/* Nội dung chi tiết bảo hiểm */}
+                {/* … */}
               </div>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

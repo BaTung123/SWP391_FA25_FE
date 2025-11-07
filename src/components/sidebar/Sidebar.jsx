@@ -18,7 +18,7 @@ const Sidebar = () => {
 
   const userData = localStorage.getItem("user");
   const user = userData ? JSON.parse(userData) : null;
-  const role = user?.role !== undefined && user?.role !== null 
+  const role = user?.role !== undefined && user?.role !== null
     ? (typeof user.role === "number" ? user.role : Number(user.role))
     : 0;
 
@@ -37,24 +37,22 @@ const Sidebar = () => {
     path: "/admin/user-management"
   };
 
-  const vehicleManagementItem = {
-    key: "/admin/vehicle-management",
-    icon: <FaCar />,
-    label: "Vehicle Management",
-    path: "/admin/vehicle-management"
-  };
-
-  // --- ADMIN MENU (full) ---
+  // --- ADMIN MENU (không còn Vehicle Management ở đây) ---
   const adminMenu = [
     dashboardItem,
     userManagementItem,
-    vehicleManagementItem
   ];
 
   // --- STAFF MENU ---
   const staffMenu = [
     {
-      key: "/group-management",
+      key: "/staff/vehicle-management",
+      icon: <FaCar />,
+      label: "Vehicle Management",
+      path: "/staff/vehicle-management",
+    },
+    {
+      key: "/staff/group-management",
       icon: <FaUsers />,
       label: "Group Management",
       path: "/staff/group-management"
@@ -106,21 +104,19 @@ const Sidebar = () => {
 
   // Xác định menu dựa theo role
   let roleMenus = [];
-
   if (role === 1) {
-    // Admin: xem được toàn bộ menu
+    // Admin: xem được cả admin + staff (trong đó có Vehicle Management)
     roleMenus = [...adminMenu, ...staffMenu];
   } else if (role === 2) {
-    // Staff: không xem được Dashboard và User Management, nhưng xem được Vehicle Management + tất cả staff menu
-    roleMenus = [vehicleManagementItem, ...staffMenu];
+    // Staff: chỉ menu staff (có Vehicle Management)
+    roleMenus = [...staffMenu];
   } else {
-    // Member hoặc role khác: không hiển thị menu admin/staff
+    // Member/khác: không có menu quyền lực
     roleMenus = [];
   }
 
   const allMenuItems = [...roleMenus, ...informationMenu, logoutItem];
 
-  // Logout function
   const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("token");

@@ -27,17 +27,16 @@ const AdminDashboardPage = lazy(() =>
 const UserManagementPage = lazy(() =>
   import("../pages/admin/userManagementPage")
 );
-const VehicleManagementPage = lazy(() =>
-  import("../pages/admin/vehicleManagementPage")
-);
+
 
 // Staff pages
-const StaffVehicleManagementPage = lazy(() =>
+const VehicleManagementPage = lazy(() =>
+  import("../pages/staff/vehicleManagementPage")
+);
+const GroupManagementPage = lazy(() =>
   import("../pages/staff/groupPage")
 );
-const BookingManagementPage = lazy(() =>
-  import("../pages/staff/bookingManagementPage")
-);
+const BookingManagementPage = lazy(() => import("../pages/staff/bookingManagementPage"));
 const MaintenancePage = lazy(() => import("../pages/staff/maintenancePage"));
 const PaymentPage = lazy(() => import("../pages/staff/paymentPage"));
 const VotePage = lazy(() => import("../pages/staff/votePage"));
@@ -162,7 +161,7 @@ export const router = createBrowserRouter([
         path: "profile",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[0, 1]}>
+            <ProtectedRoute roleAccount={[0, 1,2]}>
               <ProfilePage />
             </ProtectedRoute>
           </Suspense>
@@ -199,7 +198,7 @@ export const router = createBrowserRouter([
           </Suspense>
         ),
       },
-    ]
+    ],
   },
 
   // Admin
@@ -227,16 +226,6 @@ export const router = createBrowserRouter([
           </Suspense>
         ),
       },
-      {
-        path: "vehicle-management",
-        element: (
-          <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
-              <VehicleManagementPage />
-            </ProtectedRoute>
-          </Suspense>
-        ),
-      },
     ],
   },
 
@@ -249,8 +238,18 @@ export const router = createBrowserRouter([
         path: "group-management",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
-              <StaffVehicleManagementPage />
+            <ProtectedRoute roleAccount={[1, 2]}>
+              <GroupManagementPage/>
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "vehicle-management",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[1, 2]}>
+              <VehicleManagementPage />
             </ProtectedRoute>
           </Suspense>
         ),
@@ -259,7 +258,7 @@ export const router = createBrowserRouter([
         path: "booking-management",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
+            <ProtectedRoute roleAccount={[1, 2]}>
               <BookingManagementPage />
             </ProtectedRoute>
           </Suspense>
@@ -269,7 +268,7 @@ export const router = createBrowserRouter([
         path: "maintenance",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
+            <ProtectedRoute roleAccount={[1, 2]}>
               <MaintenancePage />
             </ProtectedRoute>
           </Suspense>
@@ -279,7 +278,7 @@ export const router = createBrowserRouter([
         path: "vote",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
+            <ProtectedRoute roleAccount={[1, 2]}>
               <VotePage />
             </ProtectedRoute>
           </Suspense>
@@ -289,7 +288,7 @@ export const router = createBrowserRouter([
         path: "payment",
         element: (
           <Suspense fallback={<Loading />}>
-            <ProtectedRoute roleAccount={[1]}>
+            <ProtectedRoute roleAccount={[1, 2]}>
               <PaymentPage />
             </ProtectedRoute>
           </Suspense>
