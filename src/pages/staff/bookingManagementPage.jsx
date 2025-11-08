@@ -46,7 +46,7 @@ const toISODateTime = (item) => {
 
 const statusOf = (sch) => {
   const { end } = toISODateTime(sch);
-  return new Date(end) < new Date() ? "Hoàn tất" : "Chờ duyệt";
+  return new Date(end) < new Date() ? "Hoàn tất" : "Chờ sử dụng";
 };
 
 /* ---------------- component ---------------- */
@@ -289,7 +289,7 @@ const GroupVehicleBookingDashboard = () => {
             <div className="bg-white rounded-lg shadow-md p-6 border flex items-center">
               <div className="p-3 rounded-full bg-yellow-100"><FaClock className="w-6 h-6 text-yellow-600" /></div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Chờ duyệt</p>
+                <p className="text-sm font-medium text-gray-600">Chờ sử dụng</p>
                 <p className="text-2xl font-bold text-gray-900">{pendingCount}</p>
               </div>
             </div>

@@ -46,10 +46,10 @@ export default function GroupPage() {
   // Percent modal
   const [isPercentModalVisible, setIsPercentModalVisible] = useState(false);
   const [selectedGroupForPercent, setSelectedGroupForPercent] = useState(null);
-  const [ownershipMap, setOwnershipMap] = useState({});        // userId -> percentage
-  const [carUserIdMap, setCarUserIdMap] = useState({});        // userId -> carUserId
-  const [percentIdMap, setPercentIdMap] = useState({});        // userId -> percentOwnershipId
-  const [usageLimitMap, setUsageLimitMap] = useState({});      // userId -> usageLimit (giữ 0 nếu không dùng)
+  const [ownershipMap, setOwnershipMap] = useState({}); // userId -> percentage
+  const [carUserIdMap, setCarUserIdMap] = useState({}); // userId -> carUserId
+  const [percentIdMap, setPercentIdMap] = useState({}); // userId -> percentOwnershipId
+  const [usageLimitMap, setUsageLimitMap] = useState({}); // userId -> usageLimit (giữ 0 nếu không dùng)
   const [loadingPercent, setLoadingPercent] = useState(false);
 
   // filters
@@ -72,14 +72,26 @@ export default function GroupPage() {
           api.get("/User"),
         ]);
 
-        const listGroups = Array.isArray(gRes.data) ? gRes.data : gRes.data ? [gRes.data] : [];
+        const listGroups = Array.isArray(gRes.data)
+          ? gRes.data
+          : gRes.data
+          ? [gRes.data]
+          : [];
         const listCars = cRes.data || [];
-        const rawUsers = Array.isArray(uRes.data) ? uRes.data : uRes.data ? [uRes.data] : [];
+        const rawUsers = Array.isArray(uRes.data)
+          ? uRes.data
+          : uRes.data
+          ? [uRes.data]
+          : [];
         const listUsers = rawUsers
           .filter(Boolean)
           .map((u) => ({
             id: u.userId ?? u.id,
-            name: u.fullName || u.userName || u.email || `User #${u.userId ?? u.id}`,
+            name:
+              u.fullName ||
+              u.userName ||
+              u.email ||
+              `User #${u.userId ?? u.id}`,
             email: u.email,
             role: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
           }))
@@ -103,7 +115,10 @@ export default function GroupPage() {
   const memberOptions = useMemo(
     () =>
       users
-        .filter((u) => (typeof u.role === "number" ? u.role : Number(u.role ?? 0)) === 0)
+        .filter(
+          (u) =>
+            (typeof u.role === "number" ? u.role : Number(u.role ?? 0)) === 0
+        )
         .map((u) => ({
           label: `${u.name}${u.email ? ` (${u.email})` : ""}`,
           value: u.id,
@@ -140,7 +155,9 @@ export default function GroupPage() {
   };
 
   const resolveMembers = (ids) =>
-    ids.map((id) => users.find((u) => Number(u.id) === Number(id))).filter(Boolean);
+    ids
+      .map((id) => users.find((u) => Number(u.id) === Number(id)))
+      .filter(Boolean);
 
   /* ========= CarUser API ========= */
   async function addCarUser(carId, userId) {
@@ -165,8 +182,14 @@ export default function GroupPage() {
   async function tryGetUsersByCar(carId) {
     try {
       const res = await api.get(`/cars/${carId}/users`); // nếu BE có
-      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
-      return arr.map((u) => Number(u?.userId ?? u?.id)).filter((x) => Number.isFinite(x));
+      const arr = Array.isArray(res.data)
+        ? res.data
+        : res.data
+        ? [res.data]
+        : [];
+      return arr
+        .map((u) => Number(u?.userId ?? u?.id))
+        .filter((x) => Number.isFinite(x));
     } catch {
       return null;
     }
@@ -178,7 +201,9 @@ export default function GroupPage() {
       const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
       return new Set(
         arr
-          .map((it) => Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id))
+          .map((it) =>
+            Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id)
+          )
           .filter((x) => Number.isFinite(x))
       );
     } catch {
@@ -261,7 +286,9 @@ export default function GroupPage() {
       const r = await api.get(`/users/${userId}/cars`);
       const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
       const found = arr.find((it) => {
-        const cid = Number(it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id);
+        const cid = Number(
+          it?.carId ?? it?.car?.carId ?? it?.car?.id ?? it?.id
+        );
         return Number(cid) === Number(carId);
       });
       if (!found) return null;
@@ -296,7 +323,11 @@ export default function GroupPage() {
 
   async function fetchGroupsAndRehydrate() {
     const gRes = await api.get("/Group");
-    const listGroups = Array.isArray(gRes.data) ? gRes.data : gRes.data ? [gRes.data] : [];
+    const listGroups = Array.isArray(gRes.data)
+      ? gRes.data
+      : gRes.data
+      ? [gRes.data]
+      : [];
     setGroups(listGroups);
     await hydrateCarOwners(cars, users);
   }
@@ -312,7 +343,10 @@ export default function GroupPage() {
           try {
             await removeCarUser(carId, uid);
           } catch (e) {
-            console.warn(`Gỡ quan hệ car ${carId} ↔ user ${uid} thất bại`, e?.response?.data || e);
+            console.warn(
+              `Gỡ quan hệ car ${carId} ↔ user ${uid} thất bại`,
+              e?.response?.data || e
+            );
           }
         }
       }
@@ -329,7 +363,9 @@ export default function GroupPage() {
   const openEditModal = (record) => {
     setEditingGroup(record);
     const carId = Number(record?.car?.carId ?? record?.carId);
-    const currentMemberIds = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
+    const currentMemberIds = Array.isArray(carOwnersMap[carId])
+      ? carOwnersMap[carId]
+      : [];
     formEdit.setFieldsValue({
       groupName: record.groupName,
       groupImg: record.groupImg || "",
@@ -415,12 +451,21 @@ export default function GroupPage() {
         }
         // Tìm phần trăm sở hữu từ API theo carUserId
         const exist = (allPO || []).find(
-          (p) => Number(p?.carUserId ?? p?.CarUserId ?? p?.caruserId ?? p?.car_user_id) === Number(cuid)
+          (p) =>
+            Number(
+              p?.carUserId ?? p?.CarUserId ?? p?.caruserId ?? p?.car_user_id
+            ) === Number(cuid)
         );
         if (exist) {
-          nextOwnership[m.id] = Number(exist?.percentage ?? exist?.Percentage ?? 0);
-          nextUsageLimit[m.id] = Number(exist?.usageLimit ?? exist?.UsageLimit ?? 0);
-          nextPercentId[m.id] = Number(exist?.id ?? exist?.Id ?? exist?.percentOwnershipId ?? 0);
+          nextOwnership[m.id] = Number(
+            exist?.percentage ?? exist?.Percentage ?? 0
+          );
+          nextUsageLimit[m.id] = Number(
+            exist?.usageLimit ?? exist?.UsageLimit ?? 0
+          );
+          nextPercentId[m.id] = Number(
+            exist?.id ?? exist?.Id ?? exist?.percentOwnershipId ?? 0
+          );
         } else {
           // Nếu chưa có trong API, mặc định là 0
           nextOwnership[m.id] = 0;
@@ -454,7 +499,9 @@ export default function GroupPage() {
     }
 
     try {
-      const carId = Number(selectedGroupForPercent?.carId ?? selectedGroupForPercent?.car?.carId);
+      const carId = Number(
+        selectedGroupForPercent?.carId ?? selectedGroupForPercent?.car?.carId
+      );
       const members = selectedGroupForPercent?.members || [];
 
       // Lưu lần lượt (có thể chuyển Promise.all nếu BE chịu tải)
@@ -538,7 +585,9 @@ export default function GroupPage() {
       key: "membersCount",
       render: (_, record) => {
         const carId = Number(record?.car?.carId ?? record?.carId);
-        const count = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId].length : 0;
+        const count = Array.isArray(carOwnersMap[carId])
+          ? carOwnersMap[carId].length
+          : 0;
         return <Tag color="blue">{count} thành viên</Tag>;
       },
       width: 140,
@@ -552,10 +601,16 @@ export default function GroupPage() {
       render: (_, record) => (
         <Space>
           <Tooltip title="Phần trăm đồng sở hữu">
-            <Button icon={<CarOutlined />} onClick={() => handleOpenPercentModal(record)} />
+            <Button
+              icon={<CarOutlined />}
+              onClick={() => handleOpenPercentModal(record)}
+            />
           </Tooltip>
           <Tooltip title="Chỉnh sửa thông tin & thành viên">
-            <Button icon={<EditOutlined />} onClick={() => openEditModal(record)} />
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => openEditModal(record)}
+            />
           </Tooltip>
           <Popconfirm
             title="Xác nhận xoá nhóm?"
@@ -604,7 +659,11 @@ export default function GroupPage() {
                 </Option>
               ))}
             </Select>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsAddModalVisible(true)}
+            >
               Thêm nhóm
             </Button>
           </Space>
@@ -668,9 +727,9 @@ export default function GroupPage() {
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
 
-          <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
+          {/* <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
             <Input placeholder="https://..." />
-          </Form.Item>
+          </Form.Item> */}
         </Form>
       </Modal>
 
@@ -692,9 +751,9 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-          <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
+          {/* <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
             <Input placeholder="https://..." />
-          </Form.Item>
+          </Form.Item> */}
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select
               mode="multiple"
@@ -725,9 +784,12 @@ export default function GroupPage() {
         {loadingPercent ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            <p className="mt-4 text-gray-600">Đang tải phần trăm đồng sở hữu...</p>
+            <p className="mt-4 text-gray-600">
+              Đang tải phần trăm đồng sở hữu...
+            </p>
           </div>
-        ) : selectedGroupForPercent && selectedGroupForPercent.members?.length ? (
+        ) : selectedGroupForPercent &&
+          selectedGroupForPercent.members?.length ? (
           <div>
             {/* Thông tin xe */}
             {(() => {
@@ -738,7 +800,10 @@ export default function GroupPage() {
                     <div>
                       <p className="text-sm text-indigo-600 font-medium">Xe</p>
                       <p className="text-lg font-bold text-indigo-900">
-                        {carInfo?.carName || carInfo?.name || selectedGroupForPercent.groupName || "Chưa có tên"}
+                        {carInfo?.carName ||
+                          carInfo?.name ||
+                          selectedGroupForPercent.groupName ||
+                          "Chưa có tên"}
                       </p>
                       {carInfo?.plateNumber && (
                         <p className="text-sm text-gray-600 mt-1">
@@ -747,7 +812,9 @@ export default function GroupPage() {
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-indigo-600 font-medium">Tổng sở hữu</p>
+                      <p className="text-sm text-indigo-600 font-medium">
+                        Tổng sở hữu
+                      </p>
                       <p className="text-lg font-bold text-indigo-900">
                         {Object.values(ownershipMap).reduce(
                           (sum, v) => sum + Number(v || 0),
@@ -774,7 +841,10 @@ export default function GroupPage() {
 
               {/* Sắp xếp members theo phần trăm giảm dần */}
               {[...selectedGroupForPercent.members]
-                .sort((a, b) => (ownershipMap[b.id] || 0) - (ownershipMap[a.id] || 0))
+                .sort(
+                  (a, b) =>
+                    (ownershipMap[b.id] || 0) - (ownershipMap[a.id] || 0)
+                )
                 .map((m) => {
                   const percentage = ownershipMap[m.id] || 0;
                   return (
@@ -809,7 +879,9 @@ export default function GroupPage() {
                         </div>
                         <div className="text-right flex items-center space-x-3">
                           <div className="text-right">
-                            <p className="text-xs text-gray-500 mb-1">Phần trăm đóng góp</p>
+                            <p className="text-xs text-gray-500 mb-1">
+                              Phần trăm đóng góp
+                            </p>
                             <div className="flex items-center space-x-2">
                               <div className="w-20 bg-gray-200 rounded-full h-2">
                                 <div
@@ -831,7 +903,10 @@ export default function GroupPage() {
                             onChange={(e) =>
                               setOwnershipMap((prev) => ({
                                 ...prev,
-                                [m.id]: e.target.value === "" ? "" : Number(e.target.value),
+                                [m.id]:
+                                  e.target.value === ""
+                                    ? ""
+                                    : Number(e.target.value),
                               }))
                             }
                             style={{ width: 100 }}

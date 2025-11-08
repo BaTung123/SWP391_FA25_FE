@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FaCreditCard,
   FaEye,
@@ -6,64 +6,33 @@ import {
   FaChevronRight,
   FaTimes,
   FaSearch,
-  FaEdit,
 } from "react-icons/fa";
 import api from "../../config/axios";
 
 const VotePage = () => {
-  const [payments, setPayments] = useState([
-    {
-      id: 1,
-      vehicle: { name: "Toyota Camry 2023", license: "ABC-123" },
-      serviceType: "Sửa động cơ",
-      status: "Đã đánh giá",
-      date: "2024-02-14",
-      coOwners: [
-        { name: "Nguyễn Văn A", paid: true },
-        { name: "Trần Thị B", paid: false },
-        { name: "Lê Văn C", paid: true },
-      ],
-    },
-    {
-      id: 2,
-      vehicle: { name: "Honda Civic 2023", license: "XYZ-789" },
-      serviceType: "Bảo dưỡng định kỳ",
-      status: "Chờ đánh giá",
-      date: "2024-02-15",
-      coOwners: [
-        { name: "Phạm Minh D", paid: false },
-        { name: "Vũ Thị E", paid: false },
-      ],
-    },
-  ]);
+  // ---------------- UI states ----------------
+  const [forms, setForms] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const itemsPerPage = 5;
 
-  const filtered = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return payments.filter((p) => {
-      const matchKW =
-        !kw ||
-        [p?.vehicle?.name, p?.vehicle?.license, p?.serviceType]
-          .filter(Boolean)
-          .some((t) => String(t).toLowerCase().includes(kw));
+  const [selectedForm, setSelectedForm] = useState(null);
 
-      const matchStatus =
-        statusFilter === "all" ? true : p.status === statusFilter;
+  // ---------------- Helpers ----------------
+  const safeNum = (v, fb = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fb;
+  };
 
-      return matchKW && matchStatus;
-    });
-  }, [payments, keyword, statusFilter]);
-
-  const totalItems = filtered.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const currentPayments = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    (currentPage - 1) * itemsPerPage + itemsPerPage
-  );
+  const formatDateOnly = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("vi-VN"); // chỉ ngày
+  };
 
   const getStatusBadge = (status) => {
     const statusClasses = {
@@ -71,68 +40,278 @@ const VotePage = () => {
       "Chờ đánh giá": "bg-yellow-100 text-yellow-800",
     };
     return (
-      <span
-        className={`px-2 py-1 text-xs rounded-full font-semibold ${statusClasses[status]}`}
-      >
+      <span className={`px-2 py-1 text-xs rounded-full font-semibold ${statusClasses[status]}`}>
         {status}
       </span>
     );
   };
 
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [editServicePayment, setEditServicePayment] = useState(null);
-  const [editedServiceType, setEditedServiceType] = useState("");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newForm, setNewForm] = useState({
-    groupId: "",
-    formTitle: "",
-    startDate: "",
-    endDate: "",
-  });
-
-  const openEditModal = (payment) => {
-    setEditServicePayment(payment);
-    setEditedServiceType(payment.serviceType);
-  };
-
-  const saveServiceType = () => {
-    setPayments((prev) =>
-      prev.map((p) =>
-        p.id === editServicePayment.id
-          ? { ...p, serviceType: editedServiceType }
-          : p
-      )
-    );
-    setEditServicePayment(null);
-  };
-
-  const handleCreateForm = async () => {
-    if (!newForm.groupId || !newForm.formTitle || !newForm.startDate || !newForm.endDate) {
-      alert("Vui lòng nhập đầy đủ thông tin biểu mẫu.");
-      return;
-    }
-    setCreating(true);
+  // ---------------- Data fetching helpers ----------------
+  const fetchGroupMembers = async (groupId) => {
+    // (Nếu sau này có /Group/{id}/members thì dùng; hiện tại screenshot chỉ có GET /Group và GET /Group/{id})
     try {
-      await api.post("/Form", {
-        groupId: Number(newForm.groupId),
-        formTitle: newForm.formTitle.trim(),
-        startDate: new Date(newForm.startDate).toISOString(),
-        endDate: new Date(newForm.endDate).toISOString(),
-      });
-      alert("Tạo biểu mẫu đánh giá thành công!");
-      setIsCreateOpen(false);
-      setNewForm({ groupId: "", formTitle: "", startDate: "", endDate: "" });
-    } catch (e) {
-      alert("Không thể tạo biểu mẫu. Vui lòng thử lại.");
-    } finally {
-      setCreating(false);
+      const r = await api.get(`/Group/${groupId}/members`);
+      const arr = Array.isArray(r.data) ? r.data : [];
+      return arr
+        .map((m) => ({
+          id: safeNum(m?.id ?? m?.userId),
+          name: m?.name ?? m?.fullName ?? m?.email ?? `User #${m?.id ?? m?.userId}`,
+          fullName: m?.fullName,
+          email: m?.email,
+        }))
+        .filter((m) => Number.isFinite(m.id));
+    } catch {
+      // fallback suy ra theo xe
+    }
+
+    try {
+      const gr = await api.get("/Group");
+      const list = Array.isArray(gr.data) ? gr.data : [];
+      const g = list.find((x) => safeNum(x.id ?? x.groupId) === safeNum(groupId));
+      const carId = g?.carId ?? g?.vehicleId;
+      if (!carId) return [];
+
+      const ur = await api.get("/User");
+      const users = Array.isArray(ur.data) ? ur.data : [];
+      const members = [];
+
+      const chunk = 8;
+      for (let i = 0; i < users.length; i += chunk) {
+        const batch = users.slice(i, i + chunk);
+        const rs = await Promise.all(
+          batch.map(async (u) => {
+            const uid = safeNum(u?.id ?? u?.userId, NaN);
+            if (!Number.isFinite(uid)) return null;
+            try {
+              const owned = await api.get(`/users/${uid}/cars`);
+              const cars = Array.isArray(owned.data) ? owned.data : [];
+              const has = cars.some((c) => safeNum(c?.carId ?? c?.id) === safeNum(carId));
+              if (has) {
+                return {
+                  id: uid,
+                  name: u?.fullName ?? u?.name ?? u?.email ?? `User #${uid}`,
+                  fullName: u?.fullName,
+                  email: u?.email,
+                };
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        rs.forEach((x) => x && members.push(x));
+      }
+      return members;
+    } catch {
+      return [];
     }
   };
 
+  const fetchVotesForForm = async (formId) => {
+    const tryUrls = [`/Vote?formId=${formId}`, `/Vote/form/${formId}`];
+    for (const url of tryUrls) {
+      try {
+        const r = await api.get(url);
+        const arr = Array.isArray(r.data)
+          ? r.data
+          : (Array.isArray(r.data?.data) ? r.data.data : []);
+        if (Array.isArray(arr)) {
+          return arr.map((v) => ({
+            id: v?.id ?? v?.voteId,
+            userId: v?.userId,
+            formId: v?.formId,
+            decision: !!v?.decision,
+          }));
+        }
+      } catch {}
+    }
+    return [];
+  };
+
+  const fetchFormResults = async (formId) => {
+    try {
+      const r = await api.get(`/Form/${formId}/results`);
+      const d = r?.data ?? {};
+      const yes = safeNum(d?.agreeVotes);
+      const no = safeNum(d?.disagreeVotes);
+      return { yes, no };
+    } catch {
+      return { yes: 0, no: 0 };
+    }
+  };
+
+  // ✅ Lấy TÊN NHÓM trực tiếp bằng GET /Group/{id}, kèm thông tin xe
+  const fetchVehicleAndGroupInfo = async (groupId) => {
+    try {
+      // gọi thẳng /Group/{id}
+      const gRes = await api.get(`/Group/${groupId}`);
+      const g = gRes?.data ?? {};
+
+      const groupName =
+        g?.name ?? g?.groupName ?? (g ? `Nhóm #${g.id ?? g.groupId}` : "");
+
+      const carId = g?.carId ?? g?.vehicleId;
+      let vehicleName = "";
+      let licensePlate = "";
+
+      if (carId) {
+        const tryUrls = [`/Car/${carId}`, `/Vehicle/${carId}`, `/cars/${carId}`];
+        for (const url of tryUrls) {
+          try {
+            const r = await api.get(url);
+            const d = r?.data ?? {};
+            vehicleName = d?.carName ?? d?.name ?? d?.vehicleName ?? "";
+            licensePlate = d?.plateNumber ?? d?.plate ?? d?.licensePlate ?? "";
+            break;
+          } catch {}
+        }
+      }
+
+      return { vehicleName, licensePlate, groupName };
+    } catch {
+      // fallback: list group rồi tìm (phòng trường hợp /Group/{id} bị hạn chế)
+      try {
+        const gr = await api.get("/Group");
+        const list = Array.isArray(gr.data) ? gr.data : [];
+        const g = list.find((x) => safeNum(x.id ?? x.groupId) === safeNum(groupId));
+        const groupName =
+          g?.name ?? g?.groupName ?? (g ? `Nhóm #${g.id ?? g.groupId}` : "");
+
+        const carId = g?.carId ?? g?.vehicleId;
+        let vehicleName = "";
+        let licensePlate = "";
+
+        if (carId) {
+          const tryUrls = [`/Car/${carId}`, `/Vehicle/${carId}`, `/cars/${carId}`];
+          for (const url of tryUrls) {
+            try {
+              const r = await api.get(url);
+              const d = r?.data ?? {};
+              vehicleName = d?.carName ?? d?.name ?? d?.vehicleName ?? "";
+              licensePlate = d?.plateNumber ?? d?.plate ?? d?.licensePlate ?? "";
+              break;
+            } catch {}
+          }
+        }
+        return { vehicleName, licensePlate, groupName };
+      } catch {
+        return { vehicleName: "", licensePlate: "", groupName: "" };
+      }
+    }
+  };
+
+  const loadAllForms = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get("/Form");
+      const raw = Array.isArray(r.data) ? r.data : [];
+      const normalized = raw
+        .map((f) => ({
+          id: safeNum(f.formId ?? f.id),
+          title: f.formTitle ?? f.title ?? `Form #${f.formId ?? f.id}`,
+          groupId: Number.isFinite(safeNum(f.groupId)) ? safeNum(f.groupId) : null,
+          startDate: f.startDate,
+          endDate: f.endDate,
+        }))
+        .filter((f) => Number.isFinite(f.id));
+
+      const resultRows = [];
+      const chunk = 6;
+      for (let i = 0; i < normalized.length; i += chunk) {
+        const batch = normalized.slice(i, i + chunk);
+        const rows = await Promise.all(
+          batch.map(async (f) => {
+            const { yes, no } = await fetchFormResults(f.id);
+            const votes = await fetchVotesForForm(f.id);
+            const votedIds = votes
+              .map((v) => safeNum(v.userId, NaN))
+              .filter((uid) => Number.isFinite(uid));
+
+            // members & vehicle & groupName
+            let members = [];
+            let vehicleName = "";
+            let licensePlate = "";
+            let groupName = "";
+
+            if (f.groupId) {
+              members = await fetchGroupMembers(f.groupId);
+              const info = await fetchVehicleAndGroupInfo(f.groupId);
+              vehicleName = info.vehicleName || vehicleName;
+              licensePlate = info.licensePlate || licensePlate;
+              groupName = info.groupName || groupName;
+            }
+
+            const totalMembers = members.length;
+            const status =
+              totalMembers > 0 && yes + no >= totalMembers ? "Đã đánh giá" : "Chờ đánh giá";
+
+            return {
+              ...f,
+              totalMembers,
+              votedUserIds: Array.from(new Set(votedIds)),
+              yes,
+              no,
+              status,
+              vehicleName,
+              licensePlate,
+              groupName,
+              members,
+            };
+          })
+        );
+        resultRows.push(...rows);
+      }
+
+      // sort by endDate desc, then startDate desc
+      resultRows.sort((a, b) => {
+        const ea = a.endDate ? new Date(a.endDate).getTime() : 0;
+        const eb = b.endDate ? new Date(b.endDate).getTime() : 0;
+        if (eb !== ea) return eb - ea;
+        const sa = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const sb = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return sb - sa;
+      });
+
+      setForms(resultRows);
+    } catch (e) {
+      console.error("loadAllForms error:", e);
+      setForms([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllForms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---------------- Filtering & paging ----------------
+  const filtered = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return forms.filter((f) => {
+      const matchKW =
+        !kw ||
+        [f.title, f.vehicleName, f.licensePlate, f.groupName]
+          .filter(Boolean)
+          .some((t) => String(t).toLowerCase().includes(kw));
+
+      const matchStatus = statusFilter === "all" ? true : f.status === statusFilter;
+      return matchKW && matchStatus;
+    });
+  }, [forms, keyword, statusFilter]);
+
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const currentRows = filtered.slice(
+    (currentPage - 1) * itemsPerPage,
+    (currentPage - 1) * itemsPerPage + itemsPerPage
+  );
+
+  // ---------------- Render ----------------
   return (
     <div className="space-y-4">
-
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -142,53 +321,44 @@ const VotePage = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <div className="relative" style={{ width: 260 }}>
+              <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                placeholder="Tìm theo tiêu đề/xe/biển số/nhóm"
+                value={keyword}
+                onChange={(e) => {
+                  setKeyword(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-8 pr-8 py-1.5 h-8 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              {keyword && (
+                <button
+                  onClick={() => {
+                    setKeyword("");
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <FaTimes className="w-3 h-3" />
+                </button>
+              )}
+            </div>
 
-<div className="relative" style={{ width: 260 }}>
-  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-  <input
-    type="text"
-    placeholder="Tìm theo xe hoặc loại dịch vụ"
-    value={keyword}
-    onChange={(e) => {
-      setKeyword(e.target.value);
-      setCurrentPage(1);
-    }}
-    className="w-full pl-8 pr-8 py-1.5 h-8 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-  />
-  {keyword && (
-    <button
-      onClick={() => {
-        setKeyword("");
-        setCurrentPage(1);
-      }}
-      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-    >
-      <FaTimes className="w-3 h-3" />
-    </button>
-  )}
-</div>
-
-<select
-  value={statusFilter}
-  onChange={(e) => {
-    setStatusFilter(e.target.value);
-    setCurrentPage(1);
-  }}
-  className="px-3 py-1.5 h-8 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
-  style={{ width: 180 }}
->
-  <option value="all">Tất cả trạng thái</option>
-  <option value="Đã đánh giá">Đã đánh giá</option>
-  <option value="Chờ đánh giá">Chờ đánh giá</option>
-</select>
-
-<button
-  onClick={() => setIsCreateOpen(true)}
-  className="bg-blue-600 text-white px-4 py-1.5 h-8 text-sm rounded-md hover:bg-blue-700 whitespace-nowrap"
->
-  Tạo biểu mẫu đánh giá
-</button>
-
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 h-8 text-sm rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none"
+              style={{ width: 180 }}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="Đã đánh giá">Đã đánh giá</option>
+              <option value="Chờ đánh giá">Chờ đánh giá</option>
+            </select>
           </div>
         </div>
       </div>
@@ -199,7 +369,7 @@ const VotePage = () => {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                {["Xe", "Dịch vụ", "Trạng thái", "Ngày", "Thao tác"].map(
+                {["Tiêu đề", "Nhóm", "Xe", "Trạng thái", "Khoảng thời gian", "Thao tác"].map(
                   (header) => (
                     <th
                       key={header}
@@ -213,37 +383,63 @@ const VotePage = () => {
             </thead>
 
             <tbody className="bg-white">
-              {currentPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-center">
-                    <div className="font-medium text-gray-900">
-                      {payment.vehicle.name}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {payment.vehicle.license}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-900">
-                    {payment.serviceType}
-                  </td>
-                  <td className="px-6 py-4 text-center">{getStatusBadge(payment.status)}</td>
-                  <td className="px-6 py-4 text-center text-sm text-gray-900">{payment.date}</td>
-                  <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
-                    <button
-                      className="text-blue-600 hover:text-blue-900 p-1"
-                      onClick={() => setSelectedPayment(payment)}
-                    >
-                      <FaEye />
-                    </button>
-                    <button
-                      className="text-green-600 hover:text-green-800 p-1"
-                      onClick={() => openEditModal(payment)}
-                    >
-                      <FaEdit />
-                    </button>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    Đang tải dữ liệu...
                   </td>
                 </tr>
-              ))}
+              ) : currentRows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    Không có biểu mẫu nào.
+                  </td>
+                </tr>
+              ) : (
+                currentRows.map((row) => (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-center text-sm text-gray-900">
+                      <div className="font-medium">{row.title}</div>
+                    </td>
+
+                    <td className="px-6 py-4 text-center text-sm text-gray-900">
+                      {row.groupName || "—"}
+                    </td>
+
+                    <td className="px-6 py-4 text-center">
+                      <div className="font-medium text-gray-900">
+                        {row.vehicleName || "—"}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {row.licensePlate || "—"}
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 text-center">
+                      {getStatusBadge(row.status)}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {row.yes + row.no}/{row.totalMembers} phiếu
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 text-center text-sm text-gray-900">
+                      {formatDateOnly(row.startDate)} – {formatDateOnly(row.endDate)}
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center">
+                        <button
+                          className="text-blue-600 hover:text-blue-900 p-1"
+                          onClick={() => setSelectedForm(row)}
+                          title="Xem chi tiết phiếu bầu"
+                        >
+                          <FaEye />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -260,21 +456,19 @@ const VotePage = () => {
             <FaChevronLeft />
           </button>
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-            (page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-4 py-2 text-sm ${
-                  currentPage === page
-                    ? "bg-indigo-50 text-indigo-600"
-                    : "bg-white text-gray-500 hover:bg-gray-50"
-                }`}
-              >
-                {page}
-              </button>
-            )
-          )}
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-4 py-2 text-sm ${
+                currentPage === page
+                  ? "bg-indigo-50 text-indigo-600"
+                  : "bg-white text-gray-500 hover:bg-gray-50"
+              }`}
+            >
+              {page}
+            </button>
+          ))}
 
           <button
             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
@@ -286,16 +480,17 @@ const VotePage = () => {
         </nav>
       </div>
 
-      {/* Modal View */}
-      {selectedPayment && (
+      {/* Modal View Votes */}
+      {selectedForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-lg text-left">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-800">
-                Đồng sở hữu xe - {selectedPayment.vehicle.name}
+                Đồng sở hữu {selectedForm.groupName || `nhóm #${selectedForm.groupId ?? "—"}`} —{" "}
+                {selectedForm.title}
               </h3>
               <button
-                onClick={() => setSelectedPayment(null)}
+                onClick={() => setSelectedForm(null)}
                 className="text-gray-600 hover:text-gray-800"
               >
                 <FaTimes />
@@ -303,131 +498,20 @@ const VotePage = () => {
             </div>
 
             <div className="space-y-2 text-left">
-              {selectedPayment.coOwners.map((co, index) => (
-                <div
-                  key={index}
-                  className="flex justify-between items-center px-3 py-2 rounded-md text-left"
-                >
-                  <span>{co.name}</span>
-                  <span
-                    className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                      co.paid
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
+              {selectedForm.members.length === 0 ? (
+                <div className="text-sm text-gray-500">Chưa có dữ liệu thành viên nhóm.</div>
+              ) : (
+                selectedForm.members.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex justify-between items-center px-3 py-2 rounded-md"
                   >
-                    {co.paid ? "Đã vote" : "Chưa vote"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Edit Service */}
-      {editServicePayment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-lg text-left">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Sửa loại dịch vụ - {editServicePayment.vehicle.name}
-              </h3>
-              <button
-                onClick={() => setEditServicePayment(null)}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <FaTimes />
-              </button>
-            </div>
-
-      <input
-        type="text"
-        value={editedServiceType}
-        onChange={(e) => setEditedServiceType(e.target.value)}
-        className="w-full px-3 py-2 rounded-md mt-2 border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-left"
-      />
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={saveServiceType}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-              >
-                Lưu
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Create Form */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-lg text-left">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Tạo biểu mẫu đánh giá</h3>
-              <button onClick={() => setIsCreateOpen(false)} className="text-gray-600 hover:text-gray-800">
-                <FaTimes />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-left">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nhóm</label>
-                <input
-                  type="number"
-                  value={newForm.groupId}
-                  onChange={(e) => setNewForm({ ...newForm, groupId: e.target.value })}
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-left"
-                  placeholder="Chọn nhóm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phần sửa chữa</label>
-                <input
-                  type="text"
-                  value={newForm.formTitle}
-                  onChange={(e) => setNewForm({ ...newForm, formTitle: e.target.value })}
-                  className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-left"
-                  placeholder="VD: Đánh giá sửa chữa"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bắt đầu</label>
-                  <input
-                    type="datetime-local"
-                    value={newForm.startDate}
-                    onChange={(e) => setNewForm({ ...newForm, startDate: e.target.value })}
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-left"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Kết thúc</label>
-                  <input
-                    type="datetime-local"
-                    value={newForm.endDate}
-                    onChange={(e) => setNewForm({ ...newForm, endDate: e.target.value })}
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-left"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setIsCreateOpen(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleCreateForm}
-                disabled={creating}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-60"
-              >
-                {creating ? 'Đang tạo...' : 'Tạo biểu mẫu'}
-              </button>
+                    <span className="text-sm">
+                      {m.fullName || m.name || m.email || `User #${m.id}`}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

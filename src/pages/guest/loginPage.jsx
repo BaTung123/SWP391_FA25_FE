@@ -57,10 +57,10 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ message API để hiện toast
+  //  message API để hiện toast
   const [msgApi, contextHolder] = message.useMessage();
 
-  // ✅ helper: hiển thị toast rồi mới điều hướng
+  //  helper: hiển thị toast rồi mới điều hướng
   const showAndGo = async (content, path) => {
     await msgApi.open({ type: "success", content, duration: 1 });
     navigate(path, { replace: true });
@@ -75,7 +75,7 @@ const LoginPage = () => {
 
     setIsLoading(true);
     try {
-      // 1️⃣ Gọi API login
+   
       const trimmedUserName = userName.trim();
       const loginPayload = {
         userName: trimmedUserName,
@@ -90,7 +90,7 @@ const LoginPage = () => {
       const token = data.token;
       if (!token) throw new Error("Không nhận được token từ máy chủ.");
 
-      // 2️⃣ Lưu token + header
+      // 2️ Lưu token + header
       const store = remember ? localStorage : sessionStorage;
       store.setItem("token", token);
       localStorage.setItem("token", token); // để các trang khác đọc được
@@ -99,7 +99,7 @@ const LoginPage = () => {
       // Parse JWT để lấy thông tin user
       const jwtClaims = parseJwt(token) || {};
 
-      // 3️⃣ Lấy thông tin user (thông qua API /User) để xác định role
+      //  Lấy thông tin user (thông qua API /User) để xác định role
       let matchedUser = null;
       let role = null;
 
@@ -332,7 +332,7 @@ const LoginPage = () => {
               <div
                 className="absolute inset-0 logo-anim"
                 style={{
-                  backgroundImage: `url(${logoGarage})}`,
+                  backgroundImage: `url(${logoGarage})`,
                   backgroundSize: "70%",
                   backgroundRepeat: "no-repeat",
                   backgroundPosition: "center",

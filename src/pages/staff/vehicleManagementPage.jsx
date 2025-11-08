@@ -19,6 +19,7 @@ import {
   Empty,
   Pagination,
   Popconfirm,
+  Upload,
 } from "antd";
 import {
   PlusOutlined,
@@ -31,6 +32,15 @@ import {
 import api from "../../config/axios.js";
 
 const { Option } = Select;
+const { Dragger } = Upload;
+
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 export default function VehicleManagementPage() {
   const [vehicles, setVehicles] = useState([]);
@@ -49,6 +59,10 @@ export default function VehicleManagementPage() {
   const [deletingIds, setDeletingIds] = useState(new Set());
 
   const [form] = Form.useForm();
+
+  // ảnh xem trước & chuỗi base64 để gửi lên BE
+  const [imgPreview, setImgPreview] = useState(null);
+  const [imgBase64, setImgBase64] = useState(null);
 
   // --- Lấy danh sách xe ---
   const fetchVehicles = async () => {
@@ -71,6 +85,8 @@ export default function VehicleManagementPage() {
   const openAddModal = () => {
     setEditingVehicle(null);
     form.resetFields();
+    setImgPreview(null);
+    setImgBase64(null);
     setOpenModal(true);
   };
 
@@ -80,14 +96,25 @@ export default function VehicleManagementPage() {
       ...record,
       status: Number(record?.status ?? 0),
       batteryCapacity: Number(record?.batteryCapacity ?? 0),
+      image: record.image ?? "",
     });
+    setImgPreview(record.image || null);
+    setImgBase64(null);
     setOpenModal(true);
   };
 
   // --- Thêm xe (POST) | Sửa xe (PUT) ---
   const handleSubmit = async (values) => {
+    // Ưu tiên ảnh vừa upload (imgBase64). Nếu chưa upload, dùng image từ input (chuỗi/url sẵn có)
+    let image = imgBase64 ?? values.image ?? "";
+
+    // Nếu BE CHỈ CẦN base64 thuần, dùng 2 dòng sau thay cho dòng trên:
+    // const dataUrl = imgBase64 ?? values.image ?? "";
+    // image = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+
     const payload = {
       ...values,
+      image,
       status: Number(values.status),
       batteryCapacity: Number(values.batteryCapacity),
     };
@@ -98,7 +125,8 @@ export default function VehicleManagementPage() {
         try {
           await api.put(`/Car/${id}/update`, payload);
         } catch (e) {
-          // Empty
+          // fallback nếu BE chỉ lắng nghe PUT /Car/:id
+          await api.put(`/Car/${id}`, payload);
         }
         message.success("Cập nhật xe thành công!");
       } else {
@@ -108,6 +136,8 @@ export default function VehicleManagementPage() {
 
       setOpenModal(false);
       form.resetFields();
+      setImgPreview(null);
+      setImgBase64(null);
       fetchVehicles();
     } catch {
       message.error("Không thể lưu xe. Vui lòng thử lại.");
@@ -121,7 +151,8 @@ export default function VehicleManagementPage() {
       try {
         await api.delete(`/Car/${id}/delete`);
       } catch (e) {
-        // Empty
+        // fallback nếu BE chỉ lắng nghe DELETE /Car/:id
+        await api.delete(`/Car/${id}`);
       }
 
       message.success("Đã xoá xe.");
@@ -228,7 +259,7 @@ export default function VehicleManagementPage() {
                 size="small"
                 icon={<EditOutlined />}
                 onClick={() => openEditModal(record)}
-              ></Button>
+              />
             </Tooltip>
 
             <Popconfirm
@@ -245,7 +276,7 @@ export default function VehicleManagementPage() {
                   danger
                   icon={<DeleteOutlined />}
                   loading={deleting}
-                ></Button>
+                />
               </Tooltip>
             </Popconfirm>
           </Space>
@@ -292,11 +323,7 @@ export default function VehicleManagementPage() {
                 { label: "Không hoạt động", value: 0 },
               ]}
             />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openAddModal}
-            >
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
               Thêm xe
             </Button>
           </Space>
@@ -304,10 +331,7 @@ export default function VehicleManagementPage() {
       />
 
       {/* Table */}
-      <Card
-        styles={{ padding: 0 }}
-        className="border border-gray-100 shadow-sm"
-      >
+      <Card styles={{ padding: 0 }} className="border border-gray-100 shadow-sm">
         <Table
           columns={columns}
           dataSource={currentVehicles}
@@ -352,7 +376,7 @@ export default function VehicleManagementPage() {
         onOk={() => form.submit()}
         okText="Lưu"
         cancelText="Hủy"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form
           form={form}
@@ -415,11 +439,7 @@ export default function VehicleManagementPage() {
               </Form.Item>
             </Col>
             <Col xs={24} md={12}>
-              <Form.Item
-                name="status"
-                label="Trạng thái"
-                rules={[{ required: true }]}
-              >
+              <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}>
                 <Select
                   options={[
                     { label: "Không hoạt động", value: 0 },
@@ -432,24 +452,46 @@ export default function VehicleManagementPage() {
 
           <Divider style={{ margin: "8px 0 16px" }} />
 
-          <Form.Item name="image" label="Ảnh xe (URL)">
-            <Input
-              placeholder="https://link-to-image..."
-              prefix={<PictureOutlined />}
-            />
+          {/* Upload ảnh → set base64 để gửi vào image */}
+          <Form.Item label="Ảnh xe">
+            <Dragger
+              multiple={false}
+              accept="image/*"
+              showUploadList={false}
+              beforeUpload={async (file) => {
+                if (file.size > 5 * 1024 * 1024) {
+                  message.warning("Vui lòng chọn ảnh ≤ 5MB");
+                  return Upload.LIST_IGNORE;
+                }
+                try {
+                  const b64 = await fileToBase64(file);
+                  setImgBase64(b64);    // string gửi lên API
+                  setImgPreview(b64);   // xem trước
+                  // cũng đẩy vào field "image" để user thấy/submit
+                  form.setFieldsValue({ image: b64 });
+                } catch (e) {
+                  message.error("Không đọc được file ảnh");
+                }
+                return false; // chặn upload mặc định
+              }}
+            >
+              <p className="ant-upload-drag-icon">🚗</p>
+              <p className="ant-upload-text">Kéo thả hoặc bấm để chọn ảnh xe</p>
+              
+            </Dragger>
           </Form.Item>
 
-          {form.getFieldValue("image") && (
-            <Card
-              size="small"
-              type="inner"
-              title="Xem trước ảnh"
-              style={{ marginTop: 8 }}
-            >
+          {/* Tuỳ chọn: dán sẵn chuỗi/URL nếu có – hệ thống ưu tiên file vừa upload */}
+          {/* <Form.Item name="image" label=" Ảnh xe (chuỗi/URL)">
+            <Input placeholder="Dán base64 hoặc URL nếu đã có sẵn" prefix={<PictureOutlined />} />
+          </Form.Item> */}
+
+          {(imgPreview || form.getFieldValue("image")) && (
+            <Card size="small" type="inner" title="Xem trước ảnh" style={{ marginTop: 8 }}>
               <img
-                src={form.getFieldValue("image")}
+                src={imgPreview || form.getFieldValue("image")}
                 alt="car"
-                style={{ width: "100%", maxHeight: 200, objectFit: "contain" }}
+                style={{ width: "100%", maxHeight: 220, objectFit: "contain" }}
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
             </Card>

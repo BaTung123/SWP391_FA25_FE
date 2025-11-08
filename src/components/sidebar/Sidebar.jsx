@@ -66,7 +66,7 @@ const Sidebar = () => {
     {
       key: "/staff/vote",
       icon: <FaRegClipboard />,
-      label: "Vote",
+      label: "Form Management",
       path: "/staff/vote"
     },
     {
@@ -81,6 +81,7 @@ const Sidebar = () => {
       label: "Payments",
       path: "/staff/payment"
     },
+
   ];
 
   // --- INFORMATION MENU ---
