@@ -15,6 +15,7 @@ import {
   Tooltip,
   Pagination,
   Empty,
+  Upload,
 } from "antd";
 import {
   DeleteOutlined,
@@ -23,6 +24,7 @@ import {
   ReloadOutlined,
   SearchOutlined,
   CarOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios";
 
@@ -60,6 +62,87 @@ export default function GroupPage() {
 
   const [formAdd] = Form.useForm();
   const [formEdit] = Form.useForm();
+  
+  // Upload states
+  const [fileListAdd, setFileListAdd] = useState([]);
+  const [fileListEdit, setFileListEdit] = useState([]);
+
+  /* ========= Upload handlers ========= */
+  const handleImageUploadAdd = (file) => {
+    if (!file.type.startsWith('image/')) {
+      message.error('Vui lòng chọn file hình ảnh');
+      return false;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Kích thước file không được vượt quá 5MB');
+      return false;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      formAdd.setFieldsValue({ groupImg: dataUrl });
+      
+      const newFile = {
+        uid: file.uid,
+        name: file.name,
+        status: 'done',
+        url: dataUrl,
+        thumbUrl: dataUrl,
+      };
+      setFileListAdd([newFile]);
+    };
+    reader.onerror = () => {
+      message.error('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
+    
+    return false;
+  };
+
+  const handleImageUploadEdit = (file) => {
+    if (!file.type.startsWith('image/')) {
+      message.error('Vui lòng chọn file hình ảnh');
+      return false;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Kích thước file không được vượt quá 5MB');
+      return false;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      formEdit.setFieldsValue({ groupImg: dataUrl });
+      
+      const newFile = {
+        uid: file.uid,
+        name: file.name,
+        status: 'done',
+        url: dataUrl,
+        thumbUrl: dataUrl,
+      };
+      setFileListEdit([newFile]);
+    };
+    reader.onerror = () => {
+      message.error('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
+    
+    return false;
+  };
+
+  const handleRemoveImageAdd = () => {
+    setFileListAdd([]);
+    formAdd.setFieldsValue({ groupImg: null });
+  };
+
+  const handleRemoveImageEdit = () => {
+    setFileListEdit([]);
+    formEdit.setFieldsValue({ groupImg: null });
+  };
 
   /* ========= Base fetch ========= */
   useEffect(() => {
@@ -287,6 +370,7 @@ export default function GroupPage() {
       message.success("Thêm nhóm thành công!");
       setIsAddModalVisible(false);
       formAdd.resetFields();
+      setFileListAdd([]);
 
       await fetchGroupsAndRehydrate();
     } catch {
@@ -330,6 +414,21 @@ export default function GroupPage() {
     setEditingGroup(record);
     const carId = Number(record?.car?.carId ?? record?.carId);
     const currentMemberIds = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
+    const imageUrl = record?.groupImg;
+    
+    // Nếu có ảnh, thêm vào fileListEdit để hiển thị
+    if (imageUrl) {
+      setFileListEdit([{
+        uid: '-1',
+        name: 'image.jpg',
+        status: 'done',
+        url: imageUrl,
+        thumbUrl: imageUrl,
+      }]);
+    } else {
+      setFileListEdit([]);
+    }
+    
     formEdit.setFieldsValue({
       groupName: record.groupName,
       groupImg: record.groupImg || "",
@@ -360,6 +459,7 @@ export default function GroupPage() {
 
       message.success("Cập nhật nhóm thành công!");
       setIsEditModalVisible(false);
+      setFileListEdit([]);
 
       await hydrateCarOwners(cars, users);
     } catch (e) {
@@ -604,7 +704,14 @@ export default function GroupPage() {
                 </Option>
               ))}
             </Select>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsAddModalVisible(true)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setFileListAdd([]);
+                setIsAddModalVisible(true);
+              }}
+            >
               Thêm nhóm
             </Button>
           </Space>
@@ -639,7 +746,10 @@ export default function GroupPage() {
       <Modal
         title="Thêm nhóm mới"
         open={isAddModalVisible}
-        onCancel={() => setIsAddModalVisible(false)}
+        onCancel={() => {
+          setIsAddModalVisible(false);
+          setFileListAdd([]);
+        }}
         onOk={() => formAdd.submit()}
         okText="Lưu"
         cancelText="Hủy"
@@ -668,8 +778,22 @@ export default function GroupPage() {
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
 
-          <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
-            <Input placeholder="https://..." />
+          <Form.Item name="groupImg" label="Ảnh nhóm">
+            <Upload
+              accept="image/*"
+              beforeUpload={handleImageUploadAdd}
+              onRemove={handleRemoveImageAdd}
+              maxCount={1}
+              listType="picture-card"
+              fileList={fileListAdd}
+            >
+              {fileListAdd.length === 0 && (
+                <div>
+                  <UploadOutlined />
+                  <div style={{ marginTop: 8 }}>Tải lên</div>
+                </div>
+              )}
+            </Upload>
           </Form.Item>
         </Form>
       </Modal>
@@ -678,7 +802,10 @@ export default function GroupPage() {
       <Modal
         title="Cập nhật nhóm"
         open={isEditModalVisible}
-        onCancel={() => setIsEditModalVisible(false)}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          setFileListEdit([]);
+        }}
         onOk={() => formEdit.submit()}
         okText="Lưu thay đổi"
         cancelText="Hủy"
@@ -692,8 +819,22 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-          <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
-            <Input placeholder="https://..." />
+          <Form.Item name="groupImg" label="Ảnh nhóm">
+            <Upload
+              accept="image/*"
+              beforeUpload={handleImageUploadEdit}
+              onRemove={handleRemoveImageEdit}
+              maxCount={1}
+              listType="picture-card"
+              fileList={fileListEdit}
+            >
+              {fileListEdit.length === 0 && (
+                <div>
+                  <UploadOutlined />
+                  <div style={{ marginTop: 8 }}>Tải lên</div>
+                </div>
+              )}
+            </Upload>
           </Form.Item>
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select

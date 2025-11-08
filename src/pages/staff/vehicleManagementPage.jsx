@@ -19,6 +19,7 @@ import {
   Empty,
   Pagination,
   Popconfirm,
+  Upload,
 } from "antd";
 import {
   PlusOutlined,
@@ -27,6 +28,7 @@ import {
   SearchOutlined,
   PictureOutlined,
   DeleteOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
@@ -49,6 +51,49 @@ export default function VehicleManagementPage() {
   const [deletingIds, setDeletingIds] = useState(new Set());
 
   const [form] = Form.useForm();
+  const [fileList, setFileList] = useState([]);
+
+  // --- Xử lý upload ảnh ---
+  const handleImageUpload = (file) => {
+    // Kiểm tra loại file
+    if (!file.type.startsWith('image/')) {
+      message.error('Vui lòng chọn file hình ảnh');
+      return false;
+    }
+    
+    // Kiểm tra kích thước (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Kích thước file không được vượt quá 5MB');
+      return false;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      form.setFieldsValue({ image: dataUrl });
+      
+      // Cập nhật fileList để hiển thị trong Upload component
+      const newFile = {
+        uid: file.uid,
+        name: file.name,
+        status: 'done',
+        url: dataUrl,
+        thumbUrl: dataUrl,
+      };
+      setFileList([newFile]);
+    };
+    reader.onerror = () => {
+      message.error('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
+    
+    return false; // Ngăn upload tự động
+  };
+
+  const handleRemoveImage = () => {
+    setFileList([]);
+    form.setFieldsValue({ image: null });
+  };
 
   // --- Lấy danh sách xe ---
   const fetchVehicles = async () => {
@@ -71,11 +116,27 @@ export default function VehicleManagementPage() {
   const openAddModal = () => {
     setEditingVehicle(null);
     form.resetFields();
+    setFileList([]);
     setOpenModal(true);
   };
 
   const openEditModal = (record) => {
     setEditingVehicle(record);
+    const imageUrl = record?.image;
+    
+    // Nếu có ảnh, thêm vào fileList để hiển thị
+    if (imageUrl) {
+      setFileList([{
+        uid: '-1',
+        name: 'image.jpg',
+        status: 'done',
+        url: imageUrl,
+        thumbUrl: imageUrl,
+      }]);
+    } else {
+      setFileList([]);
+    }
+    
     form.setFieldsValue({
       ...record,
       status: Number(record?.status ?? 0),
@@ -108,6 +169,7 @@ export default function VehicleManagementPage() {
 
       setOpenModal(false);
       form.resetFields();
+      setFileList([]);
       fetchVehicles();
     } catch {
       message.error("Không thể lưu xe. Vui lòng thử lại.");
@@ -432,28 +494,23 @@ export default function VehicleManagementPage() {
 
           <Divider style={{ margin: "8px 0 16px" }} />
 
-          <Form.Item name="image" label="Ảnh xe (URL)">
-            <Input
-              placeholder="https://link-to-image..."
-              prefix={<PictureOutlined />}
-            />
-          </Form.Item>
-
-          {form.getFieldValue("image") && (
-            <Card
-              size="small"
-              type="inner"
-              title="Xem trước ảnh"
-              style={{ marginTop: 8 }}
+          <Form.Item name="image" label="Ảnh xe">
+            <Upload
+              accept="image/*"
+              beforeUpload={handleImageUpload}
+              onRemove={handleRemoveImage}
+              maxCount={1}
+              listType="picture-card"
+              fileList={fileList}
             >
-              <img
-                src={form.getFieldValue("image")}
-                alt="car"
-                style={{ width: "100%", maxHeight: 200, objectFit: "contain" }}
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            </Card>
-          )}
+              {fileList.length === 0 && (
+                <div>
+                  <UploadOutlined />
+                  <div style={{ marginTop: 8 }}>Tải lên</div>
+                </div>
+              )}
+            </Upload>
+          </Form.Item>
         </Form>
       </Modal>
     </div>

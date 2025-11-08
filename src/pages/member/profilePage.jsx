@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../../components/header/header';
 import api from '../../config/axios';
 
-// ======================= VoteList (Member) =======================
+// Danh sách đánh giá (vote) cho member
 const VoteList = () => {
   const [votes, setVotes] = useState([
     {
@@ -44,12 +44,11 @@ const VoteList = () => {
     const vote = votes.find((v) => v.id === id);
     if (!vote) return;
 
-    // Lấy userId từ localStorage (tối ưu)
+    // Lấy userId từ localStorage
     let userId = null;
     try {
-      const raw = localStorage.getItem('user');
-      const u = raw ? JSON.parse(raw) : null;
-      userId = u?.id ?? u?.userId ?? null;
+      const userData = localStorage.getItem('user');
+      userId = userData ? JSON.parse(userData)?.id ?? JSON.parse(userData)?.userId : null;
     } catch {}
 
     if (userId == null) {
@@ -59,7 +58,7 @@ const VoteList = () => {
 
     setSubmittingId(id);
     try {
-      // API GET /Vote với query params (giữ nguyên theo BE hiện tại)
+      // API GET /Vote với query params
       await api.get('/Vote', {
         params: {
           userId,
@@ -123,13 +122,11 @@ const VoteList = () => {
                   </div>
                 ) : (
                   <div className="text-center">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-semibold ${
-                        vote.choice === 'Đồng ý'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                      vote.choice === 'Đồng ý'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
                       {vote.choice}
                     </span>
                   </div>
@@ -143,7 +140,6 @@ const VoteList = () => {
   );
 };
 
-// ======================= ProfilePage =======================
 const ProfilePage = () => {
   const [activeTab, setActiveTab] = useState("profile");
   const [showCoOwnersModal, setShowCoOwnersModal] = useState(false);
@@ -153,6 +149,13 @@ const ProfilePage = () => {
   const [coOwnersData, setCoOwnersData] = useState([]);
   const [loadingCoOwners, setLoadingCoOwners] = useState(false);
   const [groupInfo, setGroupInfo] = useState(null);
+  const [activities, setActivities] = useState([]);
+  const [showActivityDetailModal, setShowActivityDetailModal] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [activityVotes, setActivityVotes] = useState({ agree: 0, disagree: 0, total: 0 });
+  const [userVote, setUserVote] = useState(null);
+  const [loadingActivityDetail, setLoadingActivityDetail] = useState(false);
+  const [totalMembers, setTotalMembers] = useState(3);
 
   // auth/session
   const [userRole, setUserRole] = useState(null);
@@ -163,7 +166,7 @@ const ProfilePage = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Validation errors
+  // Validation errors state
   const [validationErrors, setValidationErrors] = useState({});
 
   // server-backed user state (ảnh, email)
@@ -173,7 +176,7 @@ const ProfilePage = () => {
     idCardImageUrl: null,
   });
 
-  // form info
+  // form info (điền hồ sơ)
   const [form, setForm] = useState({
     name: "",
     fullName: "",
@@ -184,15 +187,21 @@ const ProfilePage = () => {
     dob: "",
   });
 
+  // Local previews for ID card front / back
+  const [idCardFront, setIdCardFront] = useState(null);
+  const [idCardBack, setIdCardBack] = useState(null);
+
   // ---- 1) Lấy userId + role từ localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem("user");
       if (!raw) return;
-      const parsed = JSON.parse(raw);
 
-      const id = parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
-      const role = parsed?.role ?? parsed?.isRole ?? parsed?.Role ?? null;
+      const parsed = JSON.parse(raw);
+      const id =
+        parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
+
+      const role = parsed?.role ?? parsed?.Role ?? null;
 
       setUserRole(role);
       setUserId(id);
@@ -243,7 +252,13 @@ const ProfilePage = () => {
           gender: safe(data.gender),
           dob: safe(data.dob),
         });
-
+        // populate front/back previews if available from API
+        try {
+          setIdCardFront(safe(data.cccdFront ?? data.cccdFrontUrl ?? data.idCardFront ?? data.idCardImageUrl ?? null, null));
+          setIdCardBack(safe(data.cccdBack ?? data.cccdBackUrl ?? data.idCardBack ?? null, null));
+        } catch {}
+        
+        // Clear validation errors when data is loaded
         setValidationErrors({});
       } catch (e) {
         console.error(e);
@@ -257,15 +272,17 @@ const ProfilePage = () => {
     return () => controller.abort();
   }, [userId]);
 
-  // ---- 3) Validation
+  // ---- 3) Validation functions
   const validateField = (name, value) => {
     let error = "";
 
     switch (name) {
       case "name":
-      case "fullName": {
+      case "fullName":
+        // For name/fullName, use the provided value (which should be the combined value)
         const displayName = value || "";
-        if (!displayName.trim()) {
+        
+        if (!displayName || displayName.trim().length === 0) {
           error = "Họ và tên không được để trống";
         } else if (displayName.trim().length < 2) {
           error = "Họ và tên phải có ít nhất 2 ký tự";
@@ -275,27 +292,27 @@ const ProfilePage = () => {
           error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
         }
         break;
-      }
-      case "phone": {
+
+      case "phone":
         if (!value || value.trim().length === 0) {
           error = "Số điện thoại không được để trống";
         } else {
           const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
-          const cleaned = value.replace(/\s+/g, "");
-          if (!phoneRegex.test(cleaned)) {
-            error = "Số điện thoại không hợp lệ. Vui lòng nhập số Việt Nam (10 số, bắt đầu bằng 0)";
+          const cleanedPhone = value.replace(/\s+/g, "");
+          if (!phoneRegex.test(cleanedPhone)) {
+            error = "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)";
           }
         }
         break;
-      }
-      case "dob": {
+
+      case "dob":
         if (!value) {
           error = "Ngày sinh không được để trống";
         } else {
           const selectedDate = new Date(value);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-
+          
           if (isNaN(selectedDate.getTime())) {
             error = "Ngày sinh không hợp lệ";
           } else if (selectedDate > today) {
@@ -303,10 +320,10 @@ const ProfilePage = () => {
           } else {
             const age = today.getFullYear() - selectedDate.getFullYear();
             const monthDiff = today.getMonth() - selectedDate.getMonth();
-            const actualAge =
-              monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate())
-                ? age - 1
-                : age;
+            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate()) 
+              ? age - 1 
+              : age;
+            
             if (actualAge < 18) {
               error = "Bạn phải đủ 18 tuổi trở lên";
             } else if (actualAge > 120) {
@@ -315,14 +332,21 @@ const ProfilePage = () => {
           }
         }
         break;
-      }
-      case "licenseNumber": {
+
+      case "licenseNumber":
         if (value && value.trim().length > 0) {
-          if (value.trim().length < 5) error = "Số bằng lái xe phải có ít nhất 5 ký tự";
-          else if (value.trim().length > 20) error = "Số bằng lái xe không được vượt quá 20 ký tự";
+          if (value.trim().length < 5) {
+            error = "Số bằng lái xe phải có ít nhất 5 ký tự";
+          } else if (value.trim().length > 20) {
+            error = "Số bằng lái xe không được vượt quá 20 ký tự";
+          }
         }
         break;
-      }
+
+      case "gender":
+        // Gender is optional, no validation needed
+        break;
+
       default:
         break;
     }
@@ -332,19 +356,23 @@ const ProfilePage = () => {
 
   const validateForm = () => {
     const errors = {};
-
+    
+    // Validate name/fullName
     const nameError = validateField("name", form.name || form.fullName);
     if (nameError) {
       errors.name = nameError;
       errors.fullName = nameError;
     }
 
+    // Validate phone
     const phoneError = validateField("phone", form.phone);
     if (phoneError) errors.phone = phoneError;
 
+    // Validate dob
     const dobError = validateField("dob", form.dob);
     if (dobError) errors.dob = dobError;
 
+    // Validate licenseNumber (optional but if provided, must be valid)
     const licenseError = validateField("licenseNumber", form.licenseNumber);
     if (licenseError) errors.licenseNumber = licenseError;
 
@@ -355,67 +383,99 @@ const ProfilePage = () => {
   // ---- 4) Handlers
   const handleChange = (e) => {
     const { name, value } = e.target;
-
+    
+    // Update form state
     setForm((prev) => {
-      const updated = { ...prev, [name]: value };
-
+      const updatedForm = { ...prev, [name]: value };
+      
+      // Validate field on change with updated form values
+      const error = validateField(name, name === "name" || name === "fullName" 
+        ? (name === "name" ? value : (value || prev.name))
+        : value);
+      
       setValidationErrors((prevErrors) => {
         const newErrors = { ...prevErrors };
-
+        
+        // Handle name/fullName validation together
         if (name === "name" || name === "fullName") {
-          const nameValue = name === "name" ? value : updated.name;
-          const fullNameValue = name === "fullName" ? value : updated.fullName;
+          const nameValue = name === "name" ? value : updatedForm.name;
+          const fullNameValue = name === "fullName" ? value : updatedForm.fullName;
           const displayName = nameValue || fullNameValue;
-          const err = validateField("name", displayName);
-          if (err) {
-            newErrors.name = err;
-            newErrors.fullName = err;
+          
+          const nameError = validateField("name", displayName);
+          if (nameError) {
+            newErrors.name = nameError;
+            newErrors.fullName = nameError;
           } else {
             delete newErrors.name;
             delete newErrors.fullName;
           }
         } else {
-          const err = validateField(name, value);
-          if (err) newErrors[name] = err;
-          else delete newErrors[name];
+          // Handle other fields
+          if (error) {
+            newErrors[name] = error;
+          } else {
+            delete newErrors[name];
+          }
         }
-
+        
         return newErrors;
       });
-
-      return updated;
+      
+      return updatedForm;
     });
   };
 
-  const handleIdCardChange = (e) => {
+  // Upload/remove ảnh CCCD front/back (preview local)
+  const handleIdCardUpload = (e, side = 'front') => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert("Vui lòng chọn file hình ảnh");
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file hình ảnh');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("Kích thước file không được vượt quá 5MB");
+      alert('Kích thước file không được vượt quá 5MB');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
-      setUser((prev) => ({ ...prev, idCardImageUrl: reader.result }));
+      const dataUrl = reader.result;
+      if (side === 'back') {
+        setIdCardBack(dataUrl);
+      } else {
+        setIdCardFront(dataUrl);
+      }
+      // keep a fallback single url for backwards compatibility
+      setUser((prev) => ({ ...prev, idCardImageUrl: prev.idCardImageUrl || dataUrl }));
     };
     reader.onerror = () => {
-      alert("Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.");
+      alert('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.');
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveIdCard = () => {
+  const handleRemoveIdCard = (side = 'front') => {
+    if (side === 'back') setIdCardBack(null);
+    else setIdCardFront(null);
+    // clear single fallback as well if both removed
     setUser((prev) => ({ ...prev, idCardImageUrl: null }));
-    const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) fileInput.value = "";
+    // clear file inputs if any
+    try {
+      const inputs = document.querySelectorAll('input[type="file"]');
+      inputs.forEach((i) => {
+        try { i.value = ''; } catch {}
+      });
+    } catch {}
   };
 
+  // simple adapters so new JSX names map to existing handlers/state
+  const handleProfileChange = (e) => handleChange(e);
+  const handleSaveProfile = () => handleSave();
+
+  // Helper: Resolve carUserId cho (carId, userId)
   const resolveCarUserId = async (carId, userId) => {
     try {
       const r = await api.get(`/users/${userId}/cars`);
@@ -431,6 +491,7 @@ const ProfilePage = () => {
     }
   };
 
+  // Helper: Lấy users sở hữu xe
   const getUsersByCar = async (carId) => {
     try {
       const res = await api.get(`/cars/${carId}/users`);
@@ -441,23 +502,39 @@ const ProfilePage = () => {
     }
   };
 
-  const getUserInfo = async (uid) => {
+  // Helper: Lấy thông tin user từ userId
+  const getUserInfo = async (userId) => {
     try {
-      const res = await api.get(`/User/${uid}`);
+      const res = await api.get(`/User/${userId}`);
       const data = res?.data ?? {};
       return {
-        id: uid,
-        name: data.fullName || data.name || data.email || `User #${uid}`,
+        id: userId,
+        name: data.fullName || data.name || data.email || `User #${userId}`,
         email: data.email || '',
         phone: data.phone || '',
       };
     } catch {
       return {
-        id: uid,
-        name: `User #${uid}`,
+        id: userId,
+        name: `User #${userId}`,
         email: '',
         phone: '',
       };
+    }
+  };
+
+  // Helper: Lấy PercentOwnership
+  const getPercentOwnership = async () => {
+    try {
+      const r = await api.get("/PercentOwnership");
+      return Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+    } catch {
+      try {
+        const r2 = await api.get("/api/PercentOwnership");
+        return Array.isArray(r2.data) ? r2.data : r2.data ? [r2.data] : [];
+      } catch {
+        return [];
+      }
     }
   };
 
@@ -467,6 +544,7 @@ const ProfilePage = () => {
     setLoadingCoOwners(true);
     setCoOwnersData([]);
     setGroupInfo(null);
+    setActivities([]);
 
     try {
       const carId = vehicle.id || vehicle.carId;
@@ -481,7 +559,9 @@ const ProfilePage = () => {
         const groupRes = await api.get('/Group');
         const groups = Array.isArray(groupRes.data) ? groupRes.data : groupRes.data ? [groupRes.data] : [];
         const group = groups.find(g => Number(g.carId) === Number(carId));
-        if (group) setGroupInfo(group);
+        if (group) {
+          setGroupInfo(group);
+        }
       } catch (e) {
         console.error('Lỗi khi lấy thông tin nhóm:', e);
       }
@@ -494,10 +574,13 @@ const ProfilePage = () => {
         return;
       }
 
-      // 3. Resolve carUserId + user info + ownershipPercentage
+      // 3. Resolve carUserId cho từng user, lấy thông tin user và ownershipPercentage từ API
       const ownersWithInfo = await Promise.all(
         ownerIds.map(async (uid) => {
+          // Lấy thông tin user
           const userInfo = await getUserInfo(uid);
+          
+          // Lấy thông tin xe của user để có ownershipPercentage
           let percentage = 0;
           try {
             const userCarsRes = await api.get(`/users/${uid}/cars`);
@@ -507,10 +590,17 @@ const ProfilePage = () => {
               percentage = Number(carMatch.ownershipPercentage);
             }
           } catch (e) {
-            console.error(`Lỗi ownershipPercentage cho user ${uid}:`, e);
+            console.error(`Lỗi khi lấy ownershipPercentage cho user ${uid}:`, e);
           }
+          
+          // Resolve carUserId
           const cuid = await resolveCarUserId(carId, uid);
-          return { ...userInfo, carUserId: cuid, percentage: percentage || 0 };
+          
+          return { 
+            ...userInfo, 
+            carUserId: cuid,
+            percentage: percentage || 0
+          };
         })
       );
 
@@ -523,8 +613,38 @@ const ProfilePage = () => {
         });
       }
 
+      // Sắp xếp theo phần trăm giảm dần để dễ nhìn
       ownersWithInfo.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
+
       setCoOwnersData(ownersWithInfo);
+
+      // 4. Lấy danh sách activities (votes/decisions)
+      try {
+        const activitiesRes = await api.get('/Vote', {
+          params: { carId }
+        });
+        const activitiesList = Array.isArray(activitiesRes.data) ? activitiesRes.data : activitiesRes.data ? [activitiesRes.data] : [];
+        setActivities(activitiesList);
+      } catch (e) {
+        console.error('Lỗi khi lấy activities:', e);
+        // Mock data nếu API không có
+        setActivities([
+          {
+            id: 1,
+            title: 'Bầu chọn tài xế tháng 4',
+            date: '2024-03-25',
+            status: 'Đã kết thúc',
+            type: 'vote'
+          },
+          {
+            id: 2,
+            title: 'Quyết định sửa chữa',
+            date: '2024-04-01',
+            status: 'Đang diễn ra',
+            type: 'decision'
+          }
+        ]);
+      }
     } catch (e) {
       console.error('Lỗi khi tải thông tin đồng sở hữu:', e);
       alert('Không thể tải thông tin đồng sở hữu. Vui lòng thử lại.');
@@ -555,6 +675,107 @@ const ProfilePage = () => {
     setSelectedVehicle(null);
   };
 
+  const handleViewActivityDetail = async (activity) => {
+    setSelectedActivity(activity);
+    setShowActivityDetailModal(true);
+    setLoadingActivityDetail(true);
+    setActivityVotes({ agree: 0, disagree: 0, total: 0 });
+    setUserVote(null);
+    
+    // Lấy tổng số thành viên từ coOwnersData hoặc selectedVehicle
+    if (coOwnersData.length > 0) {
+      setTotalMembers(coOwnersData.length);
+    } else if (selectedVehicle && selectedVehicle.memberCount) {
+      setTotalMembers(selectedVehicle.memberCount);
+    } else {
+      setTotalMembers(3); // Default
+    }
+
+    try {
+      // Lấy thông tin vote từ API
+      if (activity.formId || activity.id) {
+        try {
+          const voteRes = await api.get('/Vote', {
+            params: {
+              formId: activity.formId || activity.id,
+              userId: userId
+            }
+          });
+          
+          // Parse vote data
+          const votes = Array.isArray(voteRes.data) ? voteRes.data : voteRes.data ? [voteRes.data] : [];
+          const agreeCount = votes.filter(v => v.decision === true || v.decision === 'true').length;
+          const disagreeCount = votes.filter(v => v.decision === false || v.decision === 'false').length;
+          
+          // Check if user has voted
+          const userVoteData = votes.find(v => Number(v.userId) === Number(userId));
+          if (userVoteData) {
+            setUserVote(userVoteData.decision === true || userVoteData.decision === 'true' ? 'agree' : 'disagree');
+          }
+          
+          setActivityVotes({
+            agree: agreeCount,
+            disagree: disagreeCount,
+            total: votes.length
+          });
+        } catch (e) {
+          console.error('Lỗi khi lấy thông tin vote:', e);
+          // Mock data
+          setActivityVotes({
+            agree: 1,
+            disagree: 1,
+            total: 3
+          });
+        }
+      } else {
+        // Mock data nếu không có formId
+        setActivityVotes({
+          agree: 1,
+          disagree: 1,
+          total: 3
+        });
+      }
+    } catch (e) {
+      console.error('Lỗi khi tải chi tiết activity:', e);
+    } finally {
+      setLoadingActivityDetail(false);
+    }
+  };
+
+  const closeActivityDetailModal = () => {
+    setShowActivityDetailModal(false);
+    setSelectedActivity(null);
+    setActivityVotes({ agree: 0, disagree: 0, total: 0 });
+    setUserVote(null);
+  };
+
+  const handleVote = async (decision) => {
+    if (!selectedActivity || !userId) return;
+
+    try {
+      await api.get('/Vote', {
+        params: {
+          userId,
+          formId: selectedActivity.formId || selectedActivity.id,
+          decision: decision === 'agree'
+        }
+      });
+
+      // Update votes
+      setActivityVotes(prev => ({
+        ...prev,
+        agree: decision === 'agree' ? prev.agree + 1 : prev.agree,
+        disagree: decision === 'disagree' ? prev.disagree + 1 : prev.disagree,
+        total: prev.total + 1
+      }));
+      
+      setUserVote(decision);
+    } catch (e) {
+      console.error('Lỗi khi vote:', e);
+      alert('Không thể gửi vote. Vui lòng thử lại.');
+    }
+  };
+
   const handlePrintAgreement = () => window.print();
 
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
@@ -563,100 +784,115 @@ const ProfilePage = () => {
   const isAdminOrStaff = isAdmin || isStaff;
 
   const toIsoDateOnly = (v) => {
-    if (!v) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-    const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      const [, d, mo, y] = m;
-      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    }
-    const dt = new Date(v);
-    if (!isNaN(dt.getTime())) {
-      const yyyy = dt.getFullYear();
-      const mm = String(dt.getMonth()+1).padStart(2,'0');
-      const dd = String(dt.getDate()).padStart(2,'0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-    return '';
-  };
+  if (!v) return '';
+  // nếu input type="date" -> đã là yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  // nếu dd/MM/yyyy -> convert
+  const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const [ , d, mo, y ] = m;
+    const dd = String(d).padStart(2, '0');
+    const mm = String(mo).padStart(2, '0');
+    return `${y}-${mm}-${dd}`;
+  }
+  // fallback: Date.parse
+  const dt = new Date(v);
+  if (!isNaN(dt)) {
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth()+1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return '';
+};
 
-  const handleSave = async () => {
-    if (!userId) {
-      alert("Không xác định được người dùng.");
-      return;
-    }
-    if (!validateForm()) {
-      alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
-      return;
-    }
+const handleSave = async () => {
+  if (!userId) {
+    alert("Không xác định được người dùng.");
+    return;
+  }
 
-    setSaving(true);
-    setError("");
+  // Validate form before submitting
+  if (!validateForm()) {
+    alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
+    return;
+  }
 
-    try {
-      const fd = new FormData();
-      const dobIso = toIsoDateOnly(form.dob);
+  setSaving(true);
+  setError("");
 
-      const entries = {
-        email: user.email || "",
-        fullName: form.fullName || form.name || "",
-        name: form.name || form.fullName || "",
-        gender: form.gender || "",
-        dob: dobIso || "",
-        phone: form.phone || "",
-        nationalId: form.nationalId || "",
-        licenseNumber: form.licenseNumber || "",
-        cccdFront: user.idCardImageUrl || "",
-        cccdBack: ""
-      };
+  try {
+    // 1) Tạo FormData đúng với [FromForm] UpdateProfileDto updateProfileDto
+    const fd = new FormData();
 
-      Object.entries(entries).forEach(([k, v]) => {
-        fd.append(k, v ?? "");
-        fd.append(`updateProfileDto.${k}`, v ?? "");
-      });
+    // giá trị đã chuẩn hoá ngày
+    const dobIso = toIsoDateOnly(form.dob);
 
-      const res = await api.put(`/api/User/${userId}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
+    // append cả dạng có prefix (updateProfileDto.*) và không prefix để an toàn
+    const entries = {
+      email: user.email || "",
+      fullName: form.fullName || form.name || "",
+      name: form.name || form.fullName || "",
+      gender: form.gender || "",
+      dob: dobIso || "",
+      phone: form.phone || "",
+      nationalId: form.nationalId || "",
+      licenseNumber: form.licenseNumber || "",
+  // nếu backend nhận chuỗi URL/base64 cho CCCD (front/back):
+  cccdFront: idCardFront || user.idCardImageUrl || "",
+  cccdBack: idCardBack || ""
+    };
 
-      const updated = res?.data && Object.keys(res.data).length ? res.data : entries;
+    Object.entries(entries).forEach(([k, v]) => {
+      fd.append(k, v ?? "");
+      fd.append(`updateProfileDto.${k}`, v ?? "");
+    });
 
-      setUser((u) => ({
-        ...u,
-        email: updated.email ?? u.email,
-        avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
-        idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
-      }));
+    // 2) Gọi PUT multipart
+    const res = await api.put(`/api/User/${userId}`, fd, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
 
-      setForm((f) => ({
-        ...f,
-        name: updated.name ?? f.name,
-        fullName: updated.fullName ?? f.fullName,
-        phone: updated.phone ?? f.phone,
-        nationalId: updated.nationalId ?? f.nationalId,
-        licenseNumber: updated.licenseNumber ?? f.licenseNumber,
-        gender: updated.gender ?? f.gender,
-        dob: toIsoDateOnly(updated.dob) || f.dob
-      }));
+    // 3) Đồng bộ UI (nếu server không trả body thì lấy form hiện tại)
+    const updated = res?.data && Object.keys(res.data).length ? res.data : entries;
 
-      updateLocalStorageUser({
-        name: updated.name,
-        fullName: updated.fullName,
-        phone: updated.phone,
-        email: updated.email,
-        avatarImageUrl: updated.avatarImageUrl,
-        idCardImageUrl: updated.idCardImageUrl
-      });
+    setUser((u) => ({
+      ...u,
+      email: updated.email ?? u.email,
+      avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
+      idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
+    }));
 
-      alert("Thông tin thành viên đã được lưu thành công!");
-    } catch (e) {
-      console.error(e);
-      setError("Cập nhật không thành công. Vui lòng kiểm tra định dạng ngày sinh và dạng gửi (multipart/form-data).");
-      alert("Cập nhật không thành công. Kiểm tra lại ngày sinh (YYYY-MM-DD) và dạng gửi.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    setForm((f) => ({
+      ...f,
+      name: updated.name ?? f.name,
+      fullName: updated.fullName ?? f.fullName,
+      phone: updated.phone ?? f.phone,
+      nationalId: updated.nationalId ?? f.nationalId,
+      licenseNumber: updated.licenseNumber ?? f.licenseNumber,
+      gender: updated.gender ?? f.gender,
+      dob: toIsoDateOnly(updated.dob) || f.dob
+    }));
+
+    // 4) Cập nhật localStorage nếu app dùng ở nơi khác
+    updateLocalStorageUser({
+      name: updated.name,
+      fullName: updated.fullName,
+      phone: updated.phone,
+      email: updated.email,
+      avatarImageUrl: updated.avatarImageUrl,
+      idCardImageUrl: updated.idCardImageUrl
+    });
+
+    alert("Thông tin thành viên đã được lưu thành công!");
+  } catch (e) {
+    console.error(e);
+    setError("Cập nhật không thành công. Vui lòng kiểm tra định dạng ngày sinh và dạng gửi (multipart/form-data).");
+    alert("Cập nhật không thành công. Kiểm tra lại ngày sinh (YYYY-MM-DD) và dạng gửi.");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const updateLocalStorageUser = (patch) => {
     try {
@@ -667,6 +903,7 @@ const ProfilePage = () => {
       localStorage.setItem("user", JSON.stringify(next));
     } catch {}
   };
+ 
 
   // State: danh sách xe lấy từ backend
   const [vehicleData, setVehicleData] = useState([]);
@@ -678,36 +915,44 @@ const ProfilePage = () => {
     setLoading(true);
     (async () => {
       try {
+        // gọi danh sách CarUser (hoặc tương đương) từ BE
         const res = await api.get(`/users/${userId}/cars`);
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
-        const mapped = (list || [])
-          .filter(Boolean)
-          .map((it) => {
-            const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
-            const carUserId =
-              it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.linkId ?? null;
+        // chuẩn hoá dữ liệu về dạng mà UI đang sử dụng
+        const mapped = await Promise.all(
+          (list || [])
+            .filter(Boolean)
+            .map(async (it) => {
+              const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
+              const carUserId =
+                it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.carUserId ?? it.linkId ?? null;
 
-            return {
-              id: carId,
-              carUserId,
-              vehicleName: it.carName ?? it.name ?? it.VehicleName ?? it.vehicleName ?? "",
-              licensePlate: it.plateNumber ?? it.plate ?? it.PlateNumber ?? it.licensePlate ?? "",
-              purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
-              status: it.status ?? it.Status ?? "Active",
-              insurance: it.insurance ?? it.Insurance ?? {
-                provider: "",
-                policyNumber: "",
-                startDate: null,
-                endDate: null,
-                premium: 0,
-                monthlyPayment: 0,
-                nextPayment: null,
-                status: "Active"
-              },
-              ownershipPercentage: it.ownershipPercentage != null ? Number(it.ownershipPercentage) : 100,
-            };
-          });
+              // Lấy số thành viên sở hữu xe
+              let memberCount = 1;
+              if (carId) {
+                try {
+                  const ownerIds = await getUsersByCar(carId);
+                  memberCount = ownerIds && ownerIds.length > 0 ? ownerIds.length : 1;
+                } catch (e) {
+                  console.error(`Lỗi khi lấy số thành viên cho xe ${carId}:`, e);
+                }
+              }
+
+              return {
+                id: carId,
+                carUserId,
+                vehicleName: it.carName ?? it.name ?? it.VehicleName ?? it.vehicleName ?? "",
+                licensePlate: it.plateNumber ?? it.plate ?? it.PlateNumber ?? it.licensePlate ?? "",
+                purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
+                status: it.status ?? it.Status ?? "Active",
+                insurance: it.insurance ?? it.Insurance ?? { provider: "", policyNumber: "", startDate: null, endDate: null, premium: 0, monthlyPayment: 0, nextPayment: null, status: "Active" },
+                // Sử dụng ownershipPercentage trực tiếp từ API response
+                ownershipPercentage: it.ownershipPercentage != null ? Number(it.ownershipPercentage) : 100,
+                memberCount: memberCount,
+              };
+            })
+        );
 
         if (mounted) setVehicleData(mapped);
       } catch (err) {
@@ -717,11 +962,10 @@ const ProfilePage = () => {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [activeTab, userId]);
-
-  // Helpers: render safe date
-  const renderDate = (d) => (d ? new Date(d).toLocaleDateString("vi-VN") : '---');
 
   return (
     <div className="w-full">
@@ -734,9 +978,9 @@ const ProfilePage = () => {
         {/* Tabs */}
         <div className="flex border-b-2 border-indigo-100 mb-10">
           <div
-            className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+            className={`py-2 px-4 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all rounded-t-lg ${
               activeTab === "profile"
-                ? "text-indigo-900 border-b-3 border-indigo-900"
+                ? "bg-purple-600 text-white"
                 : "text-indigo-600 hover:text-indigo-800"
             }`}
             onClick={() => setActiveTab("profile")}
@@ -746,9 +990,9 @@ const ProfilePage = () => {
           {!isAdminOrStaff && (
             <>
               <div
-                className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+                className={`py-2 px-4 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all rounded-t-lg ${
                   activeTab === "vehicles"
-                    ? "text-indigo-900 border-b-3 border-indigo-900"
+                    ? "bg-purple-600 text-white"
                     : "text-indigo-600 hover:text-indigo-800"
                 }`}
                 onClick={() => setActiveTab("vehicles")}
@@ -756,9 +1000,9 @@ const ProfilePage = () => {
                 SỞ HỮU XE
               </div>
               <div
-                className={`py-2 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all ${
+                className={`py-2 px-4 font-semibold cursor-pointer mr-8 text-[16px] tracking-wider transition-all rounded-t-lg ${
                   activeTab === "insurance"
-                    ? "text-indigo-900 border-b-3 border-indigo-900"
+                    ? "bg-purple-600 text-white"
                     : "text-indigo-600 hover:text-indigo-800"
                 }`}
                 onClick={() => setActiveTab("insurance")}
@@ -782,317 +1026,229 @@ const ProfilePage = () => {
         {activeTab === "profile" && (
           <>
             {loading && (
-              <div className="mb-4 text-sm text-gray-600">
-                Đang tải thông tin...
-              </div>
+              <div className="mb-4 text-sm text-gray-600">Đang tải thông tin...</div>
             )}
             {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
-            {user && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Left - CCCD */}
-                <div className="md:col-span-1">
-                  <div className="bg-white rounded-lg shadow-sm border p-6 text-center">
-                    <div className="flex justify-center mb-4">
-                      <div className="relative" />
-                    </div>
-
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">
-                        Ảnh căn cước
-                      </p>
-                      <div className="mx-auto w-48">
-                        {user.idCardImageUrl ? (
-                          <img
-                            src={user.idCardImageUrl}
-                            alt="Ảnh căn cước"
-                            className="w-full h-auto rounded-md border border-gray-200 shadow-sm"
-                          />
-                        ) : (
-                          <div className="w-full h-48 bg-gray-100 rounded-md border border-gray-200 shadow-sm flex items-center justify-center">
-                            <span className="text-gray-400">
-                              Chưa có ảnh căn cước
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-2 flex justify-center space-x-2">
-                        <label className="inline-flex items-center px-3 py-1 bg-indigo-600 text-white rounded cursor-pointer">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleIdCardChange}
-                          />
-                          Tải ảnh
-                        </label>
-                        {user.idCardImageUrl && (
+            {/* Profile Tab */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column - ID Card Upload */}
+              <div className="border-indigo-100 shadow-lg lg:col-span-1 rounded-lg border p-4 bg-white">
+                <div className="pb-4">
+                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Ảnh căn cước</div>
+                  <div className="text-sm text-gray-500">Tải lên ảnh mặt trước và mặt sau</div>
+                </div>
+                <div className="space-y-4">
+                  {/* Front Side */}
+                  <div className="space-y-2">
+                    <label className="text-sm text-slate-700">Mặt trước</label>
+                    <div className="relative group">
+                      {idCardFront ? (
+                        <div className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border-2 border-indigo-200 shadow-md">
+                          <img src={idCardFront} alt="ID Card Front" className="w-full h-full object-cover" />
                           <button
-                            onClick={handleRemoveIdCard}
-                            className="px-3 py-1 border rounded"
+                            size="sm"
+                            className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white rounded-full flex items-center justify-center"
+                            onClick={() => handleRemoveIdCard('front')}
                           >
-                            Xóa
+                            X
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <label className="relative w-full aspect-[3/2] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50 cursor-pointer transition-all">
+                          <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdCardUpload(e, 'front')} />
+                          <div className="w-8 h-8 text-slate-400">📤</div>
+                          <span className="text-sm text-slate-500">Click để tải lên</span>
+                        </label>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Right - Form */}
-                <div className="md:col-span-2">
-                  <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            HỌ VÀ TÊN <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            name="name"
-                            value={form.name || form.fullName || ""}
-                            onChange={handleChange}
-                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              validationErrors.name || validationErrors.fullName
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : "border-gray-200"
-                            }`}
-                          />
-                          {(validationErrors.name || validationErrors.fullName) && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {validationErrors.name || validationErrors.fullName}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            EMAIL
-                          </label>
-                          <input
-                            name="email"
-                            value={user.email}
-                            readOnly
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg cursor-not-allowed"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            SỐ ĐIỆN THOẠI <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            name="phone"
-                            value={form.phone || ""}
-                            onChange={handleChange}
-                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              validationErrors.phone
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : "border-gray-200"
-                            }`}
-                            placeholder="Nhập số điện thoại"
-                          />
-                          {validationErrors.phone && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {validationErrors.phone}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            GIỚI TÍNH
-                          </label>
-                          <select
-                            name="gender"
-                            value={form.gender || ""}
-                            onChange={handleChange}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  {/* Back Side */}
+                  <div className="space-y-2">
+                    <label className="text-sm text-slate-700">Mặt sau</label>
+                    <div className="relative group">
+                      {idCardBack ? (
+                        <div className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border-2 border-indigo-200 shadow-md">
+                          <img src={idCardBack} alt="ID Card Back" className="w-full h-full object-cover" />
+                          <button
+                            size="sm"
+                            className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white rounded-full flex items-center justify-center"
+                            onClick={() => handleRemoveIdCard('back')}
                           >
-                            <option value="">-- Chọn --</option>
-                            <option value="Male">Nam</option>
-                            <option value="Female">Nữ</option>
-                            <option value="Other">Khác</option>
-                          </select>
+                            X
+                          </button>
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            NGÀY SINH <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            name="dob"
-                            type="date"
-                            value={form.dob || ""}
-                            onChange={handleChange}
-                            max={new Date().toISOString().split('T')[0]}
-                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              validationErrors.dob
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : "border-gray-200"
-                            }`}
-                          />
-                          {validationErrors.dob && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {validationErrors.dob}
-                            </p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700 text-left">
-                            BẰNG LÁI XE
-                          </label>
-                          <input
-                            name="licenseNumber"
-                            value={form.licenseNumber || ""}
-                            onChange={handleChange}
-                            className={`w-full p-3 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                              validationErrors.licenseNumber
-                                ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                : "border-gray-200"
-                            }`}
-                            placeholder="Nhập bằng lái xe"
-                          />
-                          {validationErrors.licenseNumber && (
-                            <p className="text-sm text-red-600 mt-1">
-                              {validationErrors.licenseNumber}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex justify-center mt-8">
-                        <button
-                          onClick={handleSave}
-                          disabled={saving || Object.keys(validationErrors).length > 0}
-                          className="px-12 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {saving ? "ĐANG LƯU..." : "LƯU"}
-                        </button>
-                      </div>
+                      ) : (
+                        <label className="relative w-full aspect-[3/2] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50 cursor-pointer transition-all">
+                          <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdCardUpload(e, 'back')} />
+                          <div className="w-8 h-8 text-slate-400">📤</div>
+                          <span className="text-sm text-slate-500">Click để tải lên</span>
+                        </label>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            )}
+
+              {/* Right Column - Profile Form */}
+              <div className="border-indigo-100 shadow-lg lg:col-span-2 rounded-lg border p-4 bg-white">
+                <div className="pb-4">
+                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Thông tin cá nhân</div>
+                  <div className="text-sm text-gray-500">Cập nhật thông tin tài khoản của bạn</div>
+                </div>
+                <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Name */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Họ và tên <span className="text-red-500">*</span></label>
+                      <input type="text" name="name" value={form.name} onChange={handleProfileChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" />
+                    </div>
+
+                    {/* Email */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Email <span className="text-red-500">*</span></label>
+                      <input type="email" name="email" value={user.email} readOnly className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed" />
+                    </div>
+
+                    {/* Phone */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
+                      <input type="tel" name="phone" value={form.phone} onChange={handleProfileChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Nhập số điện thoại" />
+                    </div>
+
+                    {/* Gender */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Giới tính</label>
+                      <select name="gender" value={form.gender} onChange={handleProfileChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                        <option value="">-- Chọn --</option>
+                        <option value="Male">Nam</option>
+                        <option value="Female">Nữ</option>
+                        <option value="Other">Khác</option>
+                      </select>
+                    </div>
+
+                    {/* Date of Birth */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Ngày sinh <span className="text-red-500">*</span></label>
+                      <input type="date" name="dob" value={form.dob} onChange={handleProfileChange} max={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" />
+                    </div>
+
+                    {/* License Number */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Bằng lái xe</label>
+                      <input type="text" name="licenseNumber" value={form.licenseNumber} onChange={handleProfileChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Nhập số bằng lái xe" />
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="mt-8 flex justify-center">
+                    <button className="px-12 py-3 bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded" onClick={handleSaveProfile}>
+                      Lưu thông tin
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </>
         )}
 
-        {/* Tab SỞ HỮU XE */}
+        {/* Tab SỞ HỮU XE - Card Layout */}
         {activeTab === "vehicles" && (
           <div className="mb-8">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse bg-white rounded-lg shadow-md">
-                <thead>
-                  <tr className="bg-indigo-50">
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      Tên xe
-                    </th>
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      Biển số
-                    </th>
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      % Sở hữu
-                    </th>
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      Ngày sỡ hữu
-                    </th>
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      Trạng thái
-                    </th>
-                    <th className="border border-indigo-200 px-4 py-3 font-semibold text-indigo-900">
-                      Thao tác
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vehicleData.length > 0 ? (
-                    vehicleData.map((vehicle) => (
-                      <tr key={vehicle.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="border border-indigo-200 px-4 py-3">
-                          <div className="font-medium text-gray-900">
-                            {vehicle.vehicleName}
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <p className="mt-4 text-gray-600">Đang tải thông tin xe...</p>
+              </div>
+            ) : vehicleData.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Chưa có xe đăng ký thuộc sở hữu của bạn.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {vehicleData.map((vehicle) => {
+                  // Extract model name (e.g., "VF5" from "VinFast VF5")
+                  const modelMatch = vehicle.vehicleName.match(/(VF\d+|VF-\d+)/i);
+                  const modelName = modelMatch ? modelMatch[1].toUpperCase() : vehicle.vehicleName.split(' ').pop() || 'Xe';
+                  
+                  return (
+                    <div
+                      key={vehicle.id}
+                      className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+                    >
+                      {/* Header: Model name and Status */}
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-700">
+                          {modelName}
+                        </h3>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            vehicle.status === "Active"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {vehicle.status === "Active" ? "Hoạt động" : "Bảo trì"}
+                        </span>
+                      </div>
+
+                      {/* Car Details */}
+                      <div className="space-y-3 mb-6">
+                        <div>
+                          <span className="text-sm text-gray-600">Tên xe:</span>
+                          <div className="text-sm font-medium text-gray-900 mt-1">
+                            {vehicle.vehicleName || "---"}
                           </div>
-                        </td>
-                        <td className="border border-indigo-200 px-4 py-3">
-                          <span className="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-sm font-medium">
-                            {vehicle.licensePlate}
-                          </span>
-                        </td>
-                        <td className="border border-indigo-200 px-4 py-3">
-                          <div className="flex items-center">
-                            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                              <div
-                                className="bg-indigo-600 h-2 rounded-full"
-                                style={{ width: `${vehicle.ownershipPercentage}%` }}
-                              />
-                            </div>
-                            <span className="text-sm font-medium">
-                              {vehicle.ownershipPercentage}%
+                        </div>
+
+                        <div>
+                          <span className="text-sm text-gray-600">Biển số xe:</span>
+                          <div className="mt-1">
+                            <span className="bg-blue-400 text-white px-2 py-1 rounded text-sm font-medium">
+                              {vehicle.licensePlate || "---"}
                             </span>
                           </div>
-                        </td>
-                        <td className="border border-indigo-200 px-4 py-3 text-gray-700">
-                          {renderDate(vehicle.purchaseDate)}
-                        </td>
-                        <td className="border border-indigo-200 px-4 py-3">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              vehicle.status === "Active"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-yellow-100 text-yellow-800"
-                            }`}
-                          >
-                            {vehicle.status === "Active" ? "Hoạt động" : "Bảo trì"}
-                          </span>
-                        </td>
-                        <td className="border border-indigo-200 px-4 py-3">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleViewCoOwners(vehicle)}
-                              className="text-indigo-600 hover:text-indigo-800 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
-                              title="Xem đồng sở hữu"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleViewAgreement(vehicle)}
-                              className="text-green-600 hover:text-green-800 p-2 rounded-lg hover:bg-green-50 transition-colors"
-                              title="Xem bảng hợp đồng sở hữu"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                            </button>
+                        </div>
+
+                        <div>
+                          <span className="text-sm text-gray-600">Số thành viên:</span>
+                          <div className="text-sm font-medium text-gray-900 mt-1">
+                            {vehicle.memberCount || 1} người
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="border border-indigo-200 px-4 py-6 text-center text-gray-500" colSpan={6}>
-                        Chưa có xe đăng ký thuộc sở hữu của bạn.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+
+                        <div>
+                          <span className="text-sm text-gray-600">Phần của bạn:</span>
+                          <div className="text-sm font-medium text-gray-900 mt-1">
+                            {vehicle.ownershipPercentage || 0}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* View Group Button */}
+                      <button
+                        onClick={() => handleViewCoOwners(vehicle)}
+                        className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all"
+                      >
+                        Xem nhóm
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Tab BẢO HIỂM */}
         {activeTab === "insurance" && (
           <div className="mb-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
               {vehicleData.map((vehicle) => (
-                <div key={vehicle.id} className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div
+                  key={vehicle.id}
+                  className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                >
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-lg font-semibold text-indigo-900">
@@ -1100,57 +1256,85 @@ const ProfilePage = () => {
                       </h4>
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          vehicle.insurance?.status === "Active"
+                          vehicle.insurance.status === "Active"
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
                         }`}
                       >
-                        {vehicle.insurance?.status === "Active" ? "Hoạt động" : "Hết hạn"}
+                        {vehicle.insurance.status === "Active"
+                          ? "Hoạt động"
+                          : "Hết hạn"}
                       </span>
                     </div>
                     <div className="space-y-3 mb-4">
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Nhà bảo hiểm:</span>
+                        <span className="text-sm text-gray-600">
+                          Nhà bảo hiểm:
+                        </span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance?.provider || '---'}
+                          {vehicle.insurance.provider}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Số hợp đồng:</span>
+                        <span className="text-sm text-gray-600">
+                          Số hợp đồng:
+                        </span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance?.policyNumber || '---'}
+                          {vehicle.insurance.policyNumber}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Loại bảo hiểm:</span>
+                        <span className="text-sm text-gray-600">
+                          Loại bảo hiểm:
+                        </span>
                         <span className="text-sm font-medium text-gray-900">
-                          {vehicle.insurance?.coverage || '---'}
+                          {vehicle.insurance.coverage}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Phí bảo hiểm/năm:</span>
+                        <span className="text-sm text-gray-600">
+                          Phí bảo hiểm/năm:
+                        </span>
                         <span className="text-sm font-bold text-indigo-900">
-                          {(vehicle.insurance?.premium || 0).toLocaleString("vi-VN")} VNĐ
+                          {vehicle.insurance.premium.toLocaleString("vi-VN")}{" "}
+                          VNĐ
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Phần của bạn:</span>
+                        <span className="text-sm text-gray-600">
+                          Phần của bạn:
+                        </span>
                         <span className="text-sm font-bold text-red-600">
-                          {Math.round(((vehicle.insurance?.monthlyPayment || 0) * (vehicle.ownershipPercentage || 0)) / 100).toLocaleString("vi-VN")} VNĐ
+                          {Math.round(
+                            (vehicle.insurance.monthlyPayment *
+                              vehicle.ownershipPercentage) /
+                              100
+                          ).toLocaleString("vi-VN")}{" "}
+                          VNĐ
                         </span>
                       </div>
                     </div>
                     <div className="border-t border-gray-200 pt-4">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-600">Hạn thanh toán tiếp:</span>
+                        <span className="text-gray-600">
+                          Hạn thanh toán tiếp:
+                        </span>
                         <span className="font-medium text-gray-900">
-                          {renderDate(vehicle.insurance?.nextPayment)}
+                          {new Date(
+                            vehicle.insurance.nextPayment
+                          ).toLocaleDateString("vi-VN")}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Hiệu lực:</span>
                         <span className="font-medium text-gray-900">
-                          {renderDate(vehicle.insurance?.startDate)} - {renderDate(vehicle.insurance?.endDate)}
+                          {new Date(
+                            vehicle.insurance.startDate
+                          ).toLocaleDateString("vi-VN")}{" "}
+                          -{" "}
+                          {new Date(
+                            vehicle.insurance.endDate
+                          ).toLocaleDateString("vi-VN")}
                         </span>
                       </div>
                     </div>
@@ -1162,37 +1346,57 @@ const ProfilePage = () => {
                   </div>
                 </div>
               ))}
-              {vehicleData.length === 0 && (
-                <div className="col-span-full text-center text-gray-500 py-6">
-                  Chưa có dữ liệu bảo hiểm.
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Tab ĐÁNH GIÁ */}
         {activeTab === 'votes' && (
           <div className="mb-8">
+            {/* Mock votes - có thể thay bằng API */}
             <VoteList />
           </div>
         )}
 
-        {/* Co-owners Modal */}
+        {/* Co-owners Modal - Chi tiết nhóm */}
         {showCoOwnersModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto" style={{ maxWidth: '700px' }}>
+            <div className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto" style={{ maxWidth: '600px' }}>
               <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-indigo-900">
-                    Đồng sở hữu - {selectedVehicle.vehicleName}
-                  </h3>
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <rect x="3" y="8" width="18" height="6" rx="1" />
+                        <circle cx="7" cy="17" r="2" />
+                        <circle cx="17" cy="17" r="2" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Chi tiết nhóm {selectedVehicle.vehicleName?.match(/(VF\d+|VF-\d+)/i)?.[0]?.toUpperCase() || selectedVehicle.vehicleName?.split(' ').pop() || 'Xe'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {selectedVehicle.vehicleName || "---"} • {selectedVehicle.licensePlate || "---"}
+                      </p>
+                    </div>
+                  </div>
                   <button
                     onClick={closeModal}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -1200,108 +1404,146 @@ const ProfilePage = () => {
                 {loadingCoOwners ? (
                   <div className="text-center py-8">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    <p className="mt-4 text-gray-600">Đang tải thông tin đồng sở hữu...</p>
-                  </div>
-                ) : coOwnersData.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Chưa có thông tin đồng sở hữu.</p>
+                    <p className="mt-4 text-gray-600">Đang tải thông tin...</p>
                   </div>
                 ) : (
-                  <div>
-                    {/* Thông tin xe */}
-                    <div className="mb-4 p-4 bg-indigo-50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-indigo-600 font-medium">Xe</p>
-                          <p className="text-lg font-bold text-indigo-900">
-                            {selectedVehicle.vehicleName || "Chưa có tên"}
-                          </p>
-                          {selectedVehicle.licensePlate && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              Biển số: {selectedVehicle.licensePlate}
-                            </p>
-                          )}
-                          {groupInfo && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              Nhóm: {groupInfo.groupName || 'Chưa có tên nhóm'}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-indigo-600 font-medium">Tổng sở hữu</p>
-                          <p className="text-lg font-bold text-indigo-900">
-                            {coOwnersData.reduce((sum, owner) => sum + (owner.percentage || 0), 0)}%
-                          </p>
-                        </div>
+                  <div className="space-y-6">
+                    {/* Thành viên Section */}
+                    <div>
+                      <div className="border-b border-gray-200 pb-3 mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900">Thành viên</h4>
                       </div>
-                    </div>
-
-                    {/* Danh sách đồng sở hữu */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-lg font-semibold text-gray-900">
-                          Danh sách đồng sở hữu
-                        </h4>
-                        <span className="text-sm text-gray-600">
-                          Tổng: {coOwnersData.length} người
-                        </span>
-                      </div>
-
-                      {coOwnersData.map((owner, index) => {
-                        const isCurrentUser = userId && Number(owner.id) === Number(userId);
-                        const percentage = owner.percentage || 0;
-                        return (
-                          <div
-                            key={owner.id || index}
-                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3">
-                                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                                    <span className="text-indigo-600 font-semibold text-sm">
-                                      {owner.name
-                                        .split(" ")
-                                        .map((n) => n[0])
-                                        .join("")
-                                        .toUpperCase()
-                                        .substring(0, 2)}
+                      
+                      {coOwnersData.length === 0 ? (
+                        <p className="text-gray-500 text-sm">Chưa có thông tin thành viên.</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-4 mb-3 text-sm font-medium text-gray-600">
+                            <div>Thành viên</div>
+                            <div className="text-right">% Sở hữu</div>
+                          </div>
+                          
+                          <div className="space-y-3 mb-4">
+                            {coOwnersData.map((owner, index) => {
+                              const isCurrentUser = userId && Number(owner.id) === Number(userId);
+                              const percentage = owner.percentage || 0;
+                              const avatarColor = isCurrentUser ? 'bg-purple-500' : 'bg-gray-400';
+                              
+                              return (
+                                <div key={owner.id || index} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <div className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center`}>
+                                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                      </svg>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {isCurrentUser ? 'Bạn' : owner.name}
                                     </span>
                                   </div>
-                                  <div>
-                                    <h5 className="font-semibold text-gray-900">
-                                      {owner.name}
-                                      {isCurrentUser && (
-                                        <span className="ml-2 text-xs text-indigo-600 font-normal">(Bạn)</span>
-                                      )}
-                                    </h5>
-                                    {owner.email && (
-                                      <p className="text-sm text-gray-600">{owner.email}</p>
-                                    )}
-                                    {owner.phone && (
-                                      <p className="text-sm text-gray-500">{owner.phone}</p>
-                                    )}
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                                      <div
+                                        className={`h-2 rounded-full ${isCurrentUser ? 'bg-purple-500' : 'bg-gray-400'}`}
+                                        style={{ width: `${percentage}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">
+                                      {percentage}%
+                                    </span>
                                   </div>
                                 </div>
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Tổng cộng */}
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                            <span className="text-sm font-medium text-gray-900">Tổng cộng</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 bg-gray-200 rounded-full h-2">
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: '100%' }}></div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-xs text-gray-500 mb-1">Phần trăm đóng góp</p>
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-20 bg-gray-200 rounded-full h-2">
-                                    <div
-                                      className="bg-indigo-600 h-2 rounded-full transition-all"
-                                      style={{ width: `${percentage}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-sm font-medium text-indigo-900 min-w-[2.5rem]">
-                                    {percentage}%
-                                  </span>
-                                </div>
-                              </div>
+                              <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">100%</span>
                             </div>
                           </div>
-                        );
-                      })}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Hợp đồng Section */}
+                    <div>
+                      <div className="border-b border-gray-200 pb-3 mb-4">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <h4 className="text-lg font-semibold text-gray-900">Hợp đồng</h4>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          closeModal();
+                          handleViewAgreement(selectedVehicle);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Xem hợp đồng
+                      </button>
+                    </div>
+
+                    {/* Hoạt động Section */}
+                    <div>
+                      <div className="border-b border-gray-200 pb-3 mb-4">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          <h4 className="text-lg font-semibold text-gray-900">Hoạt động</h4>
+                        </div>
+                      </div>
+                      
+                      {activities.length === 0 ? (
+                        <p className="text-gray-500 text-sm">Chưa có hoạt động nào.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {activities.map((activity) => {
+                            const isFinished = activity.status === 'Đã kết thúc' || activity.status === 'Finished';
+                            const statusColor = isFinished ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700';
+                            
+                            return (
+                              <div key={activity.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${statusColor}`}>
+                                    {activity.status || (isFinished ? 'Đã kết thúc' : 'Đang diễn ra')}
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {activity.title || activity.serviceType || activity.description || 'Hoạt động'}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {activity.date ? new Date(activity.date).toLocaleDateString('vi-VN') : '---'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => handleViewActivityDetail(activity)}
+                                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  Xem
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1310,7 +1552,6 @@ const ProfilePage = () => {
           </div>
         )}
 
-        {/* Agreement Modal */}
         {showAgreementModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1324,17 +1565,37 @@ const ProfilePage = () => {
                       onClick={handlePrintAgreement}
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                        />
                       </svg>
                       <span>In</span>
                     </button>
                     <button
-                      onClick={() => setShowAgreementModal(false)}
+                      onClick={closeAgreementModal}
                       className="text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -1346,6 +1607,7 @@ const ProfilePage = () => {
                     <p className="text-gray-600">Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.</p>
                   </div>
 
+                  {/* Vehicle details */}
                   <div className="grid grid-cols-2 gap-6 mb-8 bg-gray-50 p-6 rounded-lg">
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Tên xe</p>
@@ -1357,42 +1619,53 @@ const ProfilePage = () => {
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Ngày mua / Hiệu lực</p>
-                      <p className="text-gray-900">{renderDate(selectedVehicle.purchaseDate)}</p>
+                      <p className="text-gray-900">{selectedVehicle.purchaseDate ? new Date(selectedVehicle.purchaseDate).toLocaleDateString('vi-VN') : '---'}</p>
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Trạng thái hợp đồng</p>
-                      <p className="text-gray-900">
-                        {selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}
-                      </p>
+                      <p className="text-gray-900">{selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}</p>
                     </div>
                   </div>
+
 
                   <div className="mb-8">
                     <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
                     <div className="space-y-4 text-sm text-gray-700">
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
-                        <p>…</p>
+                        <p>
+                          Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.
+                        </p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
-                        <p>…</p>
+                        <p>
+                          Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.
+                        </p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
-                        <p>…</p>
+                        <p>
+                          Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.
+                        </p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
-                        <p>…</p>
+                        <p>
+                          Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.
+                        </p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
-                        <p>…</p>
+                        <p>
+                          Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.
+                        </p>
                       </div>
                       <div>
                         <h4 className="text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
-                        <p>…</p>
+                        <p>
+                          Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1409,13 +1682,11 @@ const ProfilePage = () => {
                     </div>
                   </div>
                 </div>
-
               </div>
             </div>
           </div>
         )}
 
-        {/* Insurance Modal (placeholder nội dung chi tiết) */}
         {showInsuranceModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1425,21 +1696,217 @@ const ProfilePage = () => {
                     Chi tiết bảo hiểm - {selectedVehicle.vehicleName}
                   </h3>
                   <button
-                    onClick={() => setShowInsuranceModal(false)}
+                    onClick={closeInsuranceModal}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
-                {/* Nội dung chi tiết bảo hiểm */}
-                {/* … */}
+
+                {/* Nội dung chi tiết bảo hiểm giữ nguyên */}
+                {/* ... */}
               </div>
             </div>
           </div>
         )}
 
+        {/* Activity Detail Modal */}
+        {showActivityDetailModal && selectedActivity && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+            <div className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto" style={{ maxWidth: '700px' }}>
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {selectedActivity.title || selectedActivity.serviceType || 'Quyết định'}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={closeActivityDetailModal}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {loadingActivityDetail ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <p className="mt-4 text-gray-600">Đang tải thông tin...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Question/Description */}
+                    <div>
+                      <p className="text-gray-900 text-base">
+                        {selectedActivity.description || selectedActivity.title || 'Quyết định có nên sửa chữa hệ thống phanh ngay hay chờ đến kỳ bảo dưỡng'}
+                      </p>
+                    </div>
+
+                    {/* Information Cards Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Loại vote</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {selectedActivity.type === 'vote' ? 'Bầu chọn' : selectedActivity.type === 'decision' ? 'Sửa chữa' : 'Quyết định'}
+                        </p>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Ngày tạo</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {selectedActivity.date ? new Date(selectedActivity.date).toLocaleDateString('vi-VN') : '01/4/2024'}
+                        </p>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Tổng số vote</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {activityVotes.total}/{totalMembers}
+                        </p>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-1">Trạng thái</p>
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
+                          selectedActivity.status === 'Đang diễn ra' || selectedActivity.status === 'Ongoing' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {selectedActivity.status || 'Đang diễn ra'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Voting Results */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4">Kết quả bầu chọn</h4>
+                      <div className="space-y-4">
+                        {/* Agree Option */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-900">Đồng ý</span>
+                          </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full transition-all"
+                                style={{ width: `${activityVotes.total > 0 ? (activityVotes.agree / activityVotes.total) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-medium text-gray-900 min-w-[4rem] text-right">
+                              {activityVotes.agree} votes
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Disagree Option */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                            </svg>
+                            <span className="text-sm font-medium text-gray-900">Không đồng ý</span>
+                          </div>
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-red-500 h-2 rounded-full transition-all"
+                                style={{ width: `${activityVotes.total > 0 ? (activityVotes.disagree / activityVotes.total) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-medium text-gray-900 min-w-[4rem] text-right">
+                              {activityVotes.disagree} votes
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* User Voting Action */}
+                    {!userVote && (
+                      <div className="border-t border-gray-200 pt-6">
+                        <p className="text-sm text-gray-700 mb-4">Bạn chưa vote. Hãy chọn:</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <button
+                            onClick={() => handleVote('agree')}
+                            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                            </svg>
+                            Đồng ý
+                          </button>
+                          <button
+                            onClick={() => handleVote('disagree')}
+                            className="flex items-center justify-center gap-2 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 font-medium py-3 px-4 rounded-lg transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                            </svg>
+                            Không đồng ý
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {userVote && (
+                      <div className="border-t border-gray-200 pt-6">
+                        <p className="text-sm text-gray-700 mb-2">Bạn đã vote:</p>
+                        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${
+                          userVote === 'agree' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {userVote === 'agree' ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                            )}
+                          </svg>
+                          <span className="font-medium">
+                            {userVote === 'agree' ? 'Đồng ý' : 'Không đồng ý'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
