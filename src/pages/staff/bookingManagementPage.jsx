@@ -12,41 +12,47 @@ const { Option } = Select;
 /* ---------------- helpers ---------------- */
 const S = (v) => (v === null || v === undefined ? "" : String(v));
 
-const toISODateTime = (item) => {
+/**
+ * Trả về Date local (KHÔNG dùng toISOString để tránh trôi ngày do UTC 'Z')
+ */
+const toLocalDateTime = (item) => {
   if (item.startDate || item.endDate) {
     const s = item.startDate ? new Date(item.startDate) : new Date();
     const e = item.endDate ? new Date(item.endDate) : new Date(s.getTime() + 60 * 60 * 1000);
-    return { start: s.toISOString(), end: e.toISOString() };
+    return { start: s, end: e };
   }
-  if (item.start && item.end) return { start: item.start, end: item.end };
-
+  if (item.start && item.end) {
+    const s = item.start instanceof Date ? item.start : new Date(item.start);
+    const e = item.end instanceof Date ? item.end : new Date(item.end);
+    return { start: s, end: e };
+  }
   if (item.startDate && item.startTime) {
     const s = new Date(`${item.startDate}T${item.startTime}`);
     const e =
       item.endDate && item.endTime
         ? new Date(`${item.endDate}T${item.endTime}`)
         : new Date(s.getTime() + 60 * 60 * 1000);
-    return { start: s.toISOString(), end: e.toISOString() };
+    return { start: s, end: e };
   }
   if (item.date && item.time) {
     const [t1, t2] = String(item.time).split("-").map((s) => s.trim());
     const start = new Date(`${item.date}T${t1 || "08:00"}`);
     const end = new Date(`${item.date}T${t2 || "09:00"}`);
-    return { start: start.toISOString(), end: end.toISOString() };
+    return { start, end };
   }
   if (item.date) {
     const start = new Date(`${item.date}T08:00`);
     const end = new Date(`${item.date}T09:00`);
-    return { start: start.toISOString(), end: end.toISOString() };
+    return { start, end };
   }
   const s = new Date();
   const e = new Date(s.getTime() + 60 * 60 * 1000);
-  return { start: s.toISOString(), end: e.toISOString() };
+  return { start: s, end: e };
 };
 
 const statusOf = (sch) => {
-  const { end } = toISODateTime(sch);
-  return new Date(end) < new Date() ? "Hoàn tất" : "Chờ sử dụng";
+  const { end } = toLocalDateTime(sch);
+  return end < new Date() ? "Hoàn tất" : "Chờ sử dụng";
 };
 
 /* ---------------- component ---------------- */
@@ -123,7 +129,6 @@ const GroupVehicleBookingDashboard = () => {
       if (ownersByCarId.has(carId)) return; // cache
 
       try {
-        // duyệt users theo lô để tránh quá nhiều request song song
         const owners = [];
         const chunkSize = 8;
         for (let i = 0; i < allUsers.length; i += chunkSize) {
@@ -131,16 +136,14 @@ const GroupVehicleBookingDashboard = () => {
           const results = await Promise.allSettled(
             batch.map(async (u) => {
               const uid = S(u.id ?? u.userId);
-              // Route CHUẨN có trong Swagger
               const r = await api.get(`/users/${uid}/cars`);
               const list = Array.isArray(r?.data) ? r.data : [];
-              // tìm đúng chiếc xe đang chọn để lấy carUserId
               const match = list.find((c) => S(c.id ?? c.carId) === carId);
               if (match) {
                 return {
                   ...u,
                   _userId: uid,
-                  _carUserId: S(match.carUserId ?? match.CarUserId), // rất quan trọng để map schedule
+                  _carUserId: S(match.carUserId ?? match.CarUserId),
                 };
               }
               return null;
@@ -198,24 +201,16 @@ const GroupVehicleBookingDashboard = () => {
   const doneCount = filteredSchedules.filter((s) => statusOf(s) === "Hoàn tất").length;
   const pendingCount = totalBookings - doneCount;
   const memberCount = owners.length;
-  // const ownersBookedCount = useMemo(() => {
-  //   const bookedCU = new Set(filteredSchedules.map((s) => s.__carUserId));
-  //   let cnt = 0;
-  //   owners.forEach((o) => {
-  //     if (bookedCU.has(S(o._carUserId))) cnt += 1;
-  //   });
-  //   return cnt;
-  // }, [filteredSchedules, owners]);
 
   // Events
   const calendarEvents = useMemo(() => {
     const v = carsById.get(selectedCarId);
     const license = v?.__plate || "";
     return filteredSchedules.map((s) => {
-      const { start, end } = toISODateTime(s);
+      const { start, end } = toLocalDateTime(s);
       const status = statusOf(s);
       return {
-        id: s.scheduleId ?? s.id ?? `${start}-${end}`,
+        id: s.scheduleId ?? s.id ?? `${start.getTime()}-${end.getTime()}`,
         title: `${license || "Xe"} - ${status}`,
         start,
         end,
@@ -228,20 +223,20 @@ const GroupVehicleBookingDashboard = () => {
   // modal detail theo ngày
   const onDateClick = async (arg) => {
     if (!selectedCarId) return;
-    const day = new Date(arg.dateStr);
-    const next = new Date(day.getTime() + 24 * 60 * 60 * 1000);
+
+    // arg.date là Date local (00:00 của ngày được click)
+    const day = new Date(arg.date);
+    const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1); // 00:00 ngày hôm sau (local)
 
     const items = filteredSchedules.filter((s) => {
-      const { start, end } = toISODateTime(s);
-      const st = new Date(start);
-      const en = new Date(end);
-      return st < next && en >= day;
+      const { start, end } = toLocalDateTime(s);
+      return start < next && end >= day;
     });
 
     // map carUserId → owner
     const enriched = items.map((it) => {
       const owner = owners.find((o) => S(o._carUserId) === S(it.__carUserId));
-      const { start, end } = toISODateTime(it);
+      const { start, end } = toLocalDateTime(it);
       return { ...it, _owner: owner || null, _start: start, _end: end, _status: statusOf(it) };
     });
 
@@ -312,6 +307,7 @@ const GroupVehicleBookingDashboard = () => {
               <div className="py-10"><Empty description="Hãy chọn xe để xem lịch" /></div>
             ) : (
               <FullCalendar
+                timeZone="local" // tường minh: render theo local time
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="dayGridMonth"
                 events={calendarEvents}
@@ -357,7 +353,7 @@ const GroupVehicleBookingDashboard = () => {
                 <div className="flex flex-wrap gap-2">
                   {owners.map((u) => (
                     <Tag key={S(u.id ?? u.userId)} color="blue">
-                      {(u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`) }
+                      {u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`}
                     </Tag>
                   ))}
                 </div>
@@ -370,28 +366,37 @@ const GroupVehicleBookingDashboard = () => {
             ) : (
               <div className="space-y-3">
                 {modalItems
-                  .sort((a, b) => new Date(a._start) - new Date(b._start))
+                  .sort(
+                    (a, b) =>
+                      toLocalDateTime(a).start.getTime() - toLocalDateTime(b).start.getTime()
+                  )
                   .map((it) => {
                     const owner = it._owner;
                     const name =
                       owner?.fullName || owner?.name || owner?.userName || `CarUser #${it.__carUserId}`;
                     const isOwner = !!owner && ownerIdSet.has(S(owner.id ?? owner.userId));
                     return (
-                      <div key={it.scheduleId ?? it.id} className="border rounded-lg p-3 flex items-start justify-between">
+                      <div
+                        key={it.scheduleId ?? it.id}
+                        className="border rounded-lg p-3 flex items-start justify-between"
+                      >
                         <div>
                           <div className="font-semibold text-gray-900">
                             {name} {isOwner ? <Tag color="green">Đồng sở hữu</Tag> : <Tag>Khách</Tag>}
                           </div>
-                          <div className="text-sm text-gray-600">Bắt đầu: {new Date(it._start).toLocaleString("vi-VN")}</div>
-                          <div className="text-sm text-gray-600">Kết thúc: {new Date(it._end).toLocaleString("vi-VN")}</div>
-                          {/* {it.__carUserId && (
-                            <div className="text-xs text-gray-500 mt-1">CarUserId: {it.__carUserId}</div>
-                          )} */}
+                          <div className="text-sm text-gray-600">
+                            Bắt đầu: {new Date(it._start).toLocaleString("vi-VN")}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Kết thúc: {new Date(it._end).toLocaleString("vi-VN")}
+                          </div>
                         </div>
                         <div>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              it._status === "Hoàn tất" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                              it._status === "Hoàn tất"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-yellow-100 text-yellow-800"
                             }`}
                           >
                             {it._status}
