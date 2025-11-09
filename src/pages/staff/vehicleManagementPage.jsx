@@ -28,11 +28,11 @@ import {
   SearchOutlined,
   PictureOutlined,
   DeleteOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios.js";
 
 const { Option } = Select;
-const { Dragger } = Upload;
 
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
@@ -454,7 +454,7 @@ export default function VehicleManagementPage() {
 
           {/* Upload ảnh → set base64 để gửi vào image */}
           <Form.Item label="Ảnh xe">
-            <Dragger
+            <Upload
               multiple={false}
               accept="image/*"
               showUploadList={false}
@@ -475,10 +475,8 @@ export default function VehicleManagementPage() {
                 return false; // chặn upload mặc định
               }}
             >
-              <p className="ant-upload-drag-icon">🚗</p>
-              <p className="ant-upload-text">Kéo thả hoặc bấm để chọn ảnh xe</p>
-              
-            </Dragger>
+              <Button icon={<UploadOutlined />}>Upload ảnh</Button>
+            </Upload>
           </Form.Item>
 
           {/* Tuỳ chọn: dán sẵn chuỗi/URL nếu có – hệ thống ưu tiên file vừa upload */}
