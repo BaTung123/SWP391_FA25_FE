@@ -19,6 +19,8 @@ const ProfilePage = lazy(() => import("../pages/member/profilePage"));
 const RegistercarPage = lazy(() => import("../pages/member/registercarPage"));
 const DepositPage = lazy(() => import("../pages/member/depositPage"));
 const QRPage = lazy(() => import("../pages/member/qrPage"));
+const PaymentCancelledPage = lazy(() => import("../pages/member/paymentCancelledPage"));
+const PaymentSuccessPage = lazy(() => import("../pages/member/paymentSuccessPage"));
 
 // Admin pages
 const AdminDashboardPage = lazy(() =>
@@ -194,6 +196,26 @@ export const router = createBrowserRouter([
           <Suspense fallback={<Loading />}>
             <ProtectedRoute roleAccount={[0, 1]}>
               <DepositPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "payment-cancelled",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <PaymentCancelledPage />
+            </ProtectedRoute>
+          </Suspense>
+        ),
+      },
+      {
+        path: "payment-success",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <ProtectedRoute roleAccount={[0, 1]}>
+              <PaymentSuccessPage />
             </ProtectedRoute>
           </Suspense>
         ),

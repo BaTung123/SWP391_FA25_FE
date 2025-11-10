@@ -92,11 +92,11 @@ const DepositPage = () => {
       console.log('Payment API response:', response?.data);
       
       // Lấy URL thanh toán từ response (hỗ trợ nhiều cấu trúc response)
-      const paymentUrl = response?.data?.data?.checkoutUrl || 
-                        response?.data?.data?.url ||
-                        response?.data?.checkoutUrl || 
-                        response?.data?.url ||
-                        response?.data?.link ||
+      const paymentUrl = response?.data?.data?.approvalUrl || 
+                        response?.data?.data?.approvalUrl ||
+                        response?.data?.approvalUrl || 
+                        response?.data?.approvalUrl ||
+                        response?.data?.approvalUrl ||
                         response?.data;
 
       if (paymentUrl && typeof paymentUrl === 'string') {

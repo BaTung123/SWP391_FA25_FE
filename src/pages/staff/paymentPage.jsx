@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   FaCreditCard,
   FaEye,
@@ -7,46 +7,107 @@ import {
   FaTimes,
   FaSearch,
 } from "react-icons/fa";
+import api from "../../config/axios";
+
+const STATUS_MAP = {
+  Pending: "Chờ thanh toán",
+  Success: "Đã thanh toán",
+  Paid: "Đã thanh toán",
+  Completed: "Đã thanh toán",
+  Failed: "Thất bại",
+  Cancelled: "Đã hủy",
+};
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString("vi-VN");
+};
+
+const formatCurrency = (amount) => {
+  if (amount === null || amount === undefined || amount === "") return "—";
+  const number = Number(amount);
+  if (Number.isNaN(number)) return String(amount);
+  return number.toLocaleString("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    minimumFractionDigits: 0,
+  });
+};
+
+const normalizePaymentRecord = (item) => {
+  if (!item) return null;
+
+  const status =
+    typeof item.status === "string"
+      ? STATUS_MAP[item.status] || item.status
+      : "Chờ thanh toán";
+
+  // Use amountVnd if available and > 0, otherwise use amount
+  const amount = item.amountVnd && item.amountVnd > 0 ? item.amountVnd : item.amount;
+
+  return {
+    id: item.paymentId ?? item.id ?? Date.now(),
+    paymentId: `#PAY${String(item.paymentId ?? item.id ?? "").padStart(6, "0")}`,
+    vehicle: {
+      name: item.carName ?? item.vehicle?.name ?? "Đang cập nhật",
+      license: item.plateNumber ?? item.vehicle?.license ?? "Đang cập nhật",
+    },
+    serviceType: item.description ?? item.serviceType ?? "Khác",
+    amount: amount ?? 0,
+    status,
+    date: formatDate(item.createdAt ?? item.date),
+    orderId: item.orderId,
+    paymentMethod: item.paymentMethod,
+    currency: item.currency,
+    coOwners: item.coOwners ?? [], // Empty array if not provided
+  };
+};
 
 const PaymentPage = () => {
-  const formatCurrency = (amount) =>
-    amount.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
-
-  const [payments] = useState([
-    {
-      id: 1,
-      paymentId: "#PAY001",
-      vehicle: { name: "Toyota Camry 2023", license: "ABC-123" },
-      serviceType: "Sửa động cơ",
-      amount: 11500000,
-      status: "Đã thanh toán",
-      date: "2024-02-14",
-      coOwners: [
-        { name: "Nguyễn Văn A", paid: true },
-        { name: "Trần Thị B", paid: false },
-        { name: "Lê Văn C", paid: true },
-      ],
-    },
-    {
-      id: 2,
-      paymentId: "#PAY002",
-      vehicle: { name: "Honda Civic 2023", license: "XYZ-789" },
-      serviceType: "Bảo dưỡng định kỳ",
-      amount: 3000000,
-      status: "Chờ thanh toán",
-      date: "2024-02-15",
-      coOwners: [
-        { name: "Phạm Minh D", paid: false },
-        { name: "Vũ Thị E", paid: false },
-      ],
-    },
-  ]);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Filter and Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const itemsPerPage = 5;
+
+  // Fetch payments from API
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+        const response = await api.get("/Payment");
+        const data = response.data?.data ?? response.data ?? [];
+        
+        if (!Array.isArray(data)) {
+          throw new Error("Invalid data format");
+        }
+
+        const normalized = data
+          .map(normalizePaymentRecord)
+          .filter(Boolean);
+
+        setPayments(normalized);
+        setCurrentPage(1);
+      } catch (error) {
+        console.error("Failed to fetch payments", error);
+        setErrorMessage(
+          "Không thể tải danh sách thanh toán. Vui lòng thử lại sau."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayments();
+  }, []);
 
   // --- Lọc + tìm kiếm ---
   const filtered = useMemo(() => {
@@ -85,10 +146,14 @@ const PaymentPage = () => {
     const statusClasses = {
       "Đã thanh toán": "bg-green-100 text-green-800",
       "Chờ thanh toán": "bg-yellow-100 text-yellow-800",
+      "Thất bại": "bg-red-100 text-red-800",
+      "Đã hủy": "bg-gray-100 text-gray-800",
     };
+    const badgeClass = statusClasses[status] ?? "bg-gray-100 text-gray-800";
+    
     return (
       <span
-        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[status]}`}
+        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}
       >
         {status}
       </span>
@@ -151,6 +216,8 @@ const PaymentPage = () => {
               <option value="all">Tất cả trạng thái</option>
               <option value="Đã thanh toán">Đã thanh toán</option>
               <option value="Chờ thanh toán">Chờ thanh toán</option>
+              <option value="Thất bại">Thất bại</option>
+              <option value="Đã hủy">Đã hủy</option>
             </select>
           </div>
         </div>
@@ -181,46 +248,68 @@ const PaymentPage = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentPayments.map((payment) => (
-                <tr
-                  key={payment.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4 text-sm text-gray-900 text-center">
-                    {payment.paymentId}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {payment.vehicle.name}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {payment.vehicle.license}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-center">
-                    {payment.serviceType}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">
-                    {formatCurrency(payment.amount)}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    {getStatusBadge(payment.status)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 text-center">
-                    {payment.date}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      className="text-blue-600 hover:text-blue-900 p-1"
-                      onClick={() => setSelectedPayment(payment)}
-                    >
-                      <FaEye />
-                    </button>
+              {loading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-6 py-10 text-sm text-gray-500 text-center"
+                  >
+                    Đang tải dữ liệu...
                   </td>
                 </tr>
-              ))}
+              )}
+              {!loading && currentPayments.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-6 py-10 text-sm text-gray-500 text-center"
+                  >
+                    {errorMessage || "Không có dữ liệu thanh toán."}
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                currentPayments.map((payment) => (
+                  <tr
+                    key={payment.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-6 py-4 text-sm text-gray-900 text-center">
+                      {payment.paymentId}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {payment.vehicle.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {payment.vehicle.license}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-center">
+                      {payment.serviceType}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 text-center">
+                      {formatCurrency(payment.amount)}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {getStatusBadge(payment.status)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 text-center">
+                      {payment.date}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        className="text-blue-600 hover:text-blue-900 p-1"
+                        onClick={() => setSelectedPayment(payment)}
+                        title="Xem chi tiết"
+                      >
+                        <FaEye />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -267,7 +356,7 @@ const PaymentPage = () => {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">
-                Danh sách đồng sở hữu - {selectedPayment.vehicle.name}
+                Chi tiết thanh toán
               </h2>
               <button
                 onClick={() => setSelectedPayment(null)}
@@ -277,48 +366,103 @@ const PaymentPage = () => {
               </button>
             </div>
 
-            {/* Table inside modal */}
-            <table className="min-w-full border border-gray-200">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
-                    STT
-                  </th>
-                  <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
-                    Tên chủ sở hữu
-                  </th>
-                  <th className="px-4 py-2 text-center text-sm font-medium text-gray-600">
-                    Trạng thái
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedPayment.coOwners.map((owner, index) => (
-                  <tr
-                    key={index}
-                    className="border-t hover:bg-gray-50 transition"
-                  >
-                    <td className="px-4 py-2 text-sm text-gray-700 text-left">
-                      {index + 1}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-700 text-left">
-                      {owner.name}
-                    </td>
-                    <td className="px-4 py-2 text-sm text-center">
-                      {owner.paid ? (
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                          Đã thanh toán
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">
-                          Chưa thanh toán
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Payment Details */}
+            <div className="space-y-3 mb-4">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Mã giao dịch:</span>
+                <span className="text-sm text-gray-900">{selectedPayment.paymentId}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Order ID:</span>
+                <span className="text-sm text-gray-900">{selectedPayment.orderId || "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Xe:</span>
+                <span className="text-sm text-gray-900">
+                  {selectedPayment.vehicle.name} - {selectedPayment.vehicle.license}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Dịch vụ:</span>
+                <span className="text-sm text-gray-900">{selectedPayment.serviceType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Số tiền:</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {formatCurrency(selectedPayment.amount)}
+                </span>
+              </div>
+              {selectedPayment.currency && (
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium text-gray-600">Tiền tệ:</span>
+                  <span className="text-sm text-gray-900">{selectedPayment.currency}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Phương thức:</span>
+                <span className="text-sm text-gray-900">
+                  {selectedPayment.paymentMethod || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                <span>{getStatusBadge(selectedPayment.status)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium text-gray-600">Ngày tạo:</span>
+                <span className="text-sm text-gray-900">{selectedPayment.date}</span>
+              </div>
+            </div>
+
+            {/* Co-owners section if available */}
+            {selectedPayment.coOwners && selectedPayment.coOwners.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                  Danh sách đồng sở hữu
+                </h3>
+                <table className="min-w-full border border-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                        STT
+                      </th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
+                        Tên chủ sở hữu
+                      </th>
+                      <th className="px-4 py-2 text-center text-sm font-medium text-gray-600">
+                        Trạng thái
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPayment.coOwners.map((owner, index) => (
+                      <tr
+                        key={index}
+                        className="border-t hover:bg-gray-50 transition"
+                      >
+                        <td className="px-4 py-2 text-sm text-gray-700 text-left">
+                          {index + 1}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-700 text-left">
+                          {owner.name}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-center">
+                          {owner.paid ? (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
+                              Đã thanh toán
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">
+                              Chưa thanh toán
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="flex justify-end mt-4">
               <button
