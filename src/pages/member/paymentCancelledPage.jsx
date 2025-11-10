@@ -1,11 +1,41 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import api from "../../config/axios";
+
+function safeParseJSON(s) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+function getStoredAuth() {
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token") || null;
+
+  const userStr = localStorage.getItem("user");
+  const user = userStr ? safeParseJSON(userStr) : null;
+
+  const userIdStr = localStorage.getItem("userId");
+  const fallbackId = user && (user.userId ?? user.id ?? user.ID);
+  const userId =
+    userIdStr != null
+      ? Number(userIdStr)
+      : fallbackId != null
+      ? Number(fallbackId)
+      : null;
+
+  return { token, user, userId };
+}
 
 const PaymentCancelledPage = () => {
   const [searchParams] = useSearchParams();
   const status = searchParams.get("status");
   const orderCode = searchParams.get("orderCode");
+
+  // Lấy auth từ local
+  const [authState, setAuthState] = useState(() => getStoredAuth());
+  const { userId } = authState;
 
   useEffect(() => {
     console.log("Payment Cancelled - orderCode:", orderCode, "status:", status);
@@ -16,10 +46,7 @@ const PaymentCancelledPage = () => {
         try {
           // Thử các endpoint có thể có
           const endpoints = [
-            '/Payment/payment-webhook',
-            '/Payment/webhook',
-            '/Order/payment-webhook',
-            '/Order/webhook'
+            '/Payment/capture/payos/' + orderCode
           ];
           
           let success = false;
@@ -29,8 +56,8 @@ const PaymentCancelledPage = () => {
             try {
               console.log(`Trying PUT ${endpoint}...`);
               const response = await api.put(endpoint, { 
-                orderCode, 
-                status 
+                orderCode,
+                userId: userId,
               }, {
                 headers: {
                   'Content-Type': 'application/json'
