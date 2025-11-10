@@ -159,31 +159,29 @@ const VotePage = () => {
         .filter(Boolean);
     };
 
-    const tryUrls = [
-      `/Vote/form/${formId}`,
-      `/Vote/${formId}`,
-      `/Vote/form?formId=${formId}`,
-      `/Vote/by-form/${formId}`,
-      `/Vote/by-form?formId=${formId}`,
-      `/Vote?formId=${formId}`,
-    ];
+    // const tryUrls = [
+    //   `/Vote/form/${formId}`,
+    //   `/Vote/${formId}`,
+    //   `/Vote/form?formId=${formId}`,
+    //   `/Vote/by-form/${formId}`,
+    //   `/Vote/by-form?formId=${formId}`,
+    //   `/Vote?formId=${formId}`,
+    // ];
 
-    for (const url of tryUrls) {
-      try {
-        const r = await api.get(url);
-        const arr = Array.isArray(r.data)
-          ? r.data
-          : Array.isArray(r.data?.data)
-          ? r.data.data
-          : undefined;
-        const votes = normalizeVotes(arr, formId);
-        if (votes.length) return votes;
-      } catch {
-        // thử endpoint tiếp theo
-      }
-    }
-
-    // fallback: lấy toàn bộ vote rồi lọc
+    // for (const url of tryUrls) {
+    //   try {
+    //     const r = await api.get(url);
+    //     const arr = Array.isArray(r.data)
+    //       ? r.data
+    //       : Array.isArray(r.data?.data)
+    //       ? r.data.data
+    //       : undefined;
+    //     const votes = normalizeVotes(arr, formId);
+    //     if (votes.length) return votes;
+    //   } catch {
+    //     // thử endpoint tiếp theo
+    //   }
+    // }
     try {
       const r = await api.get("/Vote");
       const arr = Array.isArray(r.data)
