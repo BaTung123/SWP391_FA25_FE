@@ -25,6 +25,8 @@ const VotePage = () => {
   const itemsPerPage = 5;
 
   const [selectedForm, setSelectedForm] = useState(null);
+
+  // --- NEW: votedSummary dựa trên votedBy để biết agree/decline ---
   const votedSummary = useMemo(() => {
     if (!selectedForm) {
       return {
@@ -32,6 +34,7 @@ const VotePage = () => {
         pendingMembers: [],
         extraVoters: [],
         votedSet: new Set(),
+        decidedMap: new Map(), // userId -> boolean (true/false)
       };
     }
 
@@ -39,10 +42,18 @@ const VotePage = () => {
       ? selectedForm.members
       : [];
 
+    const decidedMap =
+      selectedForm.votedBy instanceof Map
+        ? selectedForm.votedBy
+        : new Map(
+            Object.entries(selectedForm.votedBy || {}).map(([k, v]) => [
+              safeNum(k, NaN),
+              !!v,
+            ])
+          );
+
     const votedSet = new Set(
-      (selectedForm.votedUserIds ?? [])
-        .map((id) => safeNum(id, NaN))
-        .filter((id) => Number.isFinite(id))
+      Array.from(decidedMap.keys()).filter((id) => Number.isFinite(id))
     );
 
     const votedMembers = members.filter((m) =>
@@ -53,10 +64,12 @@ const VotePage = () => {
     );
     const extraVoters = Array.from(votedSet).filter(
       (id) =>
-        !members.some((m) => safeNum(m?.id ?? m?.userId, NaN) === safeNum(id, NaN))
+        !members.some(
+          (m) => safeNum(m?.id ?? m?.userId, NaN) === safeNum(id, NaN)
+        )
     );
 
-    return { votedMembers, pendingMembers, extraVoters, votedSet };
+    return { votedMembers, pendingMembers, extraVoters, votedSet, decidedMap };
   }, [selectedForm]);
 
   const formatDateOnly = (iso) => {
@@ -66,13 +79,19 @@ const VotePage = () => {
     return d.toLocaleDateString("vi-VN"); // chỉ ngày
   };
 
+  // --- UPDATED: thêm style cho "Đã từ chối" ---
   const getStatusBadge = (status) => {
     const statusClasses = {
       "Đã đánh giá": "bg-green-100 text-green-800",
       "Chờ đánh giá": "bg-yellow-100 text-yellow-800",
+      "Đã từ chối": "bg-red-100 text-red-700",
     };
     return (
-      <span className={`px-2 py-1 text-xs rounded-full font-semibold ${statusClasses[status]}`}>
+      <span
+        className={`px-2 py-1 text-xs rounded-full font-semibold ${
+          statusClasses[status] || "bg-gray-100 text-gray-700"
+        }`}
+      >
         {status}
       </span>
     );
@@ -80,14 +99,17 @@ const VotePage = () => {
 
   // ---------------- Data fetching helpers ----------------
   const fetchGroupMembers = async (groupId) => {
-    // (Nếu sau này có /Group/{id}/members thì dùng; hiện tại screenshot chỉ có GET /Group và GET /Group/{id})
     try {
       const r = await api.get(`/Group/${groupId}/members`);
       const arr = Array.isArray(r.data) ? r.data : [];
       return arr
         .map((m) => ({
           id: safeNum(m?.id ?? m?.userId),
-          name: m?.name ?? m?.fullName ?? m?.email ?? `User #${m?.id ?? m?.userId}`,
+          name:
+            m?.name ??
+            m?.fullName ??
+            m?.email ??
+            `User #${m?.id ?? m?.userId}`,
           fullName: m?.fullName,
           email: m?.email,
         }))
@@ -99,7 +121,9 @@ const VotePage = () => {
     try {
       const gr = await api.get("/Group");
       const list = Array.isArray(gr.data) ? gr.data : [];
-      const g = list.find((x) => safeNum(x.id ?? x.groupId) === safeNum(groupId));
+      const g = list.find(
+        (x) => safeNum(x.id ?? x.groupId) === safeNum(groupId)
+      );
       const carId = g?.carId ?? g?.vehicleId;
       if (!carId) return [];
 
@@ -117,11 +141,17 @@ const VotePage = () => {
             try {
               const owned = await api.get(`/users/${uid}/cars`);
               const cars = Array.isArray(owned.data) ? owned.data : [];
-              const has = cars.some((c) => safeNum(c?.carId ?? c?.id) === safeNum(carId));
+              const has = cars.some(
+                (c) => safeNum(c?.carId ?? c?.id) === safeNum(carId)
+              );
               if (has) {
                 return {
                   id: uid,
-                  name: u?.fullName ?? u?.name ?? u?.email ?? `User #${uid}`,
+                  name:
+                    u?.fullName ??
+                    u?.name ??
+                    u?.email ??
+                    `User #${uid}`,
                   fullName: u?.fullName,
                   email: u?.email,
                 };
@@ -148,10 +178,11 @@ const VotePage = () => {
           if (!v) return null;
           const fidRaw = v?.formId ?? v?.FormId ?? v?.formID ?? assumedFormId;
           const fid = safeNum(fidRaw, NaN);
-          if (!Number.isFinite(fid) || fid !== safeNum(formId, NaN)) return null;
+          if (!Number.isFinite(fid) || fid !== safeNum(formId, NaN))
+            return null;
           return {
             id: v?.id ?? v?.voteId ?? v?.VoteId,
-            userId: v?.userId ?? v?.UserId,
+            userId: safeNum(v?.userId ?? v?.UserId, NaN),
             formId: fid,
             decision: !!(v?.decision ?? v?.Decision ?? v?.agree),
           };
@@ -159,29 +190,6 @@ const VotePage = () => {
         .filter(Boolean);
     };
 
-    // const tryUrls = [
-    //   `/Vote/form/${formId}`,
-    //   `/Vote/${formId}`,
-    //   `/Vote/form?formId=${formId}`,
-    //   `/Vote/by-form/${formId}`,
-    //   `/Vote/by-form?formId=${formId}`,
-    //   `/Vote?formId=${formId}`,
-    // ];
-
-    // for (const url of tryUrls) {
-    //   try {
-    //     const r = await api.get(url);
-    //     const arr = Array.isArray(r.data)
-    //       ? r.data
-    //       : Array.isArray(r.data?.data)
-    //       ? r.data.data
-    //       : undefined;
-    //     const votes = normalizeVotes(arr, formId);
-    //     if (votes.length) return votes;
-    //   } catch {
-    //     // thử endpoint tiếp theo
-    //   }
-    // }
     try {
       const r = await api.get("/Vote");
       const arr = Array.isArray(r.data)
@@ -213,7 +221,6 @@ const VotePage = () => {
   // ✅ Lấy TÊN NHÓM trực tiếp bằng GET /Group/{id}, kèm thông tin xe
   const fetchVehicleAndGroupInfo = async (groupId) => {
     try {
-      // gọi thẳng /Group/{id}
       const gRes = await api.get(`/Group/${groupId}`);
       const g = gRes?.data ?? {};
 
@@ -239,11 +246,12 @@ const VotePage = () => {
 
       return { vehicleName, licensePlate, groupName };
     } catch {
-      // fallback: list group rồi tìm (phòng trường hợp /Group/{id} bị hạn chế)
       try {
         const gr = await api.get("/Group");
         const list = Array.isArray(gr.data) ? gr.data : [];
-        const g = list.find((x) => safeNum(x.id ?? x.groupId) === safeNum(groupId));
+        const g = list.find(
+          (x) => safeNum(x.id ?? x.groupId) === safeNum(groupId)
+        );
         const groupName =
           g?.name ?? g?.groupName ?? (g ? `Nhóm #${g.id ?? g.groupId}` : "");
 
@@ -293,9 +301,17 @@ const VotePage = () => {
           batch.map(async (f) => {
             const { yes, no } = await fetchFormResults(f.id);
             const votes = await fetchVotesForForm(f.id);
-            const votedIds = votes
-              .map((v) => safeNum(v.userId, NaN))
-              .filter((uid) => Number.isFinite(uid));
+
+            // --- NEW: map userId -> decision
+            const votedBy = new Map();
+            votes.forEach((v) => {
+              const uid = safeNum(v.userId, NaN);
+              if (Number.isFinite(uid)) {
+                votedBy.set(uid, !!v.decision);
+              }
+            });
+
+            const votedIds = Array.from(votedBy.keys());
 
             // members & vehicle & groupName
             let members = [];
@@ -313,12 +329,15 @@ const VotePage = () => {
 
             const totalMembers = members.length;
             const status =
-              totalMembers > 0 && yes + no >= totalMembers ? "Đã đánh giá" : "Chờ đánh giá";
+              totalMembers > 0 && yes + no >= totalMembers
+                ? "Đã đánh giá"
+                : "Chờ đánh giá";
 
             return {
               ...f,
               totalMembers,
-              votedUserIds: Array.from(new Set(votedIds)),
+              votedUserIds: Array.from(new Set(votedIds)), // giữ nguyên trường cũ để tương thích
+              votedBy, // NEW: dùng trong modal để phân biệt Đã đánh giá / Đã từ chối
               yes,
               no,
               status,
@@ -577,7 +596,23 @@ const VotePage = () => {
               ) : (
                 selectedForm.members.map((m) => {
                   const memberId = safeNum(m?.id ?? m?.userId, NaN);
-                  const hasVoted = votedSummary.votedSet.has(memberId);
+                  const hasDecision = votedSummary.votedSet.has(memberId);
+                  const decision = votedSummary.decidedMap.get(memberId); // true/false/undefined
+
+                  let label = "Chưa đánh giá";
+                  let cls =
+                    "bg-yellow-100 text-yellow-800";
+
+                  if (hasDecision) {
+                    if (decision === true) {
+                      label = "Đã đánh giá";
+                      cls = "bg-emerald-100 text-emerald-700";
+                    } else if (decision === false) {
+                      label = "Đã từ chối";
+                      cls = "bg-red-100 text-red-700";
+                    }
+                  }
+
                   return (
                     <div
                       key={m.id ?? memberId}
@@ -587,13 +622,9 @@ const VotePage = () => {
                         {m.fullName || m.name || m.email || `User #${m.id}`}
                       </span>
                       <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          hasVoted
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${cls}`}
                       >
-                        {hasVoted ? "Đã đánh giá" : "Chưa đánh giá"}
+                        {label}
                       </span>
                     </div>
                   );
@@ -606,11 +637,20 @@ const VotePage = () => {
                     Phiếu từ thành viên không xác định
                   </span>
                   <div className="mt-2 space-y-1 text-sm text-blue-700">
-                    {votedSummary.extraVoters.map((id) => (
-                      <div key={`extra-${id}`} className="truncate">
-                        • Người dùng #{id}
-                      </div>
-                    ))}
+                    {votedSummary.extraVoters.map((id) => {
+                      const decision = votedSummary.decidedMap.get(id);
+                      const suffix =
+                        decision === true
+                          ? " (đồng ý)"
+                          : decision === false
+                          ? " (từ chối)"
+                          : "";
+                      return (
+                        <div key={`extra-${id}`} className="truncate">
+                          • Người dùng #{id}{suffix}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
