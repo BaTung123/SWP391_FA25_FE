@@ -9,6 +9,11 @@ import {
 } from "react-icons/fa";
 import api from "../../config/axios";
 
+const safeNum = (v, fb = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fb;
+};
+
 const VotePage = () => {
   // ---------------- UI states ----------------
   const [forms, setForms] = useState([]);
@@ -20,12 +25,39 @@ const VotePage = () => {
   const itemsPerPage = 5;
 
   const [selectedForm, setSelectedForm] = useState(null);
+  const votedSummary = useMemo(() => {
+    if (!selectedForm) {
+      return {
+        votedMembers: [],
+        pendingMembers: [],
+        extraVoters: [],
+        votedSet: new Set(),
+      };
+    }
 
-  // ---------------- Helpers ----------------
-  const safeNum = (v, fb = 0) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fb;
-  };
+    const members = Array.isArray(selectedForm.members)
+      ? selectedForm.members
+      : [];
+
+    const votedSet = new Set(
+      (selectedForm.votedUserIds ?? [])
+        .map((id) => safeNum(id, NaN))
+        .filter((id) => Number.isFinite(id))
+    );
+
+    const votedMembers = members.filter((m) =>
+      votedSet.has(safeNum(m?.id ?? m?.userId, NaN))
+    );
+    const pendingMembers = members.filter(
+      (m) => !votedSet.has(safeNum(m?.id ?? m?.userId, NaN))
+    );
+    const extraVoters = Array.from(votedSet).filter(
+      (id) =>
+        !members.some((m) => safeNum(m?.id ?? m?.userId, NaN) === safeNum(id, NaN))
+    );
+
+    return { votedMembers, pendingMembers, extraVoters, votedSet };
+  }, [selectedForm]);
 
   const formatDateOnly = (iso) => {
     if (!iso) return "—";
@@ -109,23 +141,62 @@ const VotePage = () => {
   };
 
   const fetchVotesForForm = async (formId) => {
-    const tryUrls = [`/Vote?formId=${formId}`, `/Vote/form/${formId}`];
+    const normalizeVotes = (maybeVotes, assumedFormId) => {
+      if (!Array.isArray(maybeVotes)) return [];
+      return maybeVotes
+        .map((v) => {
+          if (!v) return null;
+          const fidRaw = v?.formId ?? v?.FormId ?? v?.formID ?? assumedFormId;
+          const fid = safeNum(fidRaw, NaN);
+          if (!Number.isFinite(fid) || fid !== safeNum(formId, NaN)) return null;
+          return {
+            id: v?.id ?? v?.voteId ?? v?.VoteId,
+            userId: v?.userId ?? v?.UserId,
+            formId: fid,
+            decision: !!(v?.decision ?? v?.Decision ?? v?.agree),
+          };
+        })
+        .filter(Boolean);
+    };
+
+    const tryUrls = [
+      `/Vote/form/${formId}`,
+      `/Vote/${formId}`,
+      `/Vote/form?formId=${formId}`,
+      `/Vote/by-form/${formId}`,
+      `/Vote/by-form?formId=${formId}`,
+      `/Vote?formId=${formId}`,
+    ];
+
     for (const url of tryUrls) {
       try {
         const r = await api.get(url);
         const arr = Array.isArray(r.data)
           ? r.data
-          : (Array.isArray(r.data?.data) ? r.data.data : []);
-        if (Array.isArray(arr)) {
-          return arr.map((v) => ({
-            id: v?.id ?? v?.voteId,
-            userId: v?.userId,
-            formId: v?.formId,
-            decision: !!v?.decision,
-          }));
-        }
-      } catch {}
+          : Array.isArray(r.data?.data)
+          ? r.data.data
+          : undefined;
+        const votes = normalizeVotes(arr, formId);
+        if (votes.length) return votes;
+      } catch {
+        // thử endpoint tiếp theo
+      }
     }
+
+    // fallback: lấy toàn bộ vote rồi lọc
+    try {
+      const r = await api.get("/Vote");
+      const arr = Array.isArray(r.data)
+        ? r.data
+        : Array.isArray(r.data?.data)
+        ? r.data.data
+        : [];
+      const votes = normalizeVotes(arr);
+      if (votes.length) return votes;
+    } catch {
+      // bỏ qua lỗi cuối cùng
+    }
+
     return [];
   };
 
@@ -497,20 +568,53 @@ const VotePage = () => {
               </button>
             </div>
 
-            <div className="space-y-2 text-left">
+            <div className="mt-4 space-y-3 text-left">
+              <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Thành viên nhóm
+              </h4>
               {selectedForm.members.length === 0 ? (
-                <div className="text-sm text-gray-500">Chưa có dữ liệu thành viên nhóm.</div>
+                <div className="text-sm text-gray-500">
+                  Chưa có dữ liệu thành viên nhóm.
+                </div>
               ) : (
-                selectedForm.members.map((m) => (
-                  <div
-                    key={m.id}
-                    className="flex justify-between items-center px-3 py-2 rounded-md"
-                  >
-                    <span className="text-sm">
-                      {m.fullName || m.name || m.email || `User #${m.id}`}
-                    </span>
+                selectedForm.members.map((m) => {
+                  const memberId = safeNum(m?.id ?? m?.userId, NaN);
+                  const hasVoted = votedSummary.votedSet.has(memberId);
+                  return (
+                    <div
+                      key={m.id ?? memberId}
+                      className="flex items-center justify-between px-3 py-2 rounded-md border border-gray-100 bg-gray-50"
+                    >
+                      <span className="text-sm text-gray-800">
+                        {m.fullName || m.name || m.email || `User #${m.id}`}
+                      </span>
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          hasVoted
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {hasVoted ? "Đã đánh giá" : "Chưa đánh giá"}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+
+              {votedSummary.extraVoters.length > 0 && (
+                <div className="mt-4 border border-blue-100 rounded-lg p-3 bg-blue-50/40">
+                  <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">
+                    Phiếu từ thành viên không xác định
+                  </span>
+                  <div className="mt-2 space-y-1 text-sm text-blue-700">
+                    {votedSummary.extraVoters.map((id) => (
+                      <div key={`extra-${id}`} className="truncate">
+                        • Người dùng #{id}
+                      </div>
+                    ))}
                   </div>
-                ))
+                </div>
               )}
             </div>
           </div>
