@@ -140,6 +140,16 @@ const Sidebar = () => {
           <span className="text-2xl font-bold text-white">
             EV Co-ownership
           </span>
+          {role === 1 && (
+            <div className="mt-2">
+              <span className="text-sm text-gray-300">admin</span>
+            </div>
+          )}
+          {role === 2 && (
+            <div className="mt-2">
+              <span className="text-sm text-gray-300">staff</span>
+            </div>
+          )}
         </div>
       </div>
 

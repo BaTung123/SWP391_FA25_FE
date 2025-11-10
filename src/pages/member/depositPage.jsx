@@ -67,59 +67,27 @@ const DepositPage = () => {
     setLoading(true);
     try {
       const baseUrl = window.location.origin;
+      
+      // Đảm bảo amount là số nguyên và các giá trị đúng format
+      const amountValue = Math.floor(value); // Đảm bảo là số nguyên
+      
       const paymentPayload = {
-        userId: userId,
+        userId: Number(userId), // Đảm bảo là number
         currency: "VND",
-        amount: value,
-        description: `Nạp tiền vào ví điện tử - ${value.toLocaleString('vi-VN')} VND`,
-        transactionType: 0,
+        amount: amountValue, // Số nguyên
+        description: `Nạp tiền vào ví điện tử - ${amountValue.toLocaleString('vi-VN')} VND`,
+        transactionType: 0, // Số nguyên
         returnUrl: `${baseUrl}/member/payment-success?orderCode={orderCode}&status={status}`,
         cancelUrl: `${baseUrl}/member/payment-cancelled?orderCode={orderCode}&status={status}`
       };
 
-      console.log('Calling Payment API with payload:', paymentPayload);
+      console.log('Calling Payment API with payload:', JSON.stringify(paymentPayload, null, 2));
       
-      // Thử các endpoint khác nhau nếu 404
-      const endpoints = [
-        '/Payment/payos',
-        '/Payment/PayOS',
-        '/payment/payos',
-        '/Payment/Payos'
-      ];
-      
-      let response;
-      let lastError;
-      
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`Trying POST ${endpoint}...`);
-          response = await api.post(endpoint, paymentPayload, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          console.log(`Success with endpoint: ${endpoint}`);
-          break; // Thành công, thoát khỏi loop
-        } catch (error) {
-          lastError = error;
-          if (error?.response?.status === 404) {
-            console.log(`Endpoint ${endpoint} returned 404, trying next...`);
-            continue; // Thử endpoint tiếp theo
-          } else {
-            // Lỗi khác 404, throw ngay
-            throw error;
-          }
+      const response = await api.post('/Payment/payos', paymentPayload, {
+        headers: {
+          'Content-Type': 'application/json'
         }
-      }
-      
-      // Nếu tất cả endpoint đều 404, throw lỗi
-      if (!response && lastError?.response?.status === 404) {
-        throw new Error('Không tìm thấy endpoint thanh toán. Vui lòng kiểm tra backend API.');
-      }
-      
-      if (!response) {
-        throw lastError || new Error('Không thể kết nối đến server thanh toán.');
-      }
+      });
       
       console.log('Payment API response:', response?.data);
       
@@ -153,6 +121,18 @@ const DepositPage = () => {
       
       if (error?.response?.status === 404) {
         errorMessage = 'Endpoint thanh toán không tìm thấy. Vui lòng liên hệ quản trị viên.';
+      } else if (error?.response?.status === 500) {
+        // Xử lý lỗi 500 từ server
+        const serverMessage = error?.response?.data?.message || 
+                                 error?.response?.data?.error ||
+                                 error?.response?.data?.detail ||
+                                 error?.response?.data;
+        
+        if (serverMessage) {
+          errorMessage = `Lỗi server: ${typeof serverMessage === 'string' ? serverMessage : JSON.stringify(serverMessage)}`;
+        } else {
+          errorMessage = 'Lỗi server (500). Vui lòng kiểm tra lại thông tin và thử lại sau.';
+        }
       } else if (error?.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error?.response?.data?.error) {

@@ -8,18 +8,67 @@ const PaymentSuccess = () => {
   const orderCode = searchParams.get("orderCode");
 
   useEffect(() => {
-    console.log("orderCode:", orderCode, "status:", status);
+    console.log("Payment Success - orderCode:", orderCode, "status:", status);
+    
     if (status && orderCode) {
       // Call API to update payment status (webhook)
-      // Adjust the endpoint according to your backend API
-      api
-        .put(`/Order/payment-webhook`, { orderCode, status })
-        .then(() => {
-          // alert('Đã cập nhật trạng thái thanh toán thành công!');
-        })
-        .catch(() => {
-          // alert('Cập nhật trạng thái thất bại!');
-        });
+      const updatePaymentStatus = async () => {
+        try {
+          // Thử các endpoint có thể có
+          const endpoints = [
+            '/Payment/payment-webhook',
+            '/Payment/webhook',
+            '/Order/payment-webhook',
+            '/Order/webhook'
+          ];
+          
+          let success = false;
+          let lastError = null;
+          
+          for (const endpoint of endpoints) {
+            try {
+              console.log(`Trying PUT ${endpoint}...`);
+              const response = await api.put(endpoint, { 
+                orderCode, 
+                status 
+              }, {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              console.log(`Success with endpoint: ${endpoint}`, response?.data);
+              success = true;
+              break;
+            } catch (error) {
+              lastError = error;
+              if (error?.response?.status === 404) {
+                console.log(`Endpoint ${endpoint} returned 404, trying next...`);
+                continue;
+              } else {
+                // Lỗi khác 404, throw ngay
+                throw error;
+              }
+            }
+          }
+          
+          if (!success && lastError) {
+            throw lastError;
+          }
+        } catch (error) {
+          console.error('Error updating payment status:', error);
+          console.error('Error details:', {
+            status: error?.response?.status,
+            statusText: error?.response?.statusText,
+            data: error?.response?.data,
+            url: error?.config?.url,
+            method: error?.config?.method
+          });
+          // Không hiển thị error cho user vì đây là background update
+        }
+      };
+      
+      updatePaymentStatus();
     }
   }, [status, orderCode]);
 
