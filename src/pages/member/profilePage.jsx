@@ -1007,29 +1007,28 @@ const ProfilePage = () => {
                       </div>
 
                       <div className="space-y-3 mb-6">
-                        <div>
-                          <span className="text-sm text-gray-600">Nhóm:</span>
-                          <div className="text-sm font-medium text-gray-900 mt-1">
-                            {vehicle.groupName || "Chưa có nhóm"}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm text-gray-600">Nhóm:</span>
+                            <span className="text-sm font-medium text-gray-900 mt-1">
+                              {vehicle.groupName || "Chưa có nhóm"}
+                            </span>
                           </div>
-                        </div>
-
-                        <div>
-                          <span className="text-sm text-gray-600">Tên xe:</span>
-                          <div className="text-sm font-medium text-gray-900 mt-1">
-                            {vehicle.vehicleName || "---"}
+                          <div className="flex flex-col">
+                            <span className="text-sm text-gray-600">Tên xe:</span>
+                            <span className="text-sm font-medium text-gray-900 mt-1">
+                              {vehicle.vehicleName || "---"}
+                            </span>
                           </div>
-                        </div>
-
-                        <div>
-                          <span className="text-sm text-gray-600">Biển số xe:</span>
-                          <div className="mt-1">
-                            <span className="bg-blue-400 text-white px-2 py-1 rounded text-sm font-medium">
-                              {vehicle.licensePlate || "---"}
+                          <div className="flex flex-col">
+                            <span className="text-sm text-gray-600">Biển số xe:</span>
+                            <span className="mt-1">
+                              <span className="bg-blue-400 text-white px-2 py-1 rounded text-sm font-medium">
+                                {vehicle.licensePlate || "---"}
+                              </span>
                             </span>
                           </div>
                         </div>
-
                         <div>
                           <span className="text-sm text-gray-600">Phần của bạn:</span>
                           <div className="text-sm font-medium text-gray-900 mt-1">
@@ -1230,74 +1229,115 @@ const ProfilePage = () => {
                       )}
                     </div>
 
-                    {/* Group Activities (Forms) */}
-                    <div>
-                      <div className="border-b border-gray-200 pb-3 mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <h4 className="text-lg font-semibold text-gray-900">Hoạt động nhóm</h4>
-                        </div>
+                      {/* Group Activities (Forms) */}
+                      <div>
+                        <div className="border-b border-gray-200 pb-3 mb-4 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <h4 className="text-lg font-semibold text-gray-900">Hoạt động nhóm</h4>
+                          </div>
 
-                        {/* Only leader can create new requests */}
-                        {groupInfo && groupLeaderId && Number(userId) === Number(groupLeaderId) && (
-                          <button
-                            onClick={() => setShowCreateActivity(true)}
-                            className="text-sm px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700"
-                          >
-                            Tạo yêu cầu
-                          </button>
-                        )}
-                      </div>
+                          {/* Only leader can create new requests */}
+                          {groupInfo && groupLeaderId && Number(userId) === Number(groupLeaderId) && (
+                            <button
+                              onClick={() => setShowCreateActivity(true)}
+                              className="text-sm px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                            >
+                              Tạo yêu cầu
+                            </button>
+                          )}
+                        </div>
 
                       {loadingActivities ? (
-                        <div className="text-sm text-gray-500">Đang tải hoạt động...</div>
+                        <div className="flex items-center gap-3 text-sm text-gray-500">
+                          <span className="inline-block h-4 w-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                          Đang tải hoạt động...
+                        </div>
                       ) : activities.length === 0 ? (
-                        <div className="text-sm text-gray-500">Chưa có hoạt động nào.</div>
+                        <div className="text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          Chưa có hoạt động nào.
+                        </div>
                       ) : (
-                        <div className="space-y-3">
-                          {activities.map((a) => (
-                            <div key={a.id} className="border rounded-lg p-3 flex items-start justify-between">
-                              <div>
-                                <div className="font-medium text-gray-900">{a.title}</div>
-                                {a.description && <div className="text-sm text-gray-600 mt-1">{a.description}</div>}
-                                <div className="text-xs text-gray-500 mt-2">
-                                  Trạng thái: <span className="font-medium">{a.status || 'Pending'}</span> •{' '}
-                                  Đồng ý: <b>{a.yes ?? 0}</b> • Không đồng ý: <b>{a.no ?? 0}</b>
+                        <div className="space-y-4">
+                          {activities.map((a) => {
+                            const statusLabel = a.status || "Pending";
+                            const isClosed = statusLabel.toLowerCase() === "closed";
+                            const statusBadgeClass = isClosed
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-emerald-100 text-emerald-700";
+                            const endDateObj = a.endDate ? new Date(a.endDate) : null;
+                            const hasValidEndDate = endDateObj && !Number.isNaN(endDateObj.getTime());
+                            return (
+                              <div
+                                key={a.id}
+                                className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-base font-semibold text-gray-900">{a.title}</div>
+                                    {a.description && (
+                                      <p className="text-sm text-gray-600 mt-1">{a.description}</p>
+                                    )}
+                                  </div>
+                                  <span
+                                    className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusBadgeClass}`}
+                                  >
+                                    {statusLabel === "Pending" ? "Đang mở" : statusLabel}
+                                  </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mt-3">
+                                  <span>
+                                    Đồng ý:{" "}
+                                    <span className="font-semibold text-emerald-600">{a.yes ?? 0}</span>
+                                  </span>
+                                  <span>
+                                    Không đồng ý:{" "}
+                                    <span className="font-semibold text-rose-600">{a.no ?? 0}</span>
+                                  </span>
+                                  {hasValidEndDate && (
+                                    <span>
+                                      Hạn:{" "}
+                                      <span className="font-medium text-gray-900">
+                                        {endDateObj.toLocaleDateString("vi-VN")}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-end gap-2 mt-4">
+                                  {!a.hasVoted ? (
+                                    <button
+                                      onClick={() => setVotingActivity(a)}
+                                      className="text-xs px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                                    >
+                                      Vote
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs px-3 py-1.5 rounded bg-emerald-50 text-emerald-600">
+                                      Đã vote
+                                    </span>
+                                  )}
+
+                                  {groupLeaderId && Number(userId) === Number(groupLeaderId) && (
+                                    <button
+                                      onClick={() => deleteActivity(a.id)}
+                                      disabled={deletingId === a.id}
+                                      className="text-xs px-3 py-1.5 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60 transition-colors"
+                                      title="Xóa form"
+                                    >
+                                      {deletingId === a.id ? "Đang xóa..." : "Xóa"}
+                                    </button>
+                                  )}
                                 </div>
                               </div>
-
-                              <div className="flex items-center gap-2">
-                                {/* Vote */}
-                                {!a.hasVoted ? (
-                                  <button
-                                    onClick={() => setVotingActivity(a)}
-                                    className="text-xs px-3 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700"
-                                  >
-                                    Vote
-                                  </button>
-                                ) : (
-                                  <span className="text-xs px-3 py-1.5 rounded bg-green-50 text-green-700">Đã vote</span>
-                                )}
-
-                                {/* Xóa – chỉ leader */}
-                                {groupLeaderId && Number(userId) === Number(groupLeaderId) && (
-                                  <button
-                                    onClick={() => deleteActivity(a.id)}
-                                    disabled={deletingId === a.id}
-                                    className="text-xs px-3 py-1.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 disabled:opacity-60"
-                                    title="Xóa form"
-                                  >
-                                    {deletingId === a.id ? "Đang xóa..." : "Xóa"}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
-                    </div>
+                      </div>
 
                     {/* Contract button */}
                     <div>
@@ -1385,41 +1425,39 @@ const ProfilePage = () => {
                     <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
                     <div className="space-y-4 text-sm text-gray-700">
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
-                        <p>Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
+                        <p className="text-left">- Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.</p>
                       </div>
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
-                        <p>Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
+                        <p className="text-left">- Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.</p>
                       </div>
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
-                        <p>Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
+                        <p className="text-left">- Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.</p>
                       </div>
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
-                        <p>Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
+                        <p className="text-left">- Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.</p>
                       </div>
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
-                        <p>Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
+                        <p className="text-left">- Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.</p>
                       </div>
                       <div>
-                        <h4 className="text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
-                        <p>Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
+                        <p className="text-left">- Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-8 pt-6 border-t border-gray-200">
-                    <div>
+                  <div className="pt-6 border-t border-gray-200 flex justify-center">
+                    <div className="text-center max-w-xl">
                       <p className="text-gray-900 mb-2">Ghi chú</p>
-                      <p className="text-gray-700 text-sm">Hợp đồng này được lập làm bằng chứng phân chia quyền sở hữu giữa các bên. Các bên cam kết thông tin trên là chính xác.</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-900 mb-2">Chữ ký</p>
-                      <div className="h-16 mb-2" />
-                      <p className="text-gray-700">Trưởng nhóm</p>
+                      <p className="text-gray-700 text-sm">
+                        Hợp đồng này được lập làm bằng chứng phân chia quyền sở hữu giữa các bên.
+                        Các bên cam kết thông tin trên là chính xác.
+                      </p>
                     </div>
                   </div>
                 </div>
