@@ -1,64 +1,81 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
-  FaCog,
   FaPlus,
   FaEdit,
-  FaCheck,
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
   FaSearch,
   FaTools,
 } from "react-icons/fa";
+import api from "../../config/axios";
+
+const STATUS_LABELS = {
+  0: "Đã lên lịch",
+  1: "Đang thực hiện",
+  2: "Hoàn thành",
+  3: "Quá hạn",
+};
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? String(value)
+    : date.toLocaleDateString("vi-VN");
+};
+
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  if (Number.isNaN(number)) return String(value);
+  return number.toLocaleString("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    minimumFractionDigits: 0,
+  });
+};
+
+const normalizeMaintenanceRecord = (item) => {
+  if (!item) return null;
+
+  const status =
+    typeof item.status === "string"
+      ? item.status
+      : STATUS_LABELS[item.status] ?? "Đang thực hiện";
+
+  return {
+    id: item.maintenanceId ?? item.id ?? Date.now(),
+    vehicle: {
+      name:
+        item.car?.carName ??
+        item.vehicle?.name ??
+        item.carName ??
+        "Đang cập nhật",
+      license:
+        item.car?.plateNumber ??
+        item.vehicle?.license ??
+        item.plateNumber ??
+        "Đang cập nhật",
+    },
+    type: item.maintenanceType ?? item.type ?? "Khác",
+    scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
+    status,
+    description: item.description ?? "",
+    statusCode: item.status,
+    price: item.price ?? 0,
+  };
+};
 
 const MaintenancePage = () => {
-  const [maintenanceRecords, setMaintenanceRecords] = useState([
-    {
-      id: 1,
-      vehicle: { name: "Toyota Camry 2023", license: "ABC-123" },
-      type: "Bảo dưỡng định kỳ",
-      scheduledDate: "2024-02-15",
-      status: "Đã lên lịch",
-      description: "Thay dầu và kiểm tra tổng quát",
-    },
-    {
-      id: 2,
-      vehicle: { name: "Honda Civic 2023", license: "XYZ-789" },
-      type: "Sửa chữa",
-      scheduledDate: "2024-02-10",
-      status: "Quá hạn",
-      description: "Sửa hệ thống phanh",
-    },
-    {
-      id: 3,
-      vehicle: { name: "Tesla Model 3 2023", license: "DEF-456" },
-      type: "Kiểm định",
-      scheduledDate: "2024-02-20",
-      status: "Đang thực hiện",
-      description: "Kiểm tra an toàn hàng năm",
-    },
-    {
-      id: 4,
-      vehicle: { name: "BMW X5 2023", license: "GHI-789" },
-      type: "Bảo dưỡng định kỳ",
-      scheduledDate: "2024-02-12",
-      status: "Hoàn thành",
-      description: "Điều chỉnh động cơ và thay lọc gió",
-    },
-    {
-      id: 5,
-      vehicle: { name: "Ford F-150 2023", license: "JKL-012" },
-      type: "Khẩn cấp",
-      scheduledDate: "2024-02-18",
-      status: "Đã lên lịch",
-      description: "Sửa hộp số",
-    },
-  ]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const itemsPerPage = 5;
 
   const [newMaintenance, setNewMaintenance] = useState({
@@ -66,7 +83,37 @@ const MaintenancePage = () => {
     type: "Bảo dưỡng định kỳ",
     scheduledDate: "",
     description: "",
+    price: "",
   });
+
+  useEffect(() => {
+    const fetchMaintenance = async () => {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+        const response = await api.get("/Maintenance");
+        const data = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data ?? [];
+
+        const normalized = data
+          .map(normalizeMaintenanceRecord)
+          .filter(Boolean);
+
+        setMaintenanceRecords(normalized);
+        setCurrentPage(1);
+      } catch (error) {
+        console.error("Failed to fetch maintenance records", error);
+        setErrorMessage(
+          "Không thể tải danh sách bảo dưỡng. Vui lòng thử lại sau."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMaintenance();
+  }, []);
 
   // --- Lọc + tìm kiếm ---
   const filtered = useMemo(() => {
@@ -74,12 +121,23 @@ const MaintenancePage = () => {
     return maintenanceRecords.filter((r) => {
       const matchKW =
         !kw ||
-        [r?.vehicle?.name, r?.vehicle?.license, r?.type, r?.description]
+        [
+          r?.vehicle?.name,
+          r?.vehicle?.license,
+          r?.type,
+          r?.description,
+          r?.price,
+        ]
           .filter(Boolean)
           .some((t) => String(t).toLowerCase().includes(kw));
 
+      const statusLabel =
+        typeof r.status === "number"
+          ? STATUS_LABELS[r.status] ?? String(r.status)
+          : r.status;
+
       const matchStatus =
-        statusFilter === "all" ? true : r.status === statusFilter;
+        statusFilter === "all" ? true : statusLabel === statusFilter;
 
       return matchKW && matchStatus;
     });
@@ -99,7 +157,8 @@ const MaintenancePage = () => {
     if (
       newMaintenance.vehicle &&
       newMaintenance.scheduledDate &&
-      newMaintenance.description
+      newMaintenance.description &&
+      newMaintenance.price !== ""
     ) {
       const newId =
         maintenanceRecords.length > 0
@@ -110,17 +169,19 @@ const MaintenancePage = () => {
         id: newId,
         vehicle: { name: newMaintenance.vehicle, license: "Đang cập nhật" },
         type: newMaintenance.type,
-        scheduledDate: newMaintenance.scheduledDate,
+        scheduledDate: formatDate(newMaintenance.scheduledDate),
         status: "Đã lên lịch",
         description: newMaintenance.description,
+        price: Number(newMaintenance.price) || 0,
       };
 
-      setMaintenanceRecords([...maintenanceRecords, record]);
+      setMaintenanceRecords((prev) => [...prev, record]);
       setNewMaintenance({
         vehicle: "",
         type: "Bảo dưỡng định kỳ",
         scheduledDate: "",
         description: "",
+        price: "",
       });
       setIsModalOpen(false);
     }
@@ -138,11 +199,15 @@ const MaintenancePage = () => {
       "Quá hạn": "bg-red-100 text-red-800",
     };
 
+    const label = typeof status === "number" ? STATUS_LABELS[status] ?? status : status;
+    const badgeClass =
+      statusClasses[label] ?? "bg-gray-100 text-gray-800";
+
     return (
       <span
-        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClasses[status]}`}
+        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}
       >
-        {status}
+        {label}
       </span>
     );
   };
@@ -201,6 +266,7 @@ const MaintenancePage = () => {
               <option value="Đã lên lịch">Đã lên lịch</option>
               <option value="Đang thực hiện">Đang thực hiện</option>
               <option value="Hoàn thành">Hoàn thành</option>
+              <option value="Quá hạn">Quá hạn</option>
             </select>
 
             {/* Add Button */}
@@ -226,6 +292,9 @@ const MaintenancePage = () => {
                 </th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Loại bảo dưỡng
+                </th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Giá tiền
                 </th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ngày thực hiện
@@ -257,6 +326,9 @@ const MaintenancePage = () => {
                     {record.type}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
+                    {formatCurrency(record.price)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
                     {record.scheduledDate}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(record.status)}</td>
@@ -278,6 +350,26 @@ const MaintenancePage = () => {
                   </td>
                 </tr>
               ))}
+              {loading && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-6 py-10 text-sm text-gray-500 text-center"
+                  >
+                    Đang tải dữ liệu...
+                  </td>
+                </tr>
+              )}
+              {!loading && currentRecords.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-6 py-10 text-sm text-gray-500 text-center"
+                  >
+                    {errorMessage || "Không có dữ liệu bảo dưỡng."}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -371,6 +463,24 @@ const MaintenancePage = () => {
                   <option value="Kiểm định">Kiểm định</option>
                   <option value="Khẩn cấp">Khẩn cấp</option>
                 </select>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Giá tiền (VND)
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  name="price"
+                  min={0}
+                  step="1000"
+                  value={newMaintenance.price}
+                  onChange={handleInputChange}
+                  placeholder="Nhập giá tiền..."
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
               </div>
 
               <div className="flex flex-col">
