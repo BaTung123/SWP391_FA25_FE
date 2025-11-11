@@ -18,6 +18,9 @@ const STATUS_LABELS = {
   3: "Quá hạn",
 };
 
+// Allowed options for selects in the edit modal
+const TYPE_OPTIONS = ["Bảo dưỡng định kỳ", "Sửa chữa", "Kiểm định", "Khẩn cấp"];
+
 const formatDate = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -105,6 +108,41 @@ const MaintenancePage = () => {
     price: "",
     status: 0,
   });
+
+  // Build car options and ensure current car appears first
+  const editCarOptions = useMemo(() => {
+    const toOption = (car) => {
+      const id = car?.carId ?? car?.id;
+      const name =
+        car?.carName ?? car?.name ?? car?.brand ?? (id ? `Xe #${id}` : "Xe");
+      const plate = car?.plateNumber ?? car?.licensePlate ?? "N/A";
+      return {
+        value: String(id ?? ""),
+        label: `${name} - ${plate}`,
+      };
+    };
+
+    const list = Array.isArray(cars) ? cars.map(toOption) : [];
+
+    // If current car (from edit state) is not in fetched options, prepend it
+    const currentId = String(editMaintenance.carId ?? "");
+    const hasCurrent = currentId
+      ? list.some((opt) => opt.value === currentId)
+      : false;
+
+    if (!hasCurrent && currentId) {
+      const fallback = {
+        value: currentId,
+        label:
+          (editingMaintenance?.vehicle?.name ?? "Xe") +
+          " - " +
+          (editingMaintenance?.vehicle?.license ?? "N/A"),
+      };
+      return [fallback, ...list];
+    }
+
+    return list;
+  }, [cars, editMaintenance.carId, editingMaintenance]);
 
   // Refresh maintenance list
   const refreshMaintenanceList = async () => {
@@ -292,13 +330,22 @@ const MaintenancePage = () => {
       }
     }
 
+    // Normalize values to ensure selects show the current data
+    const normalizedType = TYPE_OPTIONS.includes(record.type)
+      ? record.type
+      : "Bảo dưỡng định kỳ";
+    const normalizedStatus =
+      typeof record.statusCode === "number" && record.statusCode >= 0 && record.statusCode <= 3
+        ? record.statusCode
+        : 0;
+
     setEditMaintenance({
       carId: String(record.carId || ""),
-      type: record.type || "Bảo dưỡng định kỳ",
+      type: normalizedType,
       scheduledDate: dateForInput,
       description: record.description || "",
       price: String(record.price || 0),
-      status: record.statusCode !== undefined ? record.statusCode : 0,
+      status: normalizedStatus,
     });
     setEditingMaintenance(record);
     setModalError("");
@@ -344,13 +391,8 @@ const MaintenancePage = () => {
 
       const maintenanceId = editingMaintenance.maintenanceId;
 
-      // Make PUT request - try multiple endpoints
-      try {
-        await api.put(`/Maintenance/${maintenanceId}`, requestBody);
-      } catch (e) {
-        // Fallback to update endpoint
-        await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
-      }
+      // Make PUT request to update endpoint
+      await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
 
       // Reset form
       setEditMaintenance({
@@ -693,7 +735,7 @@ const MaintenancePage = () => {
                 >
                   <option value="">-- Chọn xe --</option>
                   {cars.map((car) => (
-                    <option key={car.carId ?? car.id} value={car.carId ?? car.id}>
+                  <option key={car.carId ?? car.id} value={String(car.carId ?? car.id)}>
                       {car.carName ?? car.name ?? car.brand ?? `Xe #${car.carId ?? car.id}`} - {car.plateNumber ?? car.licensePlate ?? "N/A"}
                     </option>
                   ))}
@@ -841,7 +883,20 @@ const MaintenancePage = () => {
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Chọn xe <span className="text-red-500">*</span>
+                    Xe hiện tại
+                  </label>
+                </div>
+                <div className="mt-1 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                  {(editingMaintenance?.vehicle?.name ?? "Xe chưa xác định") +
+                    " - " +
+                    (editingMaintenance?.vehicle?.license ?? "N/A")}
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Đổi xe (tuỳ chọn)
                   </label>
                 </div>
                 <select
@@ -849,12 +904,11 @@ const MaintenancePage = () => {
                   value={editMaintenance.carId}
                   onChange={handleEditInputChange}
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
                 >
-                  <option value="">-- Chọn xe --</option>
-                  {cars.map((car) => (
-                    <option key={car.carId ?? car.id} value={car.carId ?? car.id}>
-                      {car.carName ?? car.name ?? car.brand ?? `Xe #${car.carId ?? car.id}`} - {car.plateNumber ?? car.licensePlate ?? "N/A"}
+                  <option value="">-- Giữ nguyên xe hiện tại --</option>
+                  {editCarOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
@@ -954,25 +1008,6 @@ const MaintenancePage = () => {
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                  setModalError("");
-                  setEditMaintenance({
-                    carId: "",
-                    type: "Bảo dưỡng định kỳ",
-                    scheduledDate: "",
-                    description: "",
-                    price: "",
-                    status: 0,
-                  });
-                  setEditingMaintenance(null);
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-                disabled={modalLoading}
-              >
-                Hủy
-              </button>
               <button
                 onClick={handleUpdateMaintenance}
                 disabled={modalLoading}
