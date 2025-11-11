@@ -35,6 +35,7 @@ function getStoredAuth() {
 const DepositPage = () => {
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
+  const [currency, setCurrency] = useState('VND');
   const navigate = useNavigate();
 
   // Lấy auth từ local
@@ -73,12 +74,12 @@ const DepositPage = () => {
       
       const paymentPayload = {
         userId: Number(userId), // Đảm bảo là number
-        currency: "VND",
+        currency: currency,
         amount: amountValue, // Số nguyên
-        description: `Nạp tiền vào ví điện tử - ${amountValue.toLocaleString('vi-VN')} VND`,
+        description: `Nạp tiền vào ví điện tử - ${amountValue.toLocaleString('vi-VN')} ${currency}`,
         transactionType: 0, // Số nguyên
-        returnUrl: `${baseUrl}/member/payment-success?orderCode={orderCode}&status={status}`,
-        cancelUrl: `${baseUrl}/member/payment-cancelled?orderCode={orderCode}&status={status}`
+        returnUrl: `${baseUrl}/member/payment-success`,
+        cancelUrl: `${baseUrl}/member/payment-cancelled`
       };
 
       console.log('Calling Payment API with payload:', JSON.stringify(paymentPayload, null, 2));
@@ -168,6 +169,19 @@ const DepositPage = () => {
           </h1>
 
           <div className="space-y-4">
+            <div className="text-left">
+              <label className="block text-lg font-medium text-gray-700 mb-2">
+                Đơn vị tiền tệ:
+              </label>
+              <input
+                type="text"
+                value={currency}
+                onChange={(e) => setCurrency((e.target.value || '').toUpperCase())}
+                placeholder="VND"
+                className="w-full px-4 py-3 border-2 border-indigo-100 rounded-lg text-lg focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
             <div className="text-left">
               <label className="block text-lg font-medium text-gray-700 mb-2">
                 Số tiền cần nạp:
