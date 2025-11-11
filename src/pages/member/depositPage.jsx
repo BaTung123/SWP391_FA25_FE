@@ -78,8 +78,8 @@ const DepositPage = () => {
         amount: amountValue, // Số nguyên
         description: `Nạp tiền vào ví điện tử - ${amountValue.toLocaleString('vi-VN')} ${currency}`,
         transactionType: 0, // Số nguyên
-        returnUrl: `${baseUrl}/member/payment-success`,
-        cancelUrl: `${baseUrl}/member/payment-cancelled`
+        returnUrl: `${baseUrl}/member/payment-success?orderCode={orderCode}&status={status}`,
+        cancelUrl: `${baseUrl}/member/payment-cancelled?orderCode={orderCode}&status={status}`
       };
 
       console.log('Calling Payment API with payload:', JSON.stringify(paymentPayload, null, 2));
