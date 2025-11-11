@@ -37,6 +37,11 @@ const formatCurrency = (amount) => {
   });
 };
 
+const safeNum = (v, fb = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fb;
+};
+
 const normalizePaymentRecord = (item) => {
   if (!item) return null;
 
@@ -51,6 +56,8 @@ const normalizePaymentRecord = (item) => {
   return {
     id: item.paymentId ?? item.id ?? Date.now(),
     paymentId: `#PAY${String(item.paymentId ?? item.id ?? "").padStart(6, "0")}`,
+    userId: item.userId ?? item.user?.id ?? null,
+    carId: item.carId ?? item.vehicleId ?? item.vehicle?.carId ?? item.vehicle?.id ?? null,
     vehicle: {
       name: item.carName ?? item.vehicle?.name ?? "Đang cập nhật",
       license: item.plateNumber ?? item.vehicle?.license ?? "Đang cập nhật",
@@ -162,6 +169,89 @@ const PaymentPage = () => {
 
   // Modal state
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [carUsers, setCarUsers] = useState([]);
+  const [loadingCarUsers, setLoadingCarUsers] = useState(false);
+
+  // Fetch users by carId (similar to votePage)
+  const fetchUsersByCarId = async (carId) => {
+    if (!carId) return [];
+
+    try {
+      // Try direct API first - API returns list of carUser objects
+      const res = await api.get(`/cars/${carId}/users`);
+      const arr = Array.isArray(res.data) ? res.data : res.data ? [res.data] : [];
+      if (arr.length > 0) {
+        // If API returns userId directly, use it
+        // Otherwise, we'll need to find userId from carUserId
+        const result = [];
+        for (const item of arr) {
+          const carUserId = safeNum(item?.carUserId ?? item?.CarUserId, NaN);
+          const userId = safeNum(item?.userId ?? item?.UserId ?? item?.user?.id ?? item?.user?.userId, NaN);
+          
+          // If userId is available, use it
+          if (Number.isFinite(userId)) {
+            result.push({ userId, carUserId });
+          }
+        }
+        // If we got userIds, return them
+        if (result.some((r) => Number.isFinite(r.userId))) {
+          return result.filter((r) => Number.isFinite(r.userId));
+        }
+      }
+    } catch {
+      // Fallback: get all users and check
+    }
+
+    try {
+      const ur = await api.get("/User");
+      const users = Array.isArray(ur.data) ? ur.data : [];
+      const result = [];
+
+      const chunk = 8;
+      for (let i = 0; i < users.length; i += chunk) {
+        const batch = users.slice(i, i + chunk);
+        const rs = await Promise.all(
+          batch.map(async (u) => {
+            const uid = safeNum(u?.id ?? u?.userId, NaN);
+            if (!Number.isFinite(uid)) return null;
+            try {
+              const owned = await api.get(`/users/${uid}/cars`);
+              const cars = Array.isArray(owned.data) ? owned.data : [];
+              const match = cars.find(
+                (c) => safeNum(c?.carId ?? c?.id ?? c?.car?.carId ?? c?.car?.id) === safeNum(carId)
+              );
+              if (match) {
+                return {
+                  userId: uid,
+                  carUserId: safeNum(match?.carUserId ?? match?.CarUserId ?? match?.id, NaN),
+                };
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        rs.forEach((x) => x && result.push(x));
+      }
+      return result;
+    } catch {
+      return [];
+    }
+  };
+
+  // Load car users when modal opens
+  useEffect(() => {
+    if (selectedPayment?.carId) {
+      setLoadingCarUsers(true);
+      fetchUsersByCarId(selectedPayment.carId).then((users) => {
+        setCarUsers(users);
+        setLoadingCarUsers(false);
+      });
+    } else {
+      setCarUsers([]);
+    }
+  }, [selectedPayment?.carId]);
 
   return (
     <div className="space-y-4">
@@ -367,102 +457,51 @@ const PaymentPage = () => {
             </div>
 
             {/* Payment Details */}
-            <div className="space-y-3 mb-4">
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Mã giao dịch:</span>
-                <span className="text-sm text-gray-900">{selectedPayment.paymentId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Order ID:</span>
-                <span className="text-sm text-gray-900">{selectedPayment.orderId || "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Xe:</span>
-                <span className="text-sm text-gray-900">
-                  {selectedPayment.vehicle.name} - {selectedPayment.vehicle.license}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Dịch vụ:</span>
-                <span className="text-sm text-gray-900">{selectedPayment.serviceType}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Số tiền:</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {formatCurrency(selectedPayment.amount)}
-                </span>
-              </div>
-              {selectedPayment.currency && (
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium text-gray-600">Tiền tệ:</span>
-                  <span className="text-sm text-gray-900">{selectedPayment.currency}</span>
+            <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Trạng thái
+                  </label>
+                  <div className="mt-1">
+                    {getStatusBadge(selectedPayment.status)}
+                  </div>
                 </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Phương thức:</span>
-                <span className="text-sm text-gray-900">
-                  {selectedPayment.paymentMethod || "—"}
-                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
-                <span>{getStatusBadge(selectedPayment.status)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium text-gray-600">Ngày tạo:</span>
-                <span className="text-sm text-gray-900">{selectedPayment.date}</span>
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  Danh sách User ID theo Car ID
+                </h4>
+                {loadingCarUsers ? (
+                  <div className="text-sm text-gray-500">Đang tải...</div>
+                ) : carUsers.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    {selectedPayment.carId 
+                      ? "Không có dữ liệu user cho xe này."
+                      : "Không có thông tin Car ID."}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {carUsers.map((u, index) => (
+                      <div
+                        key={u.userId ?? index}
+                        className="flex items-center justify-between px-3 py-2 rounded-md border border-gray-100 bg-gray-50"
+                      >
+                        <span className="text-sm text-gray-800">
+                          User ID: {u.userId}
+                        </span>
+                        {Number.isFinite(u.carUserId) && (
+                          <span className="text-xs text-gray-500">
+                            CarUser ID: {u.carUserId}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Co-owners section if available */}
-            {selectedPayment.coOwners && selectedPayment.coOwners.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                  Danh sách đồng sở hữu
-                </h3>
-                <table className="min-w-full border border-gray-200">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
-                        STT
-                      </th>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">
-                        Tên chủ sở hữu
-                      </th>
-                      <th className="px-4 py-2 text-center text-sm font-medium text-gray-600">
-                        Trạng thái
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedPayment.coOwners.map((owner, index) => (
-                      <tr
-                        key={index}
-                        className="border-t hover:bg-gray-50 transition"
-                      >
-                        <td className="px-4 py-2 text-sm text-gray-700 text-left">
-                          {index + 1}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-gray-700 text-left">
-                          {owner.name}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-center">
-                          {owner.paid ? (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">
-                              Đã thanh toán
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">
-                              Chưa thanh toán
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
             <div className="flex justify-end mt-4">
               <button
