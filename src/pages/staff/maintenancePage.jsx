@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   FaPlus,
   FaEdit,
+  FaTrash,
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
@@ -46,6 +47,8 @@ const normalizeMaintenanceRecord = (item) => {
 
   return {
     id: item.maintenanceId ?? item.id ?? Date.now(),
+    maintenanceId: item.maintenanceId ?? item.id, // Store original ID for API calls
+    carId: item.carId ?? item.car?.carId ?? item.car?.id,
     vehicle: {
       name:
         item.car?.carName ??
@@ -60,6 +63,7 @@ const normalizeMaintenanceRecord = (item) => {
     },
     type: item.maintenanceType ?? item.type ?? "Khác",
     scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
+    maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // Store original date for editing
     status,
     description: item.description ?? "",
     statusCode: item.status,
@@ -69,50 +73,84 @@ const normalizeMaintenanceRecord = (item) => {
 
 const MaintenancePage = () => {
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+  const [cars, setCars] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingMaintenance, setEditingMaintenance] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const itemsPerPage = 5;
 
   const [newMaintenance, setNewMaintenance] = useState({
-    vehicle: "",
+    carId: "",
     type: "Bảo dưỡng định kỳ",
     scheduledDate: "",
     description: "",
     price: "",
+    status: 0,
   });
 
+  const [editMaintenance, setEditMaintenance] = useState({
+    carId: "",
+    type: "Bảo dưỡng định kỳ",
+    scheduledDate: "",
+    description: "",
+    price: "",
+    status: 0,
+  });
+
+  // Refresh maintenance list
+  const refreshMaintenanceList = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage("");
+      const response = await api.get("/Maintenance");
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data ?? [];
+
+      const normalized = data
+        .map(normalizeMaintenanceRecord)
+        .filter(Boolean);
+
+      setMaintenanceRecords(normalized);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error("Failed to fetch maintenance records", error);
+      setErrorMessage(
+        "Không thể tải danh sách bảo dưỡng. Vui lòng thử lại sau."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchMaintenance = async () => {
+    refreshMaintenanceList();
+  }, []);
+
+  // Fetch cars for dropdown
+  useEffect(() => {
+    const fetchCars = async () => {
       try {
-        setLoading(true);
-        setErrorMessage("");
-        const response = await api.get("/Maintenance");
+        const response = await api.get("/Car");
         const data = Array.isArray(response.data)
           ? response.data
           : response.data?.data ?? [];
-
-        const normalized = data
-          .map(normalizeMaintenanceRecord)
-          .filter(Boolean);
-
-        setMaintenanceRecords(normalized);
-        setCurrentPage(1);
+        setCars(data);
       } catch (error) {
-        console.error("Failed to fetch maintenance records", error);
-        setErrorMessage(
-          "Không thể tải danh sách bảo dưỡng. Vui lòng thử lại sau."
-        );
-      } finally {
-        setLoading(false);
+        console.error("Failed to fetch cars", error);
       }
     };
 
-    fetchMaintenance();
+    fetchCars();
   }, []);
 
   // --- Lọc + tìm kiếm ---
@@ -153,42 +191,225 @@ const MaintenancePage = () => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
-  const handleAddMaintenance = () => {
+  const handleAddMaintenance = async () => {
     if (
-      newMaintenance.vehicle &&
-      newMaintenance.scheduledDate &&
-      newMaintenance.description &&
-      newMaintenance.price !== ""
+      !newMaintenance.carId ||
+      !newMaintenance.scheduledDate ||
+      !newMaintenance.description ||
+      newMaintenance.price === ""
     ) {
-      const newId =
-        maintenanceRecords.length > 0
-          ? Math.max(...maintenanceRecords.map((r) => r.id)) + 1
-          : 1;
+      setModalError("Vui lòng điền đầy đủ thông tin.");
+      return;
+    }
 
-      const record = {
-        id: newId,
-        vehicle: { name: newMaintenance.vehicle, license: "Đang cập nhật" },
-        type: newMaintenance.type,
-        scheduledDate: formatDate(newMaintenance.scheduledDate),
-        status: "Đã lên lịch",
+    try {
+      setModalLoading(true);
+      setModalError("");
+
+      // Convert date to ISO string
+      // Date input gives YYYY-MM-DD, we append time to ensure correct timezone handling
+      const dateStr = newMaintenance.scheduledDate;
+      const maintenanceDay = dateStr 
+        ? new Date(dateStr + "T00:00:00").toISOString()
+        : new Date().toISOString();
+
+      // Prepare request body
+      const requestBody = {
+        carId: Number(newMaintenance.carId),
+        maintenanceType: newMaintenance.type,
+        maintenanceDay: maintenanceDay,
+        status: 0, // Đã lên lịch
         description: newMaintenance.description,
         price: Number(newMaintenance.price) || 0,
       };
 
-      setMaintenanceRecords((prev) => [...prev, record]);
+      // Make POST request
+      await api.post("/Maintenance", requestBody);
+
+      // Reset form
       setNewMaintenance({
-        vehicle: "",
+        carId: "",
         type: "Bảo dưỡng định kỳ",
         scheduledDate: "",
         description: "",
         price: "",
       });
+      setModalError("");
       setIsModalOpen(false);
+
+      // Refresh maintenance list
+      await refreshMaintenanceList();
+    } catch (error) {
+      console.error("Failed to create maintenance record", error);
+      setModalError(
+        error.response?.data?.message ||
+        "Không thể tạo lịch bảo dưỡng. Vui lòng thử lại sau."
+      );
+    } finally {
+      setModalLoading(false);
     }
   };
 
   const handleInputChange = (e) => {
     setNewMaintenance({ ...newMaintenance, [e.target.name]: e.target.value });
+  };
+
+  const handleEditInputChange = (e) => {
+    setEditMaintenance({ ...editMaintenance, [e.target.name]: e.target.value });
+  };
+
+  // Convert date from ISO string to YYYY-MM-DD format for date input
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      if (Number.isNaN(date.getTime())) return "";
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    } catch {
+      return "";
+    }
+  };
+
+  // Open edit modal
+  const handleEditClick = (record) => {
+    // Try to get the original date from maintenanceDay, fallback to creating from formatted date
+    let dateForInput = "";
+    if (record.maintenanceDay) {
+      dateForInput = formatDateForInput(record.maintenanceDay);
+    } else if (record.scheduledDate) {
+      // If we only have formatted date, try to parse it back
+      // This is a fallback - ideally maintenanceDay should always be available
+      try {
+        const parsed = new Date(record.scheduledDate.split('/').reverse().join('-'));
+        if (!Number.isNaN(parsed.getTime())) {
+          dateForInput = formatDateForInput(parsed.toISOString());
+        }
+      } catch {
+        dateForInput = "";
+      }
+    }
+
+    setEditMaintenance({
+      carId: String(record.carId || ""),
+      type: record.type || "Bảo dưỡng định kỳ",
+      scheduledDate: dateForInput,
+      description: record.description || "",
+      price: String(record.price || 0),
+      status: record.statusCode !== undefined ? record.statusCode : 0,
+    });
+    setEditingMaintenance(record);
+    setModalError("");
+    setIsEditModalOpen(true);
+  };
+
+  // Update maintenance
+  const handleUpdateMaintenance = async () => {
+    if (
+      !editMaintenance.carId ||
+      !editMaintenance.scheduledDate ||
+      !editMaintenance.description ||
+      editMaintenance.price === ""
+    ) {
+      setModalError("Vui lòng điền đầy đủ thông tin.");
+      return;
+    }
+
+    if (!editingMaintenance?.maintenanceId) {
+      setModalError("Không tìm thấy thông tin bảo dưỡng cần cập nhật.");
+      return;
+    }
+
+    try {
+      setModalLoading(true);
+      setModalError("");
+
+      // Convert date to ISO string
+      const dateStr = editMaintenance.scheduledDate;
+      const maintenanceDay = dateStr
+        ? new Date(dateStr + "T00:00:00").toISOString()
+        : new Date().toISOString();
+
+      // Prepare request body
+      const requestBody = {
+        carId: Number(editMaintenance.carId),
+        maintenanceType: editMaintenance.type,
+        maintenanceDay: maintenanceDay,
+        status: Number(editMaintenance.status),
+        description: editMaintenance.description,
+        price: Number(editMaintenance.price) || 0,
+      };
+
+      const maintenanceId = editingMaintenance.maintenanceId;
+
+      // Make PUT request - try multiple endpoints
+      try {
+        await api.put(`/Maintenance/${maintenanceId}`, requestBody);
+      } catch (e) {
+        // Fallback to update endpoint
+        await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
+      }
+
+      // Reset form
+      setEditMaintenance({
+        carId: "",
+        type: "Bảo dưỡng định kỳ",
+        scheduledDate: "",
+        description: "",
+        price: "",
+        status: 0,
+      });
+      setEditingMaintenance(null);
+      setModalError("");
+      setIsEditModalOpen(false);
+
+      // Refresh maintenance list
+      await refreshMaintenanceList();
+    } catch (error) {
+      console.error("Failed to update maintenance record", error);
+      setModalError(
+        error.response?.data?.message ||
+        "Không thể cập nhật lịch bảo dưỡng. Vui lòng thử lại sau."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  // Delete maintenance
+  const handleDeleteMaintenance = async (record) => {
+    if (!record?.maintenanceId) {
+      setErrorMessage("Không tìm thấy thông tin bảo dưỡng cần xóa.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const maintenanceId = record.maintenanceId;
+
+      // Make DELETE request - try multiple endpoints
+      try {
+        await api.delete(`/Maintenance/${maintenanceId}`);
+      } catch (e) {
+        // Fallback to delete endpoint
+        await api.delete(`/Maintenance/${maintenanceId}/delete`);
+      }
+
+      setDeleteConfirm(null);
+
+      // Refresh maintenance list
+      await refreshMaintenanceList();
+    } catch (error) {
+      console.error("Failed to delete maintenance record", error);
+      setErrorMessage(
+        error.response?.data?.message ||
+        "Không thể xóa lịch bảo dưỡng. Vui lòng thử lại sau."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -271,7 +492,10 @@ const MaintenancePage = () => {
 
             {/* Add Button */}
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setModalError("");
+                setIsModalOpen(true);
+              }}
               className="bg-blue-600 text-white px-4 py-1.5 h-8 text-sm rounded-md hover:bg-blue-700 flex items-center gap-2 whitespace-nowrap transition-colors font-medium"
             >
               <FaPlus className="text-xs" />
@@ -341,10 +565,18 @@ const MaintenancePage = () => {
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex justify-center space-x-2">
                       <button
-                        className="text-blue-600 hover:text-blue-900 p-1"
+                        onClick={() => handleEditClick(record)}
+                        className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
                         title="Chỉnh sửa"
                       >
                         <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(record)}
+                        className="text-red-600 hover:text-red-900 p-1 transition-colors"
+                        title="Xóa"
+                      >
+                        <FaTrash />
                       </button>
                     </div>
                   </td>
@@ -422,7 +654,17 @@ const MaintenancePage = () => {
                 Lên lịch bảo dưỡng
               </h2>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setModalError("");
+                  setNewMaintenance({
+                    carId: "",
+                    type: "Bảo dưỡng định kỳ",
+                    scheduledDate: "",
+                    description: "",
+                    price: "",
+                  });
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <FaTimes className="w-5 h-5" />
@@ -430,20 +672,32 @@ const MaintenancePage = () => {
             </div>
 
             <div className="space-y-4">
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                  {modalError}
+                </div>
+              )}
+
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Tên xe
+                    Chọn xe <span className="text-red-500">*</span>
                   </label>
                 </div>
-                <input
-                  type="text"
-                  name="vehicle"
-                  value={newMaintenance.vehicle}
+                <select
+                  name="carId"
+                  value={newMaintenance.carId}
                   onChange={handleInputChange}
-                  placeholder="Nhập tên xe..."
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
+                  required
+                >
+                  <option value="">-- Chọn xe --</option>
+                  {cars.map((car) => (
+                    <option key={car.carId ?? car.id} value={car.carId ?? car.id}>
+                      {car.carName ?? car.name ?? car.brand ?? `Xe #${car.carId ?? car.id}`} - {car.plateNumber ?? car.licensePlate ?? "N/A"}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex flex-col">
@@ -468,7 +722,7 @@ const MaintenancePage = () => {
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Giá tiền (VND)
+                    Giá tiền (VND) <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <input
@@ -480,13 +734,14 @@ const MaintenancePage = () => {
                   onChange={handleInputChange}
                   placeholder="Nhập giá tiền..."
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
                 />
               </div>
 
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Ngày dự kiến
+                    Ngày dự kiến <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <input
@@ -496,13 +751,14 @@ const MaintenancePage = () => {
                   onChange={handleInputChange}
                   placeholder="mm/dd/yyyy"
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
                 />
               </div>
 
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Mô tả
+                    Mô tả <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <textarea
@@ -512,16 +768,263 @@ const MaintenancePage = () => {
                   placeholder="Nhập mô tả chi tiết..."
                   rows={3}
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
                 />
               </div>
             </div>
 
-            <div className="flex justify-end mt-6">
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setModalError("");
+                  setNewMaintenance({
+                    carId: "",
+                    type: "Bảo dưỡng định kỳ",
+                    scheduledDate: "",
+                    description: "",
+                    price: "",
+                  });
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                disabled={modalLoading}
+              >
+                Hủy
+              </button>
               <button
                 onClick={handleAddMaintenance}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={modalLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Xác nhận lên lịch
+                {modalLoading ? "Đang xử lý..." : "Xác nhận lên lịch"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal chỉnh sửa */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Chỉnh sửa lịch bảo dưỡng
+              </h2>
+              <button
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setModalError("");
+                  setEditMaintenance({
+                    carId: "",
+                    type: "Bảo dưỡng định kỳ",
+                    scheduledDate: "",
+                    description: "",
+                    price: "",
+                    status: 0,
+                  });
+                  setEditingMaintenance(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                  {modalError}
+                </div>
+              )}
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Chọn xe <span className="text-red-500">*</span>
+                  </label>
+                </div>
+                <select
+                  name="carId"
+                  value={editMaintenance.carId}
+                  onChange={handleEditInputChange}
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">-- Chọn xe --</option>
+                  {cars.map((car) => (
+                    <option key={car.carId ?? car.id} value={car.carId ?? car.id}>
+                      {car.carName ?? car.name ?? car.brand ?? `Xe #${car.carId ?? car.id}`} - {car.plateNumber ?? car.licensePlate ?? "N/A"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Loại bảo dưỡng
+                  </label>
+                </div>
+                <select
+                  name="type"
+                  value={editMaintenance.type}
+                  onChange={handleEditInputChange}
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="Bảo dưỡng định kỳ">Bảo dưỡng định kỳ</option>
+                  <option value="Sửa chữa">Sửa chữa</option>
+                  <option value="Kiểm định">Kiểm định</option>
+                  <option value="Khẩn cấp">Khẩn cấp</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Trạng thái <span className="text-red-500">*</span>
+                  </label>
+                </div>
+                <select
+                  name="status"
+                  value={editMaintenance.status}
+                  onChange={handleEditInputChange}
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                >
+                  <option value={0}>Đã lên lịch</option>
+                  <option value={1}>Đang thực hiện</option>
+                  <option value={2}>Hoàn thành</option>
+                  <option value={3}>Quá hạn</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Giá tiền (VND) <span className="text-red-500">*</span>
+                  </label>
+                </div>
+                <input
+                  type="number"
+                  name="price"
+                  min={0}
+                  step="1000"
+                  value={editMaintenance.price}
+                  onChange={handleEditInputChange}
+                  placeholder="Nhập giá tiền..."
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Ngày dự kiến <span className="text-red-500">*</span>
+                  </label>
+                </div>
+                <input
+                  type="date"
+                  name="scheduledDate"
+                  value={editMaintenance.scheduledDate}
+                  onChange={handleEditInputChange}
+                  placeholder="mm/dd/yyyy"
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <div className="text-left">
+                  <label className="text-sm text-gray-700">
+                    Mô tả <span className="text-red-500">*</span>
+                  </label>
+                </div>
+                <textarea
+                  name="description"
+                  value={editMaintenance.description}
+                  onChange={handleEditInputChange}
+                  placeholder="Nhập mô tả chi tiết..."
+                  rows={3}
+                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setModalError("");
+                  setEditMaintenance({
+                    carId: "",
+                    type: "Bảo dưỡng định kỳ",
+                    scheduledDate: "",
+                    description: "",
+                    price: "",
+                    status: 0,
+                  });
+                  setEditingMaintenance(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                disabled={modalLoading}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleUpdateMaintenance}
+                disabled={modalLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {modalLoading ? "Đang xử lý..." : "Cập nhật"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Xác nhận xóa
+              </h2>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-700">
+                Bạn có chắc chắn muốn xóa lịch bảo dưỡng này không?
+              </p>
+              {deleteConfirm.vehicle && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                disabled={loading}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => handleDeleteMaintenance(deleteConfirm)}
+                disabled={loading}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? "Đang xóa..." : "Xóa"}
               </button>
             </div>
           </div>
