@@ -62,6 +62,76 @@ const ProfilePage = () => {
   };
 
   // =========================
+  // PAYMENT HELPERS (from paymentPage.jsx)
+  // =========================
+  const STATUS_MAP = {
+    Pending: "Chờ thanh toán",
+    Success: "Đã thanh toán",
+    Paid: "Đã thanh toán",
+    Completed: "Đã thanh toán",
+    Failed: "Thất bại",
+    Cancelled: "Đã hủy",
+  };
+
+  const formatDate = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? String(value)
+      : date.toLocaleDateString("vi-VN");
+  };
+
+  const formatCurrency = (amount) => {
+    if (amount === null || amount === undefined || amount === "") return "—";
+    const number = Number(amount);
+    if (Number.isNaN(number)) return String(amount);
+    return number.toLocaleString("vi-VN", {
+      style: "currency",
+      currency: "VND",
+      minimumFractionDigits: 0,
+    });
+  };
+
+  const safeNum = (v, fb = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fb;
+  };
+
+  const normalizePaymentRecord = (item) => {
+    if (!item) return null;
+
+    const status =
+      typeof item.status === "string"
+        ? STATUS_MAP[item.status] || item.status
+        : "Chờ thanh toán";
+
+    // Use amountVnd if available and > 0, otherwise use amount
+    const amount = item.amountVnd && item.amountVnd > 0 ? item.amountVnd : item.amount;
+
+    const originalPaymentId = item.paymentId ?? item.id ?? Date.now();
+
+    return {
+      id: originalPaymentId,
+      originalPaymentId: originalPaymentId, // Keep original for API calls
+      paymentId: `#PAY${String(originalPaymentId).padStart(6, "0")}`,
+      userId: item.userId ?? item.user?.id ?? null,
+      carId: item.carId ?? item.vehicleId ?? item.vehicle?.carId ?? item.vehicle?.id ?? null,
+      vehicle: {
+        name: item.carName ?? item.vehicle?.name ?? "Đang cập nhật",
+        license: item.plateNumber ?? item.vehicle?.license ?? "Đang cập nhật",
+      },
+      serviceType: item.description ?? item.serviceType ?? "Khác",
+      amount: amount ?? 0,
+      status,
+      date: formatDate(item.createdAt ?? item.date),
+      orderId: item.orderId,
+      paymentMethod: item.paymentMethod,
+      currency: item.currency,
+      coOwners: item.coOwners ?? [],
+    };
+  };
+
+  // =========================
   // READ USER FROM LOCALSTORAGE
   // =========================
   useEffect(() => {
@@ -520,10 +590,147 @@ const ProfilePage = () => {
   const [newActivity, setNewActivity] = useState({ title: "", description: "" });
   const [votingActivity, setVotingActivity] = useState(null);
 
+  // =========================
+  // PAYMENTS (Insurance)
+  // =========================
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [processingPaymentId, setProcessingPaymentId] = useState(null);
+
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
   const isAdmin = userRole === 1 || userRole === "1" || Number(userRole) === 1;
   const isStaff = userRole === 2 || userRole === "2" || Number(userRole) === 2;
   const isAdminOrStaff = isAdmin || isStaff;
+
+  useEffect(() => {
+    if (activeTab !== "insurance" || isAdminOrStaff) return;
+    let mounted = true;
+    setLoadingPayments(true);
+
+    (async () => {
+      try {
+        const response = await api.get("/Payment");
+        const data = response.data?.data ?? response.data ?? [];
+        
+        if (!Array.isArray(data)) {
+          throw new Error("Invalid data format");
+        }
+
+        const normalized = data
+          .map(normalizePaymentRecord)
+          .filter(Boolean);
+
+        if (mounted) setPayments(normalized);
+      } catch (e) {
+        console.error("Lỗi khi lấy thông tin thanh toán:", e);
+        if (mounted) setPayments([]);
+      } finally {
+        if (mounted) setLoadingPayments(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [activeTab, isAdminOrStaff]);
+
+  const getStatusBadge = (status) => {
+    const statusClasses = {
+      "Đã thanh toán": "bg-green-100 text-green-800",
+      "Chờ thanh toán": "bg-yellow-100 text-yellow-800",
+      "Thất bại": "bg-red-100 text-red-800",
+      "Đã hủy": "bg-gray-100 text-gray-800",
+    };
+    const badgeClass = statusClasses[status] ?? "bg-gray-100 text-gray-800";
+    
+    return (
+      <span
+        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}
+      >
+        {status}
+      </span>
+    );
+  };
+
+  // Handle complete payment
+  const handleCompletePayment = async (paymentId, orderId) => {
+    if (!paymentId) {
+      alert("Không tìm thấy mã thanh toán.");
+      return;
+    }
+
+    if (!confirm("Bạn có chắc chắn muốn hoàn tất thanh toán này?")) {
+      return;
+    }
+
+    setProcessingPaymentId(paymentId);
+
+    try {
+      // Try different endpoints to update payment status
+      const endpoints = [
+        `/Payment/${paymentId}`,
+        `/Payment/${paymentId}/complete`,
+        `/Payment/complete/${paymentId}`,
+      ];
+
+      let success = false;
+      let lastError = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await api.put(endpoint, {
+            status: "Completed",
+            orderId: orderId,
+          }, {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          console.log(`Success with endpoint: ${endpoint}`, response?.data);
+          success = true;
+
+          // Update local state optimistically
+          setPayments(prev =>
+            prev.map(p => {
+              const pId = p.originalPaymentId ?? p.id;
+              return pId === paymentId
+                ? { ...p, status: "Đã thanh toán" }
+                : p;
+            })
+          );
+
+          alert("Thanh toán đã được cập nhật thành công!");
+          break;
+        } catch (error) {
+          lastError = error;
+          if (error?.response?.status === 404) {
+            console.log(`Endpoint ${endpoint} returned 404, trying next...`);
+            continue;
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (!success && lastError) {
+        throw lastError;
+      }
+
+      // Refresh payments list
+      const response = await api.get("/Payment");
+      const data = response.data?.data ?? response.data ?? [];
+      if (Array.isArray(data)) {
+        const normalized = data
+          .map(normalizePaymentRecord)
+          .filter(Boolean);
+        setPayments(normalized);
+      }
+    } catch (error) {
+      console.error("Error updating payment status:", error);
+      alert("Không thể cập nhật trạng thái thanh toán. Vui lòng thử lại.");
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
 
   const patchActivity = (formId, patchOrProducer) => {
     setActivities(prev =>
@@ -1117,6 +1324,99 @@ const ProfilePage = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Payment History Section */}
+            <div className="mt-8 bg-white border border-indigo-200 rounded-lg shadow-md">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-indigo-900">Lịch sử thanh toán</h3>
+                </div>
+
+                {loadingPayments ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <p className="mt-4 text-gray-600">Đang tải thông tin thanh toán...</p>
+                  </div>
+                ) : payments.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chưa có giao dịch thanh toán nào.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Mã giao dịch</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Xe</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Biển số</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Dịch vụ</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Số tiền</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Phương thức</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Trạng thái</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ngày</th>
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Thanh toán</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payments.map((payment) => {
+                          const originalPaymentId = payment.originalPaymentId ?? payment.id;
+                          const isProcessing = processingPaymentId === originalPaymentId;
+                          const canPay = payment.status === "Chờ thanh toán";
+
+                          return (
+                            <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-3 px-4 text-sm text-gray-900 font-medium">
+                                {payment.paymentId || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-gray-900">
+                                {payment.vehicle?.name || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-gray-900">
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                                  {payment.vehicle?.license || "—"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-gray-700">
+                                {payment.serviceType || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-sm font-semibold text-indigo-900">
+                                {formatCurrency(payment.amount)}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-gray-700">
+                                {payment.paymentMethod || "—"}
+                              </td>
+                              <td className="py-3 px-4">
+                                {getStatusBadge(payment.status)}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-gray-600">
+                                {payment.date || "—"}
+                              </td>
+                              <td className="py-3 px-4">
+                                {canPay ? (
+                                  <button
+                                    onClick={() => handleCompletePayment(originalPaymentId, payment.orderId)}
+                                    disabled={isProcessing}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                      isProcessing
+                                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                        : "bg-green-600 text-white hover:bg-green-700"
+                                    }`}
+                                  >
+                                    {isProcessing ? "Đang xử lý..." : "Thanh toán"}
+                                  </button>
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
