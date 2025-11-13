@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, LogOut, Wallet } from 'lucide-react';
+import api from '../../config/axios';
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -13,6 +14,7 @@ const Header = () => {
 
   const [userName, setUserName] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [balance, setBalance] = useState(0);
 
   useEffect(() => {
     const syncUser = () => {
@@ -24,10 +26,12 @@ const Header = () => {
         } else {
           setUserName("");
           setIsLoggedIn(false);
+          setBalance(0);
         }
       } catch {
         setUserName("");
         setIsLoggedIn(false);
+        setBalance(0);
       }
     };
 
@@ -38,6 +42,54 @@ const Header = () => {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [location]);
+
+  // Fetch user balance from API
+  useEffect(() => {
+    const fetchUserBalance = async () => {
+      if (!isLoggedIn) {
+        setBalance(0);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+        if (token) {
+          api.defaults.headers.common.Authorization = `Bearer ${token}`;
+        }
+
+        const response = await api.get("/User");
+        let userData = null;
+
+        // Handle different response formats
+        if (Array.isArray(response.data)) {
+          // If response is an array, find the current user
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          userData = response.data.find(
+            (u) => u.userName === storedUser.userName || u.userId === storedUser.userId
+          ) || response.data[0];
+        } else if (response.data?.data && Array.isArray(response.data.data)) {
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          userData = response.data.data.find(
+            (u) => u.userName === storedUser.userName || u.userId === storedUser.userId
+          ) || response.data.data[0];
+        } else {
+          // Single object response
+          userData = response.data;
+        }
+
+        if (userData && userData.balance !== undefined && userData.balance !== null) {
+          setBalance(Number(userData.balance));
+        } else {
+          setBalance(0);
+        }
+      } catch (error) {
+        console.error("Error fetching user balance:", error);
+        setBalance(0);
+      }
+    };
+
+    fetchUserBalance();
+  }, [isLoggedIn, location]);
 
   const getInitials = (name) => {
     if (!name) return "U";
@@ -136,7 +188,9 @@ const Header = () => {
 
             {isLoggedIn && (
               <div className="flex items-center space-x-2 px-3 py-2 rounded-lg">
-                <span className="text-green-700 font-semibold">0 VNĐ</span>
+                <span className="text-green-700 font-semibold">
+                  {balance.toLocaleString('vi-VN')} VNĐ
+                </span>
               </div>
             )}
 

@@ -51,6 +51,45 @@ const DepositPage = () => {
     }
   }, [token]);
 
+  // Hàm capture payment sau khi thanh toán thành công
+  const capturePayment = async (orderId) => {
+    if (!orderId) {
+      console.error('OrderId is required for capture payment');
+      return { success: false, error: 'OrderId is required' };
+    }
+
+    try {
+      console.log(`Calling capture payment API for orderId: ${orderId}`);
+      
+      const response = await api.post(`/Payment/capture/payos/${orderId}`, {}, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Capture payment API response:', response?.data);
+      
+      return { success: true, data: response?.data };
+    } catch (error) {
+      console.error('Error capturing payment:', error);
+      console.error('Error details:', {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        url: error?.config?.url,
+        method: error?.config?.method
+      });
+      
+      return { 
+        success: false, 
+        error: error?.response?.data?.message || 
+               error?.response?.data?.error || 
+               error?.message || 
+               'Có lỗi xảy ra khi capture payment' 
+      };
+    }
+  };
+
   const handleTopUp = async () => {
     const value = parseFloat(amount);
     
@@ -91,6 +130,17 @@ const DepositPage = () => {
       });
       
       console.log('Payment API response:', response?.data);
+      
+      // Lấy orderId từ response nếu có (để có thể capture sau)
+      const orderId = response?.data?.data?.orderId || 
+                     response?.data?.data?.orderCode ||
+                     response?.data?.orderId || 
+                     response?.data?.orderCode;
+      
+      if (orderId) {
+        console.log('OrderId received from payment API:', orderId);
+        // Có thể lưu orderId vào state hoặc localStorage nếu cần capture sau
+      }
       
       // Lấy URL thanh toán từ response (hỗ trợ nhiều cấu trúc response)
       const paymentUrl = response?.data?.data?.approvalUrl || 
