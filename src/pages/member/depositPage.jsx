@@ -144,11 +144,8 @@ const DepositPage = () => {
       
       // Lấy URL thanh toán từ response (hỗ trợ nhiều cấu trúc response)
       const paymentUrl = response?.data?.data?.approvalUrl || 
-                        response?.data?.data?.approvalUrl ||
-                        response?.data?.approvalUrl || 
                         response?.data?.approvalUrl ||
-                        response?.data?.approvalUrl ||
-                        response?.data;
+                        (typeof response?.data === 'string' ? response?.data : null);
 
       if (paymentUrl && typeof paymentUrl === 'string') {
         // Redirect đến trang thanh toán PayOS
