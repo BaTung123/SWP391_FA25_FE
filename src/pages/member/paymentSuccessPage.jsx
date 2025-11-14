@@ -31,7 +31,7 @@ function getStoredAuth() {
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const status = searchParams.get("status");
-  const orderCode = searchParams.get("orderCode");
+  const orderCode = searchParams.get("id");
 
   // Lấy auth từ local
   const [authState, setAuthState] = useState(() => getStoredAuth());
@@ -46,7 +46,7 @@ const PaymentSuccessPage = () => {
         try {
           // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
           // The backend was treating "payos" as orderId in /Payment/capture/payos
-          const captureEndpoint = `/Payment/capture/payos/OrderId=${encodeURIComponent(orderCode)}&UserId=${encodeURIComponent(userId || '')}`;
+          const captureEndpoint = `/Payment/capture/payos/${encodeURIComponent(orderCode)}?UserId=${encodeURIComponent(userId || '')}`;
 
           // 1) Try POST to capture endpoint with query parameters
           try {
