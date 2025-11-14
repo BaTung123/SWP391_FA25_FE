@@ -44,43 +44,23 @@ const PaymentCancelledPage = () => {
       // Call API to update payment status (webhook)
       const updatePaymentStatus = async () => {
         try {
-          // Thử các endpoint có thể có
-          const endpoints = [
-            '/Payment/capture/payos/' + orderCode
-          ];
-          
-          let success = false;
-          let lastError = null;
-          
-          for (const endpoint of endpoints) {
-            try {
-              console.log(`Trying PUT ${endpoint}...`);
-              const response = await api.put(endpoint, { 
-                orderCode,
-                userId: userId,
-              }, {
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              console.log(`Success with endpoint: ${endpoint}`, response?.data);
-              success = true;
-              break;
-            } catch (error) {
-              lastError = error;
-              if (error?.response?.status === 404) {
-                console.log(`Endpoint ${endpoint} returned 404, trying next...`);
-                continue;
-              } else {
-                // Lỗi khác 404, throw ngay
-                throw error;
-              }
+          // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
+          // The backend was treating "payos" as orderId in /Payment/capture/payos
+          const captureEndpoint = `/Payment/capture/payos/OrderId=${encodeURIComponent(orderCode)}&UserId=${encodeURIComponent(userId || '')}`;
+
+          // 1) Try POST to capture endpoint with query parameters
+          try {
+            console.log(`Trying POST ${captureEndpoint} ...`);
+            const res = await api.post(captureEndpoint, {}, {
+              headers: { 'Content-Type': 'application/json' }
+            });
+            console.log(`Success POST ${captureEndpoint}`, res?.data);
+            return;
+          } catch (ePostCapture) {
+            if (ePostCapture?.response?.status !== 404 && ePostCapture?.response?.status !== 405) {
+              throw ePostCapture;
             }
-          }
-          
-          if (!success && lastError) {
-            throw lastError;
+            console.log(`POST ${captureEndpoint} not allowed/found`);
           }
         } catch (error) {
           console.error('Error updating payment status:', error);
@@ -89,15 +69,22 @@ const PaymentCancelledPage = () => {
             statusText: error?.response?.statusText,
             data: error?.response?.data,
             url: error?.config?.url,
-            method: error?.config?.method
+            method: error?.config?.method,
+            orderCode: orderCode,
+            userId: userId
           });
+          
+          // Log the full error response for debugging
+          if (error?.response?.data) {
+            console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
+          }
           // Không hiển thị error cho user vì đây là background update
         }
       };
       
       updatePaymentStatus();
     }
-  }, [status, orderCode]);
+  }, [status, orderCode, userId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f5f7fa] to-[#c3cfe2] p-5">
