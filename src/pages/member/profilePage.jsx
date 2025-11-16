@@ -1,4 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  FaSearch,
+  FaTimes,
+  FaChevronLeft,
+  FaChevronRight,
+  FaEye,
+} from 'react-icons/fa';
 import Header from '../../components/header/header';
 import api from '../../config/axios';
 
@@ -64,6 +71,13 @@ const ProfilePage = () => {
   // =========================
   // PAYMENT HELPERS (from paymentPage.jsx)
   // =========================
+  const STATUS_LABELS = {
+    0: "Chờ thanh toán",
+    1: "Đã thanh toán",
+    2: "Đã hủy",
+    3: "Thất bại",
+  };
+
   const STATUS_MAP = {
     Pending: "Chờ thanh toán",
     Success: "Đã thanh toán",
@@ -95,6 +109,45 @@ const ProfilePage = () => {
   const safeNum = (v, fb = 0) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : fb;
+  };
+
+  const normalizeMaintenanceRecord = (item) => {
+    if (!item) return null;
+
+    const status =
+      typeof item.status === "string"
+        ? item.status
+        : STATUS_LABELS[item.status] ?? "Đang thực hiện";
+
+    return {
+      id: item.maintenanceId ?? item.id ?? Date.now(),
+      maintenanceId: item.maintenanceId ?? item.id, // Store original ID for API calls
+      carId: item.carId ?? item.car?.carId ?? item.car?.id,
+      vehicle: {
+        name:
+          item.car?.carName ??
+          item.vehicle?.name ??
+          item.carName ??
+          "Đang cập nhật",
+        license:
+          item.car?.plateNumber ??
+          item.vehicle?.license ??
+          item.plateNumber ??
+          "Đang cập nhật",
+      },
+      type: item.maintenanceType ?? item.type ?? "Khác",
+      scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
+      maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // Store original date
+      status,
+      description: item.description ?? "",
+      statusCode: item.status,
+      price: item.price ?? 0,
+      // For compatibility with payment table
+      paymentId: `#MAINT${String(item.maintenanceId ?? item.id ?? Date.now()).padStart(6, "0")}`,
+      serviceType: item.maintenanceType ?? item.type ?? "Bảo dưỡng",
+      amount: item.price ?? 0,
+      date: formatDate(item.maintenanceDay ?? item.scheduledDate ?? item.createdAt),
+    };
   };
 
   const normalizePaymentRecord = (item) => {
@@ -354,35 +407,35 @@ const ProfilePage = () => {
     setError("");
 
     try {
-      const fd = new FormData();
-      const dobIso = toIsoDateOnly(form.dob);
-      const entries = {
-        email: user.email || "",
+      // Convert dob to ISO format
+      let dobIso = null;
+      if (form.dob) {
+        const dobDate = new Date(form.dob);
+        if (!isNaN(dobDate.getTime())) {
+          dobIso = dobDate.toISOString();
+        }
+      }
+      
+      // Prepare request body according to API specification
+      const requestBody = {
         fullName: form.fullName || form.name || "",
-        name: form.name || form.fullName || "",
-        gender: form.gender || "",
-        dob: dobIso || "",
         phone: form.phone || "",
-        nationalId: form.nationalId || "",
-        licenseNumber: form.licenseNumber || "",
+        gender: form.gender || "",
+        dob: dobIso,
         cccdFront: idCardFront || user.idCardImageUrl || "",
         cccdBack: idCardBack || ""
       };
 
-      Object.entries(entries).forEach(([k, v]) => {
-        fd.append(k, v ?? "");
-        fd.append(`updateProfileDto.${k}`, v ?? "");
+      const res = await api.put(`/User/${userId}`, requestBody, {
+        headers: { "Content-Type": "application/json" }
       });
 
-      const res = await api.put(`/User/${userId}`, fd, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-
-      const updated = res?.data && Object.keys(res.data).length ? res.data : entries;
+      const updated = res?.data && Object.keys(res.data).length ? res.data : requestBody;
 
       setUser((u) => ({
         ...u,
-        email: updated.email ?? u.email,
+        // Giữ nguyên email ban đầu, không cập nhật từ response
+        email: u.email,
         avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
         idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
       }));
@@ -395,23 +448,85 @@ const ProfilePage = () => {
         nationalId: updated.nationalId ?? f.nationalId,
         licenseNumber: updated.licenseNumber ?? f.licenseNumber,
         gender: updated.gender ?? f.gender,
-        dob: toIsoDateOnly(updated.dob) || f.dob
+        dob: updated.dob ? toIsoDateOnly(updated.dob) : f.dob
       }));
 
       try {
         const raw = localStorage.getItem("user");
         if (raw) {
           const cur = JSON.parse(raw);
+          const originalEmail = cur.email; // Giữ nguyên email ban đầu
           const next = { ...cur, ...updated };
+          next.email = originalEmail; // Đảm bảo email không bị thay đổi
           localStorage.setItem("user", JSON.stringify(next));
         }
       } catch {}
 
+      setValidationErrors({});
+      setError("");
       alert("Thông tin thành viên đã được lưu thành công!");
     } catch (e) {
       console.error(e);
-      setError("Cập nhật không thành công. Vui lòng kiểm tra định dạng ngày sinh và dạng gửi (multipart/form-data).");
-      alert("Cập nhật không thành công. Kiểm tra lại ngày sinh (YYYY-MM-DD) và dạng gửi.");
+      
+      // Extract error message from API response
+      let errorMessage = "Cập nhật không thành công. Vui lòng kiểm tra lại thông tin đã nhập.";
+      
+      if (e?.response?.data) {
+        const errorData = e.response.data;
+        
+        // Handle string response (may contain escaped JSON)
+        if (typeof errorData === 'string') {
+          try {
+            // Try to parse as JSON first
+            const parsed = JSON.parse(errorData);
+            if (parsed.message) {
+              errorMessage = parsed.message;
+            }
+          } catch {
+            // If parsing fails, try to extract message using regex
+            // Handle cases like: {"\n \"message\": \"Email already exists\"\n}"
+            const match = errorData.match(/"message":\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+            if (match && match[1]) {
+              errorMessage = match[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').trim();
+            } else {
+              // Try simpler pattern
+              const simpleMatch = errorData.match(/message["\s:]+"([^"]+)"/);
+              if (simpleMatch && simpleMatch[1]) {
+                errorMessage = simpleMatch[1];
+              }
+            }
+          }
+        } 
+        // Handle object response
+        else if (typeof errorData === 'object') {
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        }
+      } 
+      // Handle response text if available (for cases where data is not parsed)
+      else if (e?.response?.data?.responseText) {
+        try {
+          const parsed = JSON.parse(e.response.data.responseText);
+          if (parsed.message) {
+            errorMessage = parsed.message;
+          }
+        } catch {
+          const match = e.response.data.responseText.match(/"message":\s*"([^"]+)"/);
+          if (match && match[1]) {
+            errorMessage = match[1];
+          }
+        }
+      }
+      // Fallback to error message
+      else if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      setError(errorMessage);
+      alert(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -596,6 +711,11 @@ const ProfilePage = () => {
   const [payments, setPayments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [processingPaymentId, setProcessingPaymentId] = useState(null);
+  const [paymentKeyword, setPaymentKeyword] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+  const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const paymentItemsPerPage = 5;
 
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
   const isAdmin = userRole === 1 || userRole === "1" || Number(userRole) === 1;
@@ -607,22 +727,29 @@ const ProfilePage = () => {
     let mounted = true;
     setLoadingPayments(true);
 
+    // Reset filters when switching to insurance tab
+    setPaymentKeyword("");
+    setPaymentStatusFilter("all");
+    setPaymentCurrentPage(1);
+
     (async () => {
       try {
-        const response = await api.get("/Payment");
-        const data = response.data?.data ?? response.data ?? [];
+        const response = await api.get("/Maintenance");
+        const data = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data ?? [];
         
         if (!Array.isArray(data)) {
           throw new Error("Invalid data format");
         }
 
         const normalized = data
-          .map(normalizePaymentRecord)
+          .map(normalizeMaintenanceRecord)
           .filter(Boolean);
 
         if (mounted) setPayments(normalized);
       } catch (e) {
-        console.error("Lỗi khi lấy thông tin thanh toán:", e);
+        console.error("Lỗi khi lấy thông tin bảo dưỡng:", e);
         if (mounted) setPayments([]);
       } finally {
         if (mounted) setLoadingPayments(false);
@@ -631,6 +758,42 @@ const ProfilePage = () => {
 
     return () => { mounted = false; };
   }, [activeTab, isAdminOrStaff]);
+
+  // --- Lọc + tìm kiếm thanh toán ---
+  const filteredPayments = useMemo(() => {
+    const kw = paymentKeyword.trim().toLowerCase();
+    return payments.filter((p) => {
+      const matchKW =
+        !kw ||
+        [
+          p?.paymentId,
+          p?.vehicle?.name,
+          p?.vehicle?.license,
+          p?.type,
+          p?.serviceType,
+          p?.description,
+          p?.price,
+          p?.amount,
+        ]
+          .filter(Boolean)
+          .some((t) => String(t).toLowerCase().includes(kw));
+
+      const matchStatus =
+        paymentStatusFilter === "all" ? true : p.status === paymentStatusFilter;
+
+      return matchKW && matchStatus;
+    });
+  }, [payments, paymentKeyword, paymentStatusFilter]);
+
+  const paymentTotalItems = filteredPayments.length;
+  const paymentTotalPages = Math.ceil(paymentTotalItems / paymentItemsPerPage) || 1;
+  const paymentStartIndex = (paymentCurrentPage - 1) * paymentItemsPerPage;
+  const paymentEndIndex = paymentStartIndex + paymentItemsPerPage;
+  const currentPaymentRecords = filteredPayments.slice(paymentStartIndex, paymentEndIndex);
+
+  const handlePaymentPageChange = (page) => {
+    if (page >= 1 && page <= paymentTotalPages) setPaymentCurrentPage(page);
+  };
 
   const getStatusBadge = (status) => {
     const statusClasses = {
@@ -1066,7 +1229,7 @@ const ProfilePage = () => {
                 }`}
                 onClick={() => setActiveTab("insurance")}
               >
-                BẢO HIỂM
+                THANH TOÁN
               </div>
             </>
           )}
@@ -1145,22 +1308,55 @@ const ProfilePage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-sm text-slate-700">Họ và tên <span className="text-red-500">*</span></label>
-                      <input type="text" name="name" value={form.name} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" />
+                      <input 
+                        type="text" 
+                        name="name" 
+                        value={form.name} 
+                        onChange={handleChange} 
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                          validationErrors.name || validationErrors.fullName
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
+                        }`}
+                      />
+                      {(validationErrors.name || validationErrors.fullName) && (
+                        <p className="text-xs text-red-600 mt-1">{validationErrors.name || validationErrors.fullName}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Email <span className="text-red-500">*</span></label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Email</label>
                       <input type="email" name="email" value={user.email} readOnly className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed" />
                     </div>
 
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-sm text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
-                      <input type="tel" name="phone" value={form.phone} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Nhập số điện thoại" />
+                      <input 
+                        type="tel" 
+                        name="phone" 
+                        value={form.phone} 
+                        onChange={handleChange} 
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                          validationErrors.phone
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
+                        }`}
+                        placeholder="Nhập số điện thoại" 
+                      />
+                      {validationErrors.phone && (
+                        <p className="text-xs text-red-600 mt-1">{validationErrors.phone}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-sm text-slate-700">Giới tính</label>
-                      <select name="gender" value={form.gender} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all">
+                      <select 
+                        name="gender" 
+                        value={form.gender} 
+                        onChange={handleChange} 
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                        title="Chọn giới tính"
+                      >
                         <option value="">-- Chọn --</option>
                         <option value="Male">Nam</option>
                         <option value="Female">Nữ</option>
@@ -1170,18 +1366,38 @@ const ProfilePage = () => {
 
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-sm text-slate-700">Ngày sinh <span className="text-red-500">*</span></label>
-                      <input type="date" name="dob" value={form.dob} onChange={handleChange} max={new Date().toISOString().split('T')[0]} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Bằng lái xe</label>
-                      <input type="text" name="licenseNumber" value={form.licenseNumber} onChange={handleChange} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" placeholder="Nhập số bằng lái xe" />
+                      <input 
+                        type="date" 
+                        name="dob" 
+                        value={form.dob} 
+                        onChange={handleChange} 
+                        max={new Date().toISOString().split('T')[0]} 
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                          validationErrors.dob
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
+                        }`}
+                        title="Chọn ngày sinh"
+                      />
+                      {validationErrors.dob && (
+                        <p className="text-xs text-red-600 mt-1">{validationErrors.dob}</p>
+                      )}
                     </div>
                   </div>
 
+                  {error && (
+                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600">{error}</p>
+                    </div>
+                  )}
+
                   <div className="mt-8 flex justify-center">
-                    <button className="px-12 py-3 bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded" onClick={handleSaveProfile}>
-                      Lưu thông tin
+                    <button 
+                      className="px-12 py-3 bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onClick={handleSaveProfile}
+                      disabled={saving}
+                    >
+                      {saving ? "Đang lưu..." : "Lưu thông tin"}
                     </button>
                   </div>
                 </div>
@@ -1327,96 +1543,211 @@ const ProfilePage = () => {
             </div>
 
             {/* Payment History Section */}
-            <div className="mt-8 bg-white border border-indigo-200 rounded-lg shadow-md">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-indigo-900">Lịch sử thanh toán</h3>
+            <div className="mt-8 space-y-4">
+              {/* Header + Filters */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  {/* Title */}
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-900">Lịch sử thanh toán</span>
+                  </div>
+
+                  {/* Filters and Actions */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Search Input */}
+                    <div className="relative" style={{ width: 260 }}>
+                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                      <input
+                        type="text"
+                        placeholder="Tìm theo mã/xe/biển số/loại/mô tả"
+                        value={paymentKeyword}
+                        onChange={(e) => {
+                          setPaymentKeyword(e.target.value);
+                          setPaymentCurrentPage(1);
+                        }}
+                        className="w-full pl-8 pr-8 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      />
+                      {paymentKeyword && (
+                        <button
+                          onClick={() => {
+                            setPaymentKeyword("");
+                            setPaymentCurrentPage(1);
+                          }}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                          type="button"
+                        >
+                          <FaTimes className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Status Filter */}
+                    <select
+                      value={paymentStatusFilter}
+                      onChange={(e) => {
+                        setPaymentStatusFilter(e.target.value);
+                        setPaymentCurrentPage(1);
+                      }}
+                      className="px-3 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      style={{ width: 180 }}
+                    >
+                      <option value="all">Tất cả trạng thái</option>
+                      <option value="Chờ thanh toán">Chờ thanh toán</option>
+                      <option value="Đã thanh toán">Đã thanh toán</option>
+                      <option value="Đã hủy">Đã hủy</option>
+                      <option value="Thất bại">Thất bại</option>
+                    </select>
+                  </div>
                 </div>
+              </div>
 
-                {loadingPayments ? (
-                  <div className="text-center py-8">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    <p className="mt-4 text-gray-600">Đang tải thông tin thanh toán...</p>
-                  </div>
-                ) : payments.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Chưa có giao dịch thanh toán nào.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Mã giao dịch</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Xe</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Biển số</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Dịch vụ</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Số tiền</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Phương thức</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Trạng thái</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ngày</th>
-                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Thanh toán</th>
+              {/* Payment Table */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-center">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Mã giao dịch
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Xe
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Biển số
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Loại bảo dưỡng
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Giá tiền tổng
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Giá tiền cần trả
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Ngày
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Trạng thái
+                        </th>
+                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Thao tác
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {loadingPayments && (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            className="px-6 py-10 text-sm text-gray-500 text-center"
+                          >
+                            Đang tải dữ liệu...
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {payments.map((payment) => {
-                          const originalPaymentId = payment.originalPaymentId ?? payment.id;
-                          const isProcessing = processingPaymentId === originalPaymentId;
-                          const canPay = payment.status === "Chờ thanh toán";
-
+                      )}
+                      {!loadingPayments && currentPaymentRecords.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            className="px-6 py-10 text-sm text-gray-500 text-center"
+                          >
+                            {paymentKeyword || paymentStatusFilter !== "all"
+                              ? "Không tìm thấy kết quả phù hợp."
+                              : "Chưa có dữ liệu bảo dưỡng."}
+                          </td>
+                        </tr>
+                      )}
+                      {!loadingPayments &&
+                        currentPaymentRecords.map((payment) => {
                           return (
-                            <tr key={payment.id} className="border-b border-gray-100 hover:bg-gray-50">
-                              <td className="py-3 px-4 text-sm text-gray-900 font-medium">
+                            <tr
+                              key={payment.id}
+                              className="hover:bg-gray-50 transition-colors"
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                                 {payment.paymentId || "—"}
                               </td>
-                              <td className="py-3 px-4 text-sm text-gray-900">
+                              <td className="px-6 py-4 text-sm text-gray-900">
                                 {payment.vehicle?.name || "—"}
                               </td>
-                              <td className="py-3 px-4 text-sm text-gray-900">
+                              <td className="px-6 py-4 text-sm text-gray-900">
                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
                                   {payment.vehicle?.license || "—"}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-sm text-gray-700">
-                                {payment.serviceType || "—"}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {payment.type || payment.serviceType || "—"}
                               </td>
-                              <td className="py-3 px-4 text-sm font-semibold text-indigo-900">
-                                {formatCurrency(payment.amount)}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {formatCurrency(payment.price || payment.amount)}
                               </td>
-                              <td className="py-3 px-4 text-sm text-gray-700">
-                                {payment.paymentMethod || "—"}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {formatCurrency(payment.price || payment.amount)}
                               </td>
-                              <td className="py-3 px-4">
-                                {getStatusBadge(payment.status)}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {payment.scheduledDate || payment.date || "—"}
                               </td>
-                              <td className="py-3 px-4 text-sm text-gray-600">
-                                {payment.date || "—"}
-                              </td>
-                              <td className="py-3 px-4">
-                                {canPay ? (
+                              <td className="px-6 py-4">{getStatusBadge(payment.status)}</td>
+                              <td className="px-6 py-4 text-sm font-medium">
+                                <div className="flex justify-center space-x-2">
                                   <button
-                                    onClick={() => handleCompletePayment(originalPaymentId, payment.orderId)}
-                                    disabled={isProcessing}
-                                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                                      isProcessing
-                                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                        : "bg-green-600 text-white hover:bg-green-700"
-                                    }`}
+                                    onClick={() => setSelectedPayment(payment)}
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                    title="Chi tiết"
                                   >
-                                    {isProcessing ? "Đang xử lý..." : "Thanh toán"}
+                                    Thanh toán
                                   </button>
-                                ) : (
-                                  <span className="text-xs text-gray-400">—</span>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {/* Pagination */}
+              {!loadingPayments && paymentTotalPages > 1 && (
+                <div className="flex items-center justify-center py-4">
+                  <nav
+                    className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+                    aria-label="Pagination"
+                  >
+                    <button
+                      onClick={() => handlePaymentPageChange(paymentCurrentPage - 1)}
+                      disabled={paymentCurrentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <FaChevronLeft className="h-4 w-4" />
+                    </button>
+
+                    {Array.from({ length: paymentTotalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePaymentPageChange(page)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          page === paymentCurrentPage
+                            ? "z-10 bg-indigo-50 border-indigo-500 text-indigo-600"
+                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => handlePaymentPageChange(paymentCurrentPage + 1)}
+                      disabled={paymentCurrentPage === paymentTotalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <FaChevronRight className="h-4 w-4" />
+                    </button>
+                  </nav>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1504,7 +1835,7 @@ const ProfilePage = () => {
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <div className="w-24 bg-gray-2 00 rounded-full h-2">
+                                    <div className="w-24 bg-gray-200 rounded-full h-2">
                                       <div className={`h-2 rounded-full ${isCurrentUser ? 'bg-purple-500' : 'bg-gray-400'}`} style={{ width: `${percentage}%` }}></div>
                                     </div>
                                     <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">
@@ -1781,6 +2112,103 @@ const ProfilePage = () => {
                     </svg>
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Detail Modal */}
+        {selectedPayment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Chi tiết bảo dưỡng
+                </h2>
+                <button
+                  onClick={() => setSelectedPayment(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Mã bảo dưỡng
+                    </label>
+                    <div className="mt-1 text-sm text-gray-900">
+                      {selectedPayment.paymentId || "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Trạng thái
+                    </label>
+                    <div className="mt-1">
+                      {getStatusBadge(selectedPayment.status)}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Xe
+                  </label>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {selectedPayment.vehicle?.name || "N/A"}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Biển số: {selectedPayment.vehicle?.license || "N/A"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Loại bảo dưỡng
+                  </label>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {selectedPayment.type || selectedPayment.serviceType || "N/A"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Giá tiền
+                  </label>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {formatCurrency(selectedPayment.price || selectedPayment.amount)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Ngày thực hiện
+                  </label>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {selectedPayment.scheduledDate || selectedPayment.date || "N/A"}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Mô tả
+                  </label>
+                  <div className="mt-1 text-sm text-gray-900">
+                    {selectedPayment.description || "Không có mô tả"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={() => setSelectedPayment(null)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Đóng
+                </button>
               </div>
             </div>
           </div>
