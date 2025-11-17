@@ -20,7 +20,6 @@ import {
   DeleteOutlined,
   PlusOutlined,
   EditOutlined,
-  ReloadOutlined,
   SearchOutlined,
   CarOutlined,
 } from "@ant-design/icons";
@@ -45,11 +44,12 @@ export default function GroupPage() {
 
   // Percent modal
   const [isPercentModalVisible, setIsPercentModalVisible] = useState(false);
-  const [selectedGroupForPercent, setSelectedGroupForPercent] = useState(null);
+  const [selectedGroupForPercent, setSelectedGroupForPercent] =
+    useState(null);
   const [ownershipMap, setOwnershipMap] = useState({}); // userId -> percentage
   const [carUserIdMap, setCarUserIdMap] = useState({}); // userId -> carUserId
   const [percentIdMap, setPercentIdMap] = useState({}); // userId -> percentOwnershipId
-  const [usageLimitMap, setUsageLimitMap] = useState({}); // userId -> usageLimit (giữ 0 nếu không dùng)
+  const [usageLimitMap, setUsageLimitMap] = useState({}); // userId -> usageLimit
   const [loadingPercent, setLoadingPercent] = useState(false);
 
   // filters
@@ -77,25 +77,35 @@ export default function GroupPage() {
           : gRes.data
           ? [gRes.data]
           : [];
+
         const listCars = cRes.data || [];
+
         const rawUsers = Array.isArray(uRes.data)
           ? uRes.data
           : uRes.data
           ? [uRes.data]
           : [];
+
+        // chỉ giữ member (role = 0)
         const listUsers = rawUsers
           .filter(Boolean)
-          .map((u) => ({
-            id: u.userId ?? u.id,
-            name:
-              u.fullName ||
-              u.userName ||
-              u.email ||
-              `User #${u.userId ?? u.id}`,
-            email: u.email,
-            role: typeof u.role === "number" ? u.role : Number(u.role ?? 0),
-          }))
-          .filter((u) => u.id != null);
+          .map((u) => {
+            const roleNum =
+              typeof u.role === "number" ? u.role : Number(u.role ?? 0);
+
+            return {
+              id: u.userId ?? u.id,
+              name:
+                u.fullName ||
+                u.userName ||
+                u.email ||
+                `User #${u.userId ?? u.id}`,
+              email: u.email,
+              role: roleNum,
+            };
+          })
+          .filter((u) => u.id != null)
+          .filter((u) => u.role === 0);
 
         setGroups(listGroups);
         setCars(listCars);
@@ -114,15 +124,10 @@ export default function GroupPage() {
   /* ========= Member options ========= */
   const memberOptions = useMemo(
     () =>
-      users
-        .filter(
-          (u) =>
-            (typeof u.role === "number" ? u.role : Number(u.role ?? 0)) === 0
-        )
-        .map((u) => ({
-          label: `${u.name}${u.email ? ` (${u.email})` : ""}`,
-          value: u.id,
-        })),
+      users.map((u) => ({
+        label: `${u.name}${u.email ? ` (${u.email})` : ""}`,
+        value: u.id,
+      })),
     [users]
   );
 
@@ -142,14 +147,20 @@ export default function GroupPage() {
   const getCarInfoOfGroup = (group) => {
     const embedded = group?.car;
     if (embedded?.carName || embedded?.plateNumber) return embedded;
-    const carId = Number(group?.carId ?? group?.car?.carId);
+
+    const carId = Number(
+      group?.car?.carId ?? group?.carId ?? group?.CarId
+    );
     if (!carId) return null;
+
     return carById.get(carId) || null;
   };
 
-  // Thành viên của group = các user đang sở hữu carId đó (đọc từ BE)
+  // Thành viên của group = các user đang sở hữu carId đó
   const getMemberIdsForGroup = (group) => {
-    const carId = Number(group?.car?.carId ?? group?.carId);
+    const carId = Number(
+      group?.car?.carId ?? group?.carId ?? group?.CarId
+    );
     if (!carId) return [];
     return Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
   };
@@ -161,6 +172,7 @@ export default function GroupPage() {
 
   /* ========= CarUser API ========= */
   async function addCarUser(carId, userId) {
+    // nếu baseURL chưa có /api thì đổi thành `/api/cars/${carId}/users/${userId}/add`
     await api.post(`/cars/${carId}/users/${userId}/add`);
   }
 
@@ -179,24 +191,9 @@ export default function GroupPage() {
   }
 
   /* ========= Owners hydrate ========= */
-  async function tryGetUsersByCar(carId) {
-    try {
-      const res = await api.get(`/cars/${carId}/users`); // nếu BE có
-      const arr = Array.isArray(res.data)
-        ? res.data
-        : res.data
-        ? [res.data]
-        : [];
-      return arr
-        .map((u) => Number(u?.userId ?? u?.id))
-        .filter((x) => Number.isFinite(x));
-    } catch {
-      return null;
-    }
-  }
-
   async function getUserCarIds(userId) {
     try {
+      // nếu cần prefix /api thì đổi path tương ứng
       const r = await api.get(`/users/${userId}/cars`);
       const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
       return new Set(
@@ -214,48 +211,32 @@ export default function GroupPage() {
   async function hydrateCarOwners(carsList, usersList) {
     const next = {};
 
-    const fastResults = await Promise.allSettled(
-      (carsList || []).map(async (car) => {
-        const cid = Number(car?.carId ?? car?.id);
-        if (!Number.isFinite(cid)) return { cid, owners: [] };
-        const owners = await tryGetUsersByCar(cid);
-        return { cid, owners };
+    // lấy danh sách carId cho từng user qua /users/{userId}/cars
+    const userCarsMap = new Map();
+
+    await Promise.allSettled(
+      (usersList || []).map(async (u) => {
+        const ownedCarIds = await getUserCarIds(u.id); // Set<number>
+        userCarsMap.set(u.id, ownedCarIds);
       })
     );
 
-    let needFallback = false;
-    fastResults.forEach((p) => {
-      const { cid, owners } = p.value || {};
-      if (cid == null) return;
-      if (owners === null) needFallback = true;
-      else next[cid] = owners;
+    // build map carId -> [userId]
+    (carsList || []).forEach((car) => {
+      const cid = Number(car?.carId ?? car?.id);
+      if (!Number.isFinite(cid)) return;
+
+      const owners = (usersList || [])
+        .filter((u) => userCarsMap.get(u.id)?.has(cid))
+        .map((u) => Number(u.id));
+
+      next[cid] = owners;
     });
-
-    if (needFallback) {
-      const userCarsMap = new Map();
-      await Promise.allSettled(
-        (usersList || []).map(async (u) => {
-          const set = await getUserCarIds(u.id);
-          userCarsMap.set(u.id, set);
-        })
-      );
-
-      (carsList || []).forEach((car) => {
-        const cid = Number(car?.carId ?? car?.id);
-        if (!Number.isFinite(cid)) return;
-        if (Array.isArray(next[cid])) return;
-        const owners = (usersList || [])
-          .filter((u) => userCarsMap.get(u.id)?.has(cid))
-          .map((u) => Number(u.id));
-        next[cid] = owners;
-      });
-    }
 
     setCarOwnersMap(next);
   }
 
   /* ========= PercentOwnership API helpers ========= */
-  // Thử route không /api trước, lỗi mới thử có /api
   async function poGetAll() {
     try {
       const r = await api.get("/PercentOwnership");
@@ -280,7 +261,7 @@ export default function GroupPage() {
     }
   }
 
-  // Resolve carUserId cho (carId, userId)
+  // Resolve carUserId cho (carId, userId) từ /users/{userId}/cars
   async function resolveCarUserId(carId, userId) {
     try {
       const r = await api.get(`/users/${userId}/cars`);
@@ -292,7 +273,7 @@ export default function GroupPage() {
         return Number(cid) === Number(carId);
       });
       if (!found) return null;
-      return Number(found?.carUserId ?? found?.id); // tuỳ BE đặt tên
+      return Number(found?.carUserId ?? found?.id);
     } catch {
       return null;
     }
@@ -335,7 +316,9 @@ export default function GroupPage() {
   const handleDelete = async (groupId) => {
     try {
       const group = groups.find((g) => getGroupId(g) === groupId);
-      const carId = Number(group?.car?.carId ?? group?.carId);
+      const carId = Number(
+        group?.car?.carId ?? group?.carId ?? group?.CarId
+      );
 
       const currentMembers = getMemberIdsForGroup(group).map(Number);
       if (carId && currentMembers?.length) {
@@ -362,7 +345,9 @@ export default function GroupPage() {
 
   const openEditModal = (record) => {
     setEditingGroup(record);
-    const carId = Number(record?.car?.carId ?? record?.carId);
+    const carId = Number(
+      record?.car?.carId ?? record?.carId ?? record?.CarId
+    );
     const currentMemberIds = Array.isArray(carOwnersMap[carId])
       ? carOwnersMap[carId]
       : [];
@@ -384,7 +369,11 @@ export default function GroupPage() {
         groupImg: values.groupImg || "",
       });
 
-      const carId = Number(editingGroup?.car?.carId ?? editingGroup?.carId);
+      const carId = Number(
+        editingGroup?.car?.carId ??
+          editingGroup?.carId ??
+          editingGroup?.CarId
+      );
       if (carId) {
         const prevMemberIds = (() => {
           const cid = Number(carId);
@@ -406,7 +395,9 @@ export default function GroupPage() {
 
   /* ========= Percent modal ========= */
   const handleOpenPercentModal = async (record) => {
-    const carId = Number(record?.car?.carId ?? record?.carId);
+    const carId = Number(
+      record?.car?.carId ?? record?.carId ?? record?.CarId
+    );
     if (!carId) {
       message.warning("Nhóm chưa gắn xe, không thể chỉnh phần trăm.");
       return;
@@ -416,7 +407,7 @@ export default function GroupPage() {
     setLoadingPercent(true);
 
     try {
-      // Các user đang sở hữu xe này
+      // userId đang sở hữu xe này (từ CarUser map)
       const ids = Array.isArray(carOwnersMap[carId]) ? carOwnersMap[carId] : [];
       const members = resolveMembers(ids);
 
@@ -436,7 +427,7 @@ export default function GroupPage() {
         })
       );
 
-      // Lấy toàn bộ PercentOwnership từ API
+      // Lấy toàn bộ PercentOwnership
       const allPO = await poGetAll();
       const nextOwnership = {};
       const nextPercentId = {};
@@ -449,7 +440,6 @@ export default function GroupPage() {
           nextUsageLimit[m.id] = 0;
           return;
         }
-        // Tìm phần trăm sở hữu từ API theo carUserId
         const exist = (allPO || []).find(
           (p) =>
             Number(
@@ -467,7 +457,6 @@ export default function GroupPage() {
             exist?.id ?? exist?.Id ?? exist?.percentOwnershipId ?? 0
           );
         } else {
-          // Nếu chưa có trong API, mặc định là 0
           nextOwnership[m.id] = 0;
           nextUsageLimit[m.id] = 0;
         }
@@ -488,7 +477,6 @@ export default function GroupPage() {
   };
 
   const handleSavePercent = async () => {
-    // Tổng phải bằng 100
     const total = Object.values(ownershipMap).reduce(
       (sum, v) => sum + Number(v || 0),
       0
@@ -500,11 +488,12 @@ export default function GroupPage() {
 
     try {
       const carId = Number(
-        selectedGroupForPercent?.carId ?? selectedGroupForPercent?.car?.carId
+        selectedGroupForPercent?.car?.carId ??
+          selectedGroupForPercent?.carId ??
+          selectedGroupForPercent?.CarId
       );
       const members = selectedGroupForPercent?.members || [];
 
-      // Lưu lần lượt (có thể chuyển Promise.all nếu BE chịu tải)
       for (const m of members) {
         const cuid = carUserIdMap[m.id];
         if (!cuid) {
@@ -527,8 +516,6 @@ export default function GroupPage() {
 
       message.success("Đã lưu phần trăm đồng sở hữu!");
       setIsPercentModalVisible(false);
-
-      // Sau khi lưu có thể refetch cho chắc
       await hydrateCarOwners(cars, users);
     } catch (e) {
       console.error(e);
@@ -546,10 +533,12 @@ export default function GroupPage() {
           .filter(Boolean)
           .some((t) => String(t).toLowerCase().includes(kw));
 
+      const gidCarId = Number(
+        g?.car?.carId ?? g?.carId ?? g?.CarId
+      );
+
       const matchCar =
-        carFilter === "all"
-          ? true
-          : Number(g?.car?.carId ?? g?.carId) === Number(carFilter);
+        carFilter === "all" ? true : gidCarId === Number(carFilter);
 
       return matchKW && matchCar;
     });
@@ -584,7 +573,9 @@ export default function GroupPage() {
       title: "Thành viên",
       key: "membersCount",
       render: (_, record) => {
-        const carId = Number(record?.car?.carId ?? record?.carId);
+        const carId = Number(
+          record?.car?.carId ?? record?.carId ?? record?.CarId
+        );
         const count = Array.isArray(carOwnersMap[carId])
           ? carOwnersMap[carId].length
           : 0;
@@ -726,10 +717,6 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-
-          {/* <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
-            <Input placeholder="https://..." />
-          </Form.Item> */}
         </Form>
       </Modal>
 
@@ -751,9 +738,6 @@ export default function GroupPage() {
           >
             <Input placeholder="Nhập tên nhóm" />
           </Form.Item>
-          {/* <Form.Item name="groupImg" label="Ảnh nhóm (URL)">
-            <Input placeholder="https://..." />
-          </Form.Item> */}
           <Form.Item name="memberIds" label="Thành viên trong nhóm">
             <Select
               mode="multiple"
@@ -828,7 +812,7 @@ export default function GroupPage() {
               );
             })()}
 
-            {/* Danh sách đồng sở hữu */}
+            {/* Danh sách đồng sở hữu (giao diện cũ của bạn) */}
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-lg font-semibold text-gray-900">
@@ -839,7 +823,6 @@ export default function GroupPage() {
                 </span>
               </div>
 
-              {/* Sắp xếp members theo phần trăm giảm dần */}
               {[...selectedGroupForPercent.members]
                 .sort(
                   (a, b) =>
@@ -877,6 +860,7 @@ export default function GroupPage() {
                             </div>
                           </div>
                         </div>
+
                         <div className="text-right flex items-center space-x-3">
                           <div className="text-right">
                             <p className="text-xs text-gray-500 mb-1">

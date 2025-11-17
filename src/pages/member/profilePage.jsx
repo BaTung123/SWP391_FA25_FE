@@ -464,7 +464,7 @@ const ProfilePage = () => {
       const requestBody = {
         email: form.email || "",
         fullName: form.fullName || form.name || "",
-        phone: form.phone || "",
+        phoneNumber: form.phone || "",
         gender: form.gender || "",
         dob: dobIso,
         cccdFront: idCardFront || user.idCardImageUrl || "",
@@ -489,7 +489,7 @@ const ProfilePage = () => {
         name: updated.name ?? f.name,
         fullName: updated.fullName ?? f.fullName,
         email: updated.email ?? f.email,
-        phone: updated.phone ?? f.phone,
+        phoneNumber: updated.phoneNumber ?? f.phone,
         nationalId: updated.nationalId ?? f.nationalId,
         licenseNumber: updated.licenseNumber ?? f.licenseNumber,
         gender: updated.gender ?? f.gender,
