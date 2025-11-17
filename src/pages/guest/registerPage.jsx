@@ -99,13 +99,13 @@ const RegisterPage = () => {
                     confirmPassword: "",
                   }}
                 >
-                  <Form.Item
+                  {/* <Form.Item
                     label="Họ và tên"
                     name="fullName"
                     rules={[{ required: true, message: "Vui lòng nhập họ và tên!" }]}
                   >
                     <Input placeholder="VD: Nguyễn Văn A" />
-                  </Form.Item>
+                  </Form.Item> */}
 
                   <Form.Item
                     label="Tên đăng nhập"
