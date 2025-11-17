@@ -1029,6 +1029,85 @@ const ProfilePage = () => {
     }
   };
 
+  const handleWalletPayment = async (payment) => {
+    if (!payment) return;
+    if (!userId) {
+      alert("Vui lòng đăng nhập lại để thực hiện thanh toán.");
+      return;
+    }
+
+    if (payment.status === "Đã thanh toán") {
+      alert("Khoản thanh toán này đã được hoàn tất.");
+      return;
+    }
+
+    const paymentKey = payment.originalPaymentId ?? payment.id;
+    const amountToPay = calculateAmountToPay(payment);
+    const carId =
+      payment.carId ??
+      payment.vehicle?.carId ??
+      payment.vehicle?.id ??
+      null;
+
+    if (!Number.isFinite(amountToPay) || amountToPay <= 0) {
+      alert("Không xác định được số tiền cần thanh toán.");
+      return;
+    }
+    if (!carId) {
+      alert("Không tìm thấy thông tin xe để thanh toán.");
+      return;
+    }
+
+    const payload = {
+      userId: Number(userId),
+      amount: Math.round(amountToPay),
+      description: payment.description ?? payment.serviceType ?? "Maintenance payment",
+    };
+
+    setProcessingPaymentId(paymentKey);
+    try {
+      const response = await api.post(
+        `/Payment/wallet?carId=${encodeURIComponent(carId)}`,
+        payload,
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      setPayments((prev) =>
+        prev.map((item) =>
+          item.id === payment.id
+            ? { ...item, status: "Đã thanh toán", statusCode: 1 }
+            : item
+        )
+      );
+
+      alert(
+        response?.data?.message ??
+          "Thanh toán bằng ví đã được xử lý thành công."
+      );
+    } catch (error) {
+      console.error("handleWalletPayment error:", error);
+      let errorMessage =
+        "Không thể thanh toán bằng ví tại thời điểm này. Vui lòng thử lại.";
+
+      const responseData = error?.response?.data;
+      if (typeof responseData === "string" && responseData.trim()) {
+        errorMessage = responseData;
+      } else if (responseData?.message) {
+        errorMessage = responseData.message;
+      } else if (responseData?.error) {
+        errorMessage = responseData.error;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      alert(errorMessage);
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
   const patchActivity = (formId, patchOrProducer) => {
     setActivities(prev =>
       prev.map(a => {
@@ -1774,10 +1853,21 @@ const ProfilePage = () => {
                               <td className="px-6 py-4 text-sm font-medium">
                                 <div className="flex justify-center space-x-2">
                                   <button
-                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                    onClick={() => handleWalletPayment(payment)}
+                                    disabled={
+                                      processingPaymentId ===
+                                        (payment.originalPaymentId ?? payment.id) ||
+                                      payment.status === "Đã thanh toán"
+                                    }
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Thanh toán"
                                   >
-                                    Thanh toán
+                                    {processingPaymentId ===
+                                    (payment.originalPaymentId ?? payment.id)
+                                      ? "Đang xử lý..."
+                                      : payment.status === "Đã thanh toán"
+                                      ? "Đã thanh toán"
+                                      : "Thanh toán"}
                                   </button>
                                 </div>
                               </td>
