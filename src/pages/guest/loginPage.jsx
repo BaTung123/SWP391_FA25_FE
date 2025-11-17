@@ -57,10 +57,10 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  //  message API để hiện toast
+  // message API để hiện toast
   const [msgApi, contextHolder] = message.useMessage();
 
-  //  helper: hiển thị toast rồi mới điều hướng
+  // helper: hiển thị toast rồi mới điều hướng
   const showAndGo = async (content, path) => {
     await msgApi.open({ type: "success", content, duration: 1 });
     navigate(path, { replace: true });
@@ -75,7 +75,6 @@ const LoginPage = () => {
 
     setIsLoading(true);
     try {
-   
       const trimmedUserName = userName.trim();
       const loginPayload = {
         userName: trimmedUserName,
@@ -177,17 +176,23 @@ const LoginPage = () => {
         localStorage.removeItem("remember_userName");
       }
 
-      // 6️⃣ THÔNG BÁO THÀNH CÔNG + ĐIỀU HƯỚNG (đợi toast xong rồi navigate)
+      // 6️⃣ THÔNG BÁO THÀNH CÔNG + ĐIỀU HƯỚNG
       const welcome = `Chào mừng, ${userObj.userName}!`;
       if (role === 1) {
-        await showAndGo(`${welcome} Bạn đang đăng nhập với vai trò Admin.`, "/admin");
+        await showAndGo(
+          `${welcome} Bạn đang đăng nhập với vai trò Admin.`,
+          "/admin"
+        );
       } else if (role === 2) {
         await showAndGo(
           `${welcome} Bạn đang đăng nhập với vai trò Staff.`,
           "/staff/group-management"
         );
       } else if (role === 0) {
-        await showAndGo(`${welcome} Bạn đang đăng nhập với vai trò Member.`, "/member");
+        await showAndGo(
+          `${welcome} Bạn đang đăng nhập với vai trò Member.`,
+          "/member"
+        );
       } else {
         await showAndGo(`${welcome} Đăng nhập thành công!`, "/");
       }
@@ -199,10 +204,10 @@ const LoginPage = () => {
       delete api.defaults.headers.common.Authorization;
 
       let apiMsg = "Đăng nhập thất bại. Vui lòng thử lại.";
+
+      // THÔNG BÁO RÕ RÀNG KHI SAI TÀI KHOẢN / MẬT KHẨU
       if (e?.response?.status === 401) {
-        const backendMsg = e?.response?.data?.message || e?.response?.data?.error;
-        apiMsg =
-          backendMsg || "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
+        apiMsg = "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.";
       } else if (e?.response?.data?.message) {
         apiMsg = e.response.data.message;
       } else if (e?.response?.data?.error) {
@@ -210,7 +215,9 @@ const LoginPage = () => {
       } else if (e?.message) {
         apiMsg = e.message;
       }
-      message.error(apiMsg); // dùng message global để chắc chắn hiển thị
+
+      // dùng msgApi để hiển thị toast (thống nhất với phần còn lại)
+      msgApi.error(apiMsg);
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +261,8 @@ const LoginPage = () => {
                   layout="vertical"
                   onFinish={handleSubmit}
                   initialValues={{
-                    userName: localStorage.getItem("remember_userName") || "",
+                    userName:
+                      localStorage.getItem("remember_userName") || "",
                     password: "",
                     remember: !!localStorage.getItem("remember_userName"),
                   }}
@@ -262,7 +270,12 @@ const LoginPage = () => {
                   <Form.Item
                     label="Tên Đăng Nhập"
                     name="userName"
-                    rules={[{ required: true, message: "Please enter your user name!" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter your user name!",
+                      },
+                    ]}
                   >
                     <Input placeholder="Enter your user name" />
                   </Form.Item>
@@ -270,7 +283,12 @@ const LoginPage = () => {
                   <Form.Item
                     label="Mật Khẩu"
                     name="password"
-                    rules={[{ required: true, message: "Please enter your password!" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please enter your password!",
+                      },
+                    ]}
                   >
                     <Input.Password
                       placeholder="Enter your password"
@@ -315,7 +333,10 @@ const LoginPage = () => {
                   </div>
 
                   <div className="mt-4 text-center">
-                    <Link to="/" className="text-blue-700 font-semibold hover:underline">
+                    <Link
+                      to="/"
+                      className="text-blue-700 font-semibold hover:underline"
+                    >
                       Quay lại Trang chủ
                     </Link>
                   </div>

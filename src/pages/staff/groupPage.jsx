@@ -487,11 +487,6 @@ export default function GroupPage() {
     }
 
     try {
-      const carId = Number(
-        selectedGroupForPercent?.car?.carId ??
-          selectedGroupForPercent?.carId ??
-          selectedGroupForPercent?.CarId
-      );
       const members = selectedGroupForPercent?.members || [];
 
       for (const m of members) {
