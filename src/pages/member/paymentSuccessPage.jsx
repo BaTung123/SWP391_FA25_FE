@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import api from "../../config/axios";
 
@@ -28,6 +28,23 @@ function getStoredAuth() {
   return { token, user, userId };
 }
 
+// Helper function to check if orderCode has been captured
+function hasOrderBeenCaptured(orderCode) {
+  if (!orderCode) return false;
+  const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
+  return capturedOrders.includes(orderCode);
+}
+
+// Helper function to mark orderCode as captured
+function markOrderAsCaptured(orderCode) {
+  if (!orderCode) return;
+  const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
+  if (!capturedOrders.includes(orderCode)) {
+    capturedOrders.push(orderCode);
+    sessionStorage.setItem("capturedOrders", JSON.stringify(capturedOrders));
+  }
+}
+
 const PaymentSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const status = searchParams.get("status");
@@ -37,53 +54,74 @@ const PaymentSuccessPage = () => {
   const [authState, setAuthState] = useState(() => getStoredAuth());
   const { userId } = authState;
 
+  // Use ref to track if capture has been called for this orderCode
+  const hasCapturedRef = useRef(false);
+
   useEffect(() => {
     console.log("Payment Success - orderCode:", orderCode, "status:", status);
     
-    if (status && orderCode) {
-      // Call API to update payment status (webhook)
-      const updatePaymentStatus = async () => {
-        try {
-          // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
-          // The backend was treating "payos" as orderId in /Payment/capture/payos
-          const captureEndpoint = `/Payment/capture/payos/${encodeURIComponent(orderCode)}?UserId=${encodeURIComponent(userId || '')}`;
-
-          // 1) Try POST to capture endpoint with query parameters
-          try {
-            console.log(`Trying POST ${captureEndpoint} ...`);
-            const res = await api.post(captureEndpoint, {}, {
-              headers: { 'Content-Type': 'application/json' }
-            });
-            console.log(`Success POST ${captureEndpoint}`, res?.data);
-            return;
-          } catch (ePostCapture) {
-            if (ePostCapture?.response?.status !== 404 && ePostCapture?.response?.status !== 405) {
-              throw ePostCapture;
-            }
-            console.log(`POST ${captureEndpoint} not allowed/found`);
-          }
-        } catch (error) {
-          console.error('Error updating payment status:', error);
-          console.error('Error details:', {
-            status: error?.response?.status,
-            statusText: error?.response?.statusText,
-            data: error?.response?.data,
-            url: error?.config?.url,
-            method: error?.config?.method,
-            orderCode: orderCode,
-            userId: userId
-          });
-          
-          // Log the full error response for debugging
-          if (error?.response?.data) {
-            console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
-          }
-          // Không hiển thị error cho user vì đây là background update
-        }
-      };
-      
-      updatePaymentStatus();
+    // Prevent multiple captures for the same orderCode
+    if (!status || !orderCode || hasCapturedRef.current || hasOrderBeenCaptured(orderCode)) {
+      if (hasOrderBeenCaptured(orderCode)) {
+        console.log(`OrderCode ${orderCode} has already been captured, skipping...`);
+      }
+      return;
     }
+
+    // Mark as captured immediately to prevent duplicate calls
+    hasCapturedRef.current = true;
+    markOrderAsCaptured(orderCode);
+
+    // Call API to update payment status (webhook)
+    const updatePaymentStatus = async () => {
+      try {
+        // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
+        // The backend was treating "payos" as orderId in /Payment/capture/payos
+        const captureEndpoint = `/Payment/capture/payos/${encodeURIComponent(orderCode)}?UserId=${encodeURIComponent(userId || '')}`;
+
+        // 1) Try POST to capture endpoint with query parameters
+        try {
+          console.log(`Trying POST ${captureEndpoint} ...`);
+          const res = await api.post(captureEndpoint, {}, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+          console.log(`Success POST ${captureEndpoint}`, res?.data);
+          return;
+        } catch (ePostCapture) {
+          if (ePostCapture?.response?.status !== 404 && ePostCapture?.response?.status !== 405) {
+            throw ePostCapture;
+          }
+          console.log(`POST ${captureEndpoint} not allowed/found`);
+        }
+      } catch (error) {
+        console.error('Error updating payment status:', error);
+        console.error('Error details:', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          data: error?.response?.data,
+          url: error?.config?.url,
+          method: error?.config?.method,
+          orderCode: orderCode,
+          userId: userId
+        });
+        
+        // Log the full error response for debugging
+        if (error?.response?.data) {
+          console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
+        }
+        // Không hiển thị error cho user vì đây là background update
+        // Reset the flag on error so it can be retried if needed
+        hasCapturedRef.current = false;
+        const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
+        const index = capturedOrders.indexOf(orderCode);
+        if (index > -1) {
+          capturedOrders.splice(index, 1);
+          sessionStorage.setItem("capturedOrders", JSON.stringify(capturedOrders));
+        }
+      }
+    };
+    
+    updatePaymentStatus();
   }, [status, orderCode, userId]);
 
   return (

@@ -48,6 +48,7 @@ const ProfilePage = () => {
   const [form, setForm] = useState({
     name: "",
     fullName: "",
+    email: "",
     phone: "",
     nationalId: "",
     licenseNumber: "",
@@ -221,9 +222,41 @@ const ProfilePage = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get(`/User/${userId}`, { signal: controller.signal });
-        const data = res?.data ?? {};
+        // Gọi API GET /User (không có parameter)
+        const res = await api.get("/User", { signal: controller.signal });
+        
+        // Xử lý response: có thể là array hoặc object
+        let users = [];
+        if (Array.isArray(res.data)) {
+          users = res.data;
+        } else if (res.data?.data && Array.isArray(res.data.data)) {
+          users = res.data.data;
+        } else if (res.data && typeof res.data === 'object') {
+          // Nếu là object đơn, thêm vào array
+          users = [res.data];
+        }
+
+        // Tìm user có userId khớp
+        const data = users.find(u => 
+          Number(u.userId ?? u.id ?? u.Id ?? u.UserId) === Number(userId)
+        ) || users[0] || {};
+
         const safe = (v, fb = "") => (v === null || v === undefined ? fb : v);
+
+        // Format ngày sinh cho input type="date" (YYYY-MM-DD)
+        const formatDateForInput = (dateValue) => {
+          if (!dateValue) return "";
+          try {
+            const date = new Date(dateValue);
+            if (isNaN(date.getTime())) return "";
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          } catch {
+            return "";
+          }
+        };
 
         setUser({
           email: safe(data.email),
@@ -234,11 +267,12 @@ const ProfilePage = () => {
         setForm({
           name: safe(data.name) || safe(data.fullName),
           fullName: safe(data.fullName) || safe(data.name),
-          phone: safe(data.phone),
+          email: safe(data.email),
+          phone: safe(data.phoneNumber ?? data.phone),
           nationalId: safe(data.nationalId),
           licenseNumber: safe(data.licenseNumber),
           gender: safe(data.gender),
-          dob: safe(data.dob),
+          dob: formatDateForInput(data.dob),
         });
 
         try {
@@ -270,6 +304,14 @@ const ProfilePage = () => {
         else if (displayName.trim().length < 2) error = "Họ và tên phải có ít nhất 2 ký tự";
         else if (displayName.trim().length > 100) error = "Họ và tên không được vượt quá 100 ký tự";
         else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(displayName.trim())) error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
+        break;
+      }
+      case "email": {
+        if (!value || value.trim().length === 0) error = "Email không được để trống";
+        else {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(value.trim())) error = "Email không hợp lệ. Vui lòng nhập đúng định dạng email";
+        }
         break;
       }
       case "phone": {
@@ -313,6 +355,8 @@ const ProfilePage = () => {
     const errors = {};
     const nameError = validateField("name", form.name || form.fullName);
     if (nameError) { errors.name = nameError; errors.fullName = nameError; }
+    const emailError = validateField("email", form.email);
+    if (emailError) errors.email = emailError;
     const phoneError = validateField("phone", form.phone);
     if (phoneError) errors.phone = phoneError;
     const dobError = validateField("dob", form.dob);
@@ -418,6 +462,7 @@ const ProfilePage = () => {
       
       // Prepare request body according to API specification
       const requestBody = {
+        email: form.email || "",
         fullName: form.fullName || form.name || "",
         phone: form.phone || "",
         gender: form.gender || "",
@@ -434,8 +479,7 @@ const ProfilePage = () => {
 
       setUser((u) => ({
         ...u,
-        // Giữ nguyên email ban đầu, không cập nhật từ response
-        email: u.email,
+        email: updated.email ?? u.email,
         avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
         idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
       }));
@@ -444,6 +488,7 @@ const ProfilePage = () => {
         ...f,
         name: updated.name ?? f.name,
         fullName: updated.fullName ?? f.fullName,
+        email: updated.email ?? f.email,
         phone: updated.phone ?? f.phone,
         nationalId: updated.nationalId ?? f.nationalId,
         licenseNumber: updated.licenseNumber ?? f.licenseNumber,
@@ -455,9 +500,7 @@ const ProfilePage = () => {
         const raw = localStorage.getItem("user");
         if (raw) {
           const cur = JSON.parse(raw);
-          const originalEmail = cur.email; // Giữ nguyên email ban đầu
           const next = { ...cur, ...updated };
-          next.email = originalEmail; // Đảm bảo email không bị thay đổi
           localStorage.setItem("user", JSON.stringify(next));
         }
       } catch {}
@@ -1246,7 +1289,6 @@ const ProfilePage = () => {
               <div className="border-indigo-100 shadow-lg lg:col-span-1 rounded-lg border p-4 bg-white">
                 <div className="pb-4">
                   <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Ảnh căn cước</div>
-                  <div className="text-sm text-gray-500">Tải lên ảnh mặt trước và mặt sau</div>
                 </div>
                 <div className="space-y-4">
                   {/* Front */}
@@ -1302,7 +1344,6 @@ const ProfilePage = () => {
               <div className="border-indigo-100 shadow-lg lg:col-span-2 rounded-lg border p-4 bg-white">
                 <div className="pb-4">
                   <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Thông tin cá nhân</div>
-                  <div className="text-sm text-gray-500">Cập nhật thông tin tài khoản của bạn</div>
                 </div>
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1325,8 +1366,22 @@ const ProfilePage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Email</label>
-                      <input type="email" name="email" value={user.email} readOnly className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 cursor-not-allowed" />
+                      <label className="flex items-center gap-2 text-sm text-slate-700">Email <span className="text-red-500">*</span></label>
+                      <input 
+                        type="email" 
+                        name="email" 
+                        value={form.email} 
+                        onChange={handleChange} 
+                        className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                          validationErrors.email
+                            ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                            : "border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
+                        }`}
+                        placeholder="Nhập email"
+                      />
+                      {validationErrors.email && (
+                        <p className="text-xs text-red-600 mt-1">{validationErrors.email}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
