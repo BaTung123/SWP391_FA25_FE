@@ -678,7 +678,8 @@ const ProfilePage = () => {
   const [vehicleData, setVehicleData] = useState([]);
 
   useEffect(() => {
-    if (activeTab !== "vehicles" || !userId) return;
+    // Load vehicleData for both "vehicles" and "insurance" tabs
+    if ((activeTab !== "vehicles" && activeTab !== "insurance") || !userId) return;
     let mounted = true;
     setLoading(true);
 
@@ -757,7 +758,6 @@ const ProfilePage = () => {
   const [paymentKeyword, setPaymentKeyword] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
   const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
-  const [selectedPayment, setSelectedPayment] = useState(null);
   const paymentItemsPerPage = 5;
 
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
@@ -801,6 +801,97 @@ const ProfilePage = () => {
 
     return () => { mounted = false; };
   }, [activeTab, isAdminOrStaff]);
+
+  // State to cache ownership percentages for payments
+  const [ownershipCache, setOwnershipCache] = useState(new Map());
+
+  // Map carId to ownershipPercentage from vehicleData
+  const ownershipMap = useMemo(() => {
+    const map = new Map();
+    vehicleData.forEach((vehicle) => {
+      if (vehicle.id) {
+        map.set(Number(vehicle.id), vehicle.ownershipPercentage || 0);
+      }
+    });
+    return map;
+  }, [vehicleData]);
+
+  // Fetch ownership percentage for a specific carId and userId
+  useEffect(() => {
+    if (activeTab !== "insurance" || !userId || payments.length === 0) return;
+    
+    const fetchMissingOwnership = async () => {
+      const missingCarIds = new Set();
+      
+      // Find carIds that don't have ownership percentage in cache or map
+      payments.forEach((payment) => {
+        const carId = payment.carId;
+        if (carId) {
+          const numCarId = Number(carId);
+          if (!ownershipMap.has(numCarId)) {
+            missingCarIds.add(numCarId);
+          }
+        }
+      });
+
+      if (missingCarIds.size === 0) return;
+
+      // Fetch ownership percentages for missing carIds
+      try {
+        const res = await api.get(`/users/${userId}/cars`);
+        const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+        
+        setOwnershipCache((prevCache) => {
+          const newCache = new Map(prevCache);
+          missingCarIds.forEach((carId) => {
+            // Only update if not already in cache
+            if (!newCache.has(carId)) {
+              const car = list.find(c => Number(c.carId ?? c.id ?? c.Id) === Number(carId));
+              if (car && car.ownershipPercentage != null) {
+                newCache.set(carId, Number(car.ownershipPercentage));
+              } else {
+                newCache.set(carId, 0);
+              }
+            }
+          });
+          return newCache;
+        });
+      } catch (error) {
+        console.error("Error fetching ownership percentages:", error);
+      }
+    };
+
+    fetchMissingOwnership();
+  }, [activeTab, userId, payments, ownershipMap]);
+
+  // Helper function to calculate amount to pay based on ownership percentage
+  const calculateAmountToPay = (payment) => {
+    const totalAmount = payment.price || payment.amount || 0;
+    const carId = payment.carId;
+    const paymentUserId = payment.userId || userId;
+    
+    if (!carId) return totalAmount; // If no carId, return full amount
+    
+    const numCarId = Number(carId);
+    
+    // First try to get from ownershipMap (from vehicleData)
+    let ownershipPercentage = ownershipMap.get(numCarId);
+    
+    // If not found in map, try to get from cache
+    if (ownershipPercentage === undefined || ownershipPercentage === null) {
+      ownershipPercentage = ownershipCache.get(numCarId);
+    }
+    
+    // If still not found, return full amount (shouldn't happen if fetch is working)
+    if (ownershipPercentage === undefined || ownershipPercentage === null) {
+      console.warn(`Ownership percentage not found for carId: ${carId}, userId: ${paymentUserId}`);
+      return totalAmount;
+    }
+    
+    const amountToPay = (totalAmount * ownershipPercentage) / 100;
+    
+    return amountToPay;
+  };
 
   // --- Lọc + tìm kiếm thanh toán ---
   const filteredPayments = useMemo(() => {
@@ -1532,71 +1623,6 @@ const ProfilePage = () => {
         {/* INSURANCE TAB */}
         {activeTab === "insurance" && (
           <div className="mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl-grid-cols-3 gap-6 mb-8">
-              {vehicleData.map((vehicle) => (
-                <div key={vehicle.id} className="bg-white border border-indigo-200 rounded-lg shadow-md hover:shadow-lg transition-shadow">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold text-indigo-900">{vehicle.vehicleName}</h4>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        vehicle.insurance.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}>
-                        {vehicle.insurance.status === "Active" ? "Hoạt động" : "Hết hạn"}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 mb-4">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Nhà bảo hiểm:</span>
-                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.provider}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Số hợp đồng:</span>
-                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.policyNumber}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Loại bảo hiểm:</span>
-                        <span className="text-sm font-medium text-gray-900">{vehicle.insurance.coverage}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Phí bảo hiểm/năm:</span>
-                        <span className="text-sm font-bold text-indigo-900">
-                          {Number(vehicle.insurance.premium || 0).toLocaleString("vi-VN")} VNĐ
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Phần của bạn:</span>
-                        <span className="text-sm font-bold text-red-600">
-                          {Math.round(Number(vehicle.insurance.monthlyPayment || 0) * Number(vehicle.ownershipPercentage || 0) / 100).toLocaleString("vi-VN")} VNĐ
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-200 pt-4">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-600">Hạn thanh toán tiếp:</span>
-                        <span className="font-medium text-gray-900">
-                          {vehicle.insurance.nextPayment ? new Date(vehicle.insurance.nextPayment).toLocaleDateString("vi-VN") : '—'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Hiệu lực:</span>
-                        <span className="font-medium text-gray-900">
-                          {vehicle.insurance.startDate ? new Date(vehicle.insurance.startDate).toLocaleDateString("vi-VN") : '—'} - {vehicle.insurance.endDate ? new Date(vehicle.insurance.endDate).toLocaleDateString("vi-VN") : '—'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex justify-center">
-                      <button className="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded-sm text-sm font-medium transition-colors">
-                        Thanh toán
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             {/* Payment History Section */}
             <div className="mt-8 space-y-4">
               {/* Header + Filters */}
@@ -1738,8 +1764,8 @@ const ProfilePage = () => {
                               <td className="px-6 py-4 text-sm text-gray-900">
                                 {formatCurrency(payment.price || payment.amount)}
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {formatCurrency(payment.price || payment.amount)}
+                              <td className="px-6 py-4 text-sm text-gray-900 font-semibold">
+                                {formatCurrency(calculateAmountToPay(payment))}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
                                 {payment.scheduledDate || payment.date || "—"}
@@ -1748,9 +1774,8 @@ const ProfilePage = () => {
                               <td className="px-6 py-4 text-sm font-medium">
                                 <div className="flex justify-center space-x-2">
                                   <button
-                                    onClick={() => setSelectedPayment(payment)}
                                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                                    title="Chi tiết"
+                                    title="Thanh toán"
                                   >
                                     Thanh toán
                                   </button>
@@ -2172,102 +2197,6 @@ const ProfilePage = () => {
           </div>
         )}
 
-        {/* Payment Detail Modal */}
-        {selectedPayment && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  Chi tiết bảo dưỡng
-                </h2>
-                <button
-                  onClick={() => setSelectedPayment(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <FaTimes />
-                </button>
-              </div>
-
-              <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Mã bảo dưỡng
-                    </label>
-                    <div className="mt-1 text-sm text-gray-900">
-                      {selectedPayment.paymentId || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Trạng thái
-                    </label>
-                    <div className="mt-1">
-                      {getStatusBadge(selectedPayment.status)}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Xe
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {selectedPayment.vehicle?.name || "N/A"}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Biển số: {selectedPayment.vehicle?.license || "N/A"}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Loại bảo dưỡng
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {selectedPayment.type || selectedPayment.serviceType || "N/A"}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Giá tiền
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {formatCurrency(selectedPayment.price || selectedPayment.amount)}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Ngày thực hiện
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {selectedPayment.scheduledDate || selectedPayment.date || "N/A"}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Mô tả
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {selectedPayment.description || "Không có mô tả"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setSelectedPayment(null)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Đóng
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* CREATE ACTIVITY MODAL (Leader only) */}
         {showCoOwnersModal && showCreateActivity && groupInfo && (
