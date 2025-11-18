@@ -19,6 +19,7 @@ const { Title, Text } = Typography;
 const RegisterPage = () => {
   const [form] = Form.useForm();
   const [isLoading, setIsLoading] = useState(false);
+  const [msgApi, contextHolder] = message.useMessage();
   const navigate = useNavigate();
 
   const handleSubmit = async (values) => {
@@ -32,7 +33,11 @@ const RegisterPage = () => {
         role: 0,                     // ✅ mặc định Member
       });
 
-      message.success("Đăng ký thành công!");
+      await msgApi.open({
+        type: "success",
+        content: "Tạo tài khoản Member thành công!",
+        duration: 1,
+      });
       navigate("/auth/login", { replace: true });
     } catch (error) {
       const data = error?.response?.data || {};
@@ -45,9 +50,9 @@ const RegisterPage = () => {
         (data.title || "").toLowerCase().includes("exist") ||
         /exist|already/i.test(msg)
       ) {
-        message.error("Tài khoản đã tồn tại. Vui lòng chọn tên đăng nhập/email khác.");
+        msgApi.error("Tài khoản đã tồn tại. Vui lòng chọn tên đăng nhập/email khác.");
       } else {
-        message.error(msg || "Đăng ký thất bại. Vui lòng thử lại sau.");
+        msgApi.error(msg || "Đăng ký thất bại. Vui lòng thử lại sau.");
       }
     } finally {
       setIsLoading(false);
@@ -56,6 +61,7 @@ const RegisterPage = () => {
 
   return (
     <>
+      {contextHolder}
       <style>{`
         @keyframes fadeZoom {
           0% { opacity: 0; transform: scale(1.08); }
