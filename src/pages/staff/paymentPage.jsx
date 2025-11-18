@@ -92,6 +92,9 @@ const PaymentPage = () => {
   const [modalError, setModalError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [selectedMaintenance, setSelectedMaintenance] = useState(null);
+  const [ownerPaymentDetails, setOwnerPaymentDetails] = useState([]);
+  const [ownerPaymentLoading, setOwnerPaymentLoading] = useState(false);
+  const [ownerPaymentError, setOwnerPaymentError] = useState("");
   const itemsPerPage = 5;
 
   const [newMaintenance, setNewMaintenance] = useState({
@@ -304,6 +307,21 @@ const PaymentPage = () => {
   };
 
   // Helper function to check payment status for all owners
+  const isPaidStatus = (status) => {
+    if (status === null || status === undefined) return false;
+    if (typeof status === "number") {
+      return Number(status) === 1;
+    }
+    const normalized = String(status).trim().toLowerCase();
+    return (
+      normalized === "1" ||
+      normalized === "completed" ||
+      normalized === "paid" ||
+      normalized === "success" ||
+      normalized === "đã thanh toán"
+    );
+  };
+
   const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     if (!maintenanceId || !carId) return null;
 
@@ -346,14 +364,7 @@ const PaymentPage = () => {
         const paymentUserId = payment.userId ?? payment.UserId;
         
         // Check if payment is completed/paid
-        if (
-          paymentStatus === 1 ||
-          paymentStatus === "1" ||
-          paymentStatus === "Completed" ||
-          paymentStatus === "Paid" ||
-          paymentStatus === "Success" ||
-          paymentStatus === "Đã thanh toán"
-        ) {
+        if (isPaidStatus(paymentStatus)) {
           if (paymentUserId) {
             paidOwnerIds.add(Number(paymentUserId));
           }
@@ -533,6 +544,80 @@ const PaymentPage = () => {
     setEditingMaintenance(record);
     setModalError("");
     setIsEditModalOpen(true);
+  };
+
+  const resolveUserName = (uid) => {
+    const user =
+      allUsers.find(
+        (u) =>
+          Number(u?.id ?? u?.userId ?? u?.Id ?? u?.UserId) === Number(uid)
+      ) || null;
+    if (!user) return `User #${uid}`;
+    return user.fullName || user.name || user.email || `User #${uid}`;
+  };
+
+  const fetchOwnerPaymentDetails = async (carId, maintenanceId) => {
+    if (!carId) return [];
+
+    const ownerIds = await getOwnersByCarId(carId);
+    if (!ownerIds.length) return [];
+
+    const paymentResponse = await api.get("/Payment");
+    const paymentData = Array.isArray(paymentResponse.data)
+      ? paymentResponse.data
+      : paymentResponse.data?.data ?? [];
+
+    const relatedPayments = paymentData.filter((p) => {
+      const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
+      const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
+
+      const carIdMatch = Number(pCarId) === Number(carId);
+      const maintenanceMatch = pMaintenanceId
+        ? Number(pMaintenanceId) === Number(maintenanceId)
+        : true;
+
+      return carIdMatch && maintenanceMatch;
+    });
+
+    return ownerIds.map((ownerId) => {
+      const displayName = resolveUserName(ownerId);
+      const hasPaid = relatedPayments.some((payment) => {
+        const paymentUserId = Number(payment.userId ?? payment.UserId);
+        if (!Number.isFinite(paymentUserId)) return false;
+        if (paymentUserId !== Number(ownerId)) return false;
+        return isPaidStatus(payment.status ?? payment.Status);
+      });
+      return { userId: ownerId, name: displayName, hasPaid };
+    });
+  };
+
+  const handleViewMaintenanceDetail = async (record) => {
+    setSelectedMaintenance(record);
+    setOwnerPaymentDetails([]);
+    setOwnerPaymentError("");
+
+    if (!record?.carId) return;
+
+    setOwnerPaymentLoading(true);
+    try {
+      const details = await fetchOwnerPaymentDetails(
+        record.carId,
+        record.maintenanceId
+      );
+      setOwnerPaymentDetails(details);
+    } catch (error) {
+      console.error("Failed to load owner payment details:", error);
+      setOwnerPaymentError("Không thể tải thông tin thanh toán của thành viên.");
+    } finally {
+      setOwnerPaymentLoading(false);
+    }
+  };
+
+  const closeDetailModal = () => {
+    setSelectedMaintenance(null);
+    setOwnerPaymentDetails([]);
+    setOwnerPaymentError("");
+    setOwnerPaymentLoading(false);
   };
 
   // Update maintenance
@@ -798,7 +883,7 @@ const PaymentPage = () => {
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex justify-center space-x-2">
                       <button
-                        onClick={() => setSelectedMaintenance(record)}
+                        onClick={() => handleViewMaintenanceDetail(record)}
                         className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
                         title="Chi tiết"
                       >
@@ -1222,7 +1307,7 @@ const PaymentPage = () => {
                 Chi tiết bảo dưỡng
               </h2>
               <button
-                onClick={() => setSelectedMaintenance(null)}
+                onClick={closeDetailModal}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <FaTimes />
@@ -1254,44 +1339,53 @@ const PaymentPage = () => {
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Loại bảo dưỡng
+                  Thành viên &amp; trạng thái thanh toán
                 </label>
-                <div className="mt-1 text-sm text-gray-900">
-                  {selectedMaintenance.type || "N/A"}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Giá tiền
-                </label>
-                <div className="mt-1 text-sm text-gray-900">
-                  {formatCurrency(selectedMaintenance.price)}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Ngày thực hiện
-                </label>
-                <div className="mt-1 text-sm text-gray-900">
-                  {selectedMaintenance.scheduledDate || "N/A"}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Mô tả
-                </label>
-                <div className="mt-1 text-sm text-gray-900">
-                  {selectedMaintenance.description || "Không có mô tả"}
+                <div className="mt-2">
+                  {ownerPaymentLoading ? (
+                    <div className="text-sm text-gray-500">
+                      Đang tải danh sách thành viên...
+                    </div>
+                  ) : ownerPaymentError ? (
+                    <div className="text-sm text-red-600">
+                      {ownerPaymentError}
+                    </div>
+                  ) : ownerPaymentDetails.length === 0 ? (
+                    <div className="text-sm text-gray-500">
+                      Không tìm thấy thành viên sở hữu xe.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {ownerPaymentDetails.map((owner) => (
+                        <div
+                          key={owner.userId}
+                          className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2"
+                        >
+                          <span className="text-sm text-gray-900 font-semibold">
+                            {owner.name || `User #${owner.userId}`}
+                          </span>
+                          <span
+                            className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                              owner.hasPaid
+                                ? "bg-green-100 text-green-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {owner.hasPaid
+                              ? "Đã thanh toán"
+                              : "Chưa thanh toán"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end mt-6">
               <button
-                onClick={() => setSelectedMaintenance(null)}
+                onClick={closeDetailModal}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
               >
                 Đóng
