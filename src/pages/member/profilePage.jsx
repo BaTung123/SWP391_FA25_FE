@@ -768,6 +768,7 @@ const ProfilePage = () => {
 
   useEffect(() => {
     if (activeTab !== "insurance" || isAdminOrStaff) return;
+    if (!userId) return;
     let mounted = true;
     setLoadingPayments(true);
 
@@ -778,30 +779,56 @@ const ProfilePage = () => {
 
     (async () => {
       try {
-        const response = await api.get("/Maintenance");
-        const data = Array.isArray(response.data)
-          ? response.data
-          : response.data?.data ?? [];
-        
-        if (!Array.isArray(data)) {
-          throw new Error("Invalid data format");
+        const [maintenanceResponse, carsResponse] = await Promise.all([
+          api.get("/Maintenance"),
+          api.get(`/users/${userId}/cars`),
+        ]);
+
+        const maintenanceData = Array.isArray(maintenanceResponse.data)
+          ? maintenanceResponse.data
+          : maintenanceResponse.data?.data ?? [];
+
+        if (!Array.isArray(maintenanceData)) {
+          throw new Error("Invalid maintenance data format");
         }
 
-        const normalized = data
+        const normalized = maintenanceData
           .map(normalizeMaintenanceRecord)
           .filter(Boolean);
 
-        if (mounted) setPayments(normalized);
+        const carsRaw = Array.isArray(carsResponse.data)
+          ? carsResponse.data
+          : carsResponse.data?.data ?? [];
+
+        const ownedCarIds = new Set(
+          (carsRaw || [])
+            .map((car) =>
+              Number(car?.carId ?? car?._carId ?? car?.id ?? car?.Id ?? car?.vehicleId)
+            )
+            .filter((id) => Number.isFinite(id))
+        );
+
+        const filteredPayments = normalized.filter((record) => {
+          if (!ownedCarIds.size) return false;
+          const cid = Number(record.carId);
+          return Number.isFinite(cid) && ownedCarIds.has(cid);
+        });
+
+        if (mounted) {
+          setPayments(filteredPayments);
+        }
       } catch (e) {
-        console.error("Lỗi khi lấy thông tin bảo dưỡng:", e);
-        if (mounted) setPayments([]);
+        console.error("Lỗi khi lấy thông tin bảo dưỡng hoặc xe của người dùng:", e);
+        if (mounted) {
+          setPayments([]);
+        }
       } finally {
         if (mounted) setLoadingPayments(false);
       }
     })();
 
     return () => { mounted = false; };
-  }, [activeTab, isAdminOrStaff]);
+  }, [activeTab, isAdminOrStaff, userId]);
 
   // State to cache ownership percentages for payments
   const [ownershipCache, setOwnershipCache] = useState(new Map());
@@ -1013,15 +1040,6 @@ const ProfilePage = () => {
         throw lastError;
       }
 
-      // Refresh payments list
-      const response = await api.get("/Payment");
-      const data = response.data?.data ?? response.data ?? [];
-      if (Array.isArray(data)) {
-        const normalized = data
-          .map(normalizePaymentRecord)
-          .filter(Boolean);
-        setPayments(normalized);
-      }
     } catch (error) {
       console.error("Error updating payment status:", error);
       alert("Không thể cập nhật trạng thái thanh toán. Vui lòng thử lại.");
@@ -1091,20 +1109,14 @@ const ProfilePage = () => {
           "Thanh toán bằng ví đã được xử lý thành công."
       );
 
-      // Refresh payments list from server to ensure consistency
       try {
-        const refreshResponse = await api.get("/Payment");
-        const data = refreshResponse.data?.data ?? refreshResponse.data ?? [];
-        if (Array.isArray(data)) {
-          const normalized = data
-            .map(normalizePaymentRecord)
-            .filter(Boolean);
-          setPayments(normalized);
+        if (typeof window !== "undefined" && window?.location?.reload) {
+          window.location.reload();
         }
-      } catch (refreshError) {
-        console.error("Error refreshing payments list:", refreshError);
-        // Don't show error to user as payment was already successful
+      } catch (reloadError) {
+        console.warn("Không thể tự động tải lại trang:", reloadError);
       }
+
     } catch (error) {
       console.error("handleWalletPayment error:", error);
       let errorMessage =

@@ -37,7 +37,7 @@ const Sidebar = () => {
     path: "/admin/user-management"
   };
 
-  // --- ADMIN MENU (không còn Vehicle Management ở đây) ---
+  // --- ADMIN MENU ---
   const adminMenu = [
     dashboardItem,
     userManagementItem,
@@ -81,7 +81,6 @@ const Sidebar = () => {
       label: "Payments",
       path: "/staff/payment"
     },
-
   ];
 
   // --- INFORMATION MENU ---
@@ -106,17 +105,20 @@ const Sidebar = () => {
   // Xác định menu dựa theo role
   let roleMenus = [];
   if (role === 1) {
-    // Admin: xem được cả admin + staff (trong đó có Vehicle Management)
+    // Admin: menu admin + staff
     roleMenus = [...adminMenu, ...staffMenu];
   } else if (role === 2) {
-    // Staff: chỉ menu staff (có Vehicle Management)
+    // Staff
     roleMenus = [...staffMenu];
   } else {
-    // Member/khác: không có menu quyền lực
     roleMenus = [];
   }
 
-  const allMenuItems = [...roleMenus, ...informationMenu, logoutItem];
+  // 🟦 CHỈNH SỬA TẠI ĐÂY → ADMIN KHÔNG CÓ PROFILE
+  const allMenuItems =
+    role === 1
+      ? [...roleMenus, logoutItem] // admin: không có profile
+      : [...roleMenus, ...informationMenu, logoutItem]; // staff/member: có profile
 
   const handleLogout = () => {
     localStorage.removeItem("user");
