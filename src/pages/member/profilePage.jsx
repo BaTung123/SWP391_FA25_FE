@@ -73,10 +73,11 @@ const ProfilePage = () => {
   // PAYMENT HELPERS (from paymentPage.jsx)
   // =========================
   const STATUS_LABELS = {
-    0: "Chờ thanh toán",
-    1: "Đã thanh toán",
-    2: "Đã hủy",
-    3: "Thất bại",
+    0: "Đã lên lịch",
+    1: "Đang thực hiện",
+    2: "Hoàn thành",
+    3: "Quá hạn",
+    4: "Đã thanh toán",
   };
 
   const STATUS_MAP = {
@@ -1074,18 +1075,36 @@ const ProfilePage = () => {
         }
       );
 
+      // Update local state optimistically
       setPayments((prev) =>
-        prev.map((item) =>
-          item.id === payment.id
+        prev.map((item) => {
+          const itemId = item.originalPaymentId ?? item.id;
+          const paymentItemId = payment.originalPaymentId ?? payment.id;
+          return itemId === paymentItemId || item.id === payment.id
             ? { ...item, status: "Đã thanh toán", statusCode: 1 }
-            : item
-        )
+            : item;
+        })
       );
 
       alert(
         response?.data?.message ??
           "Thanh toán bằng ví đã được xử lý thành công."
       );
+
+      // Refresh payments list from server to ensure consistency
+      try {
+        const refreshResponse = await api.get("/Payment");
+        const data = refreshResponse.data?.data ?? refreshResponse.data ?? [];
+        if (Array.isArray(data)) {
+          const normalized = data
+            .map(normalizePaymentRecord)
+            .filter(Boolean);
+          setPayments(normalized);
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing payments list:", refreshError);
+        // Don't show error to user as payment was already successful
+      }
     } catch (error) {
       console.error("handleWalletPayment error:", error);
       let errorMessage =

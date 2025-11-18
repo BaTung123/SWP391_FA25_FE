@@ -78,6 +78,7 @@ const normalizeMaintenanceRecord = (item) => {
 const PaymentPage = () => {
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [cars, setCars] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -147,7 +148,7 @@ const PaymentPage = () => {
   }, [cars, editMaintenance.carId, editingMaintenance]);
 
   // Refresh maintenance list
-  const refreshMaintenanceList = async () => {
+  const refreshMaintenanceList = async (checkPaymentStatus = true) => {
     try {
       setLoading(true);
       setErrorMessage("");
@@ -160,7 +161,53 @@ const PaymentPage = () => {
         .map(normalizeMaintenanceRecord)
         .filter(Boolean);
 
-      setMaintenanceRecords(normalized);
+      // Check and update payment status for each maintenance record if enabled and users are loaded
+      let updatedRecords = normalized;
+      if (checkPaymentStatus && allUsers.length > 0) {
+        updatedRecords = await Promise.all(
+          normalized.map(async (record) => {
+            const maintenanceId = record.maintenanceId ?? record.id;
+            const carId = record.carId;
+            
+            if (!maintenanceId || !carId) {
+              return record;
+            }
+
+            // Check payment status for all owners
+            const newStatus = await checkAndUpdatePaymentStatus(maintenanceId, carId);
+            
+            // If status changed, update the record and backend
+            if (newStatus !== null && newStatus !== record.statusCode) {
+              try {
+                // Update backend
+                await api.put(`/Maintenance/${maintenanceId}/update`, {
+                  carId: Number(carId),
+                  maintenanceType: record.type,
+                  maintenanceDay: record.maintenanceDay || record.scheduledDate,
+                  status: newStatus,
+                  description: record.description,
+                  price: record.price || 0,
+                });
+                
+                // Update local record
+                return {
+                  ...record,
+                  status: STATUS_LABELS[newStatus] ?? "Chờ thanh toán",
+                  statusCode: newStatus,
+                };
+              } catch (updateError) {
+                console.error(`Failed to update status for maintenance ${maintenanceId}:`, updateError);
+                // Return original record if update fails
+                return record;
+              }
+            }
+            
+            return record;
+          })
+        );
+      }
+
+      setMaintenanceRecords(updatedRecords);
       setCurrentPage(1);
     } catch (error) {
       console.error("Failed to fetch maintenance records", error);
@@ -173,8 +220,16 @@ const PaymentPage = () => {
   };
 
   useEffect(() => {
-    refreshMaintenanceList();
+    refreshMaintenanceList(false); // Initial load without payment check
   }, []);
+
+  // Auto-check payment status when users are loaded and maintenance records exist
+  useEffect(() => {
+    if (allUsers.length > 0 && maintenanceRecords.length > 0) {
+      // Refresh with payment status check
+      refreshMaintenanceList(true);
+    }
+  }, [allUsers.length]); // Only trigger when users are loaded
 
   // Fetch cars for dropdown
   useEffect(() => {
@@ -192,6 +247,131 @@ const PaymentPage = () => {
 
     fetchCars();
   }, []);
+
+  // Fetch all users for ownership checking
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await api.get("/User");
+        const data = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data ?? [];
+        setAllUsers(data);
+      } catch (error) {
+        console.error("Failed to fetch users", error);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  // Helper function to get all user IDs that own a car
+  const getOwnersByCarId = async (carId) => {
+    if (!carId || !allUsers.length) return [];
+    
+    try {
+      const ownerIds = [];
+      const limit = 8;
+      const chunks = [];
+      for (let i = 0; i < allUsers.length; i += limit) {
+        chunks.push(allUsers.slice(i, i + limit));
+      }
+
+      for (const batch of chunks) {
+        const results = await Promise.all(
+          batch.map(async (u) => {
+            const uid = Number(u?.id ?? u?.userId ?? u?.Id);
+            if (!Number.isFinite(uid)) return null;
+            try {
+              const r = await api.get(`/users/${uid}/cars`);
+              const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
+              const has = arr.some((c) => Number(c?.carId ?? c?.id) === Number(carId));
+              return has ? uid : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+        results.forEach((uid) => {
+          if (uid) ownerIds.push(uid);
+        });
+      }
+      return ownerIds;
+    } catch (error) {
+      console.error("Error getting owners by carId:", error);
+      return [];
+    }
+  };
+
+  // Helper function to check payment status for all owners
+  const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
+    if (!maintenanceId || !carId) return null;
+
+    try {
+      // Get all owners of this car
+      const ownerIds = await getOwnersByCarId(carId);
+      if (ownerIds.length === 0) {
+        // No owners found, keep current status
+        return null;
+      }
+
+      // Get all payments for this car
+      const paymentResponse = await api.get("/Payment");
+      const paymentData = Array.isArray(paymentResponse.data)
+        ? paymentResponse.data
+        : paymentResponse.data?.data ?? [];
+
+      // Filter payments related to this car
+      // Payments can be linked by carId and optionally by maintenanceId
+      const relatedPayments = paymentData.filter((p) => {
+        const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
+        const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
+        
+        // Match by carId
+        const carIdMatch = Number(pCarId) === Number(carId);
+        
+        // If payment has maintenanceId, it must match
+        // If not, consider it a match if carId matches (for payments without specific maintenanceId)
+        const maintenanceMatch = pMaintenanceId 
+          ? Number(pMaintenanceId) === Number(maintenanceId)
+          : true; // If no maintenanceId in payment, consider it a match if carId matches
+        
+        return carIdMatch && maintenanceMatch;
+      });
+
+      // Check if all owners have paid
+      const paidOwnerIds = new Set();
+      relatedPayments.forEach((payment) => {
+        const paymentStatus = payment.status ?? payment.Status;
+        const paymentUserId = payment.userId ?? payment.UserId;
+        
+        // Check if payment is completed/paid
+        if (
+          paymentStatus === 1 ||
+          paymentStatus === "1" ||
+          paymentStatus === "Completed" ||
+          paymentStatus === "Paid" ||
+          paymentStatus === "Success" ||
+          paymentStatus === "Đã thanh toán"
+        ) {
+          if (paymentUserId) {
+            paidOwnerIds.add(Number(paymentUserId));
+          }
+        }
+      });
+
+      // Check if all owners have paid
+      const allOwnersPaid = ownerIds.length > 0 && ownerIds.every((ownerId) =>
+        paidOwnerIds.has(Number(ownerId))
+      );
+
+      // Return the appropriate status
+      return allOwnersPaid ? 1 : 0; // 1 = Đã thanh toán, 0 = Chờ thanh toán
+    } catch (error) {
+      console.error("Error checking payment status:", error);
+      return null;
+    }
+  };
 
   // --- Lọc + tìm kiếm ---
   const filtered = useMemo(() => {
@@ -486,7 +666,7 @@ const PaymentPage = () => {
           {/* Title */}
           <div className="flex items-center gap-2">
             <FaTools className="text-gray-600" />
-            <span className="font-semibold text-gray-900">Quản lý bảo dưỡng</span>
+            <span className="font-semibold text-gray-900">Quản lý thanh toán</span>
           </div>
 
           {/* Filters and Actions */}
