@@ -15,6 +15,7 @@ import {
   Tooltip,
   Select,
   Empty,
+  message,
 } from "antd";
 import {
   PlusOutlined,
@@ -41,6 +42,7 @@ export default function UserManagementPage() {
   const [usersRaw, setUsersRaw] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+  const [msgApi, contextHolder] = message.useMessage();
 
   // Modal + form
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -123,6 +125,7 @@ export default function UserManagementPage() {
       });
 
       await fetchUsers();
+      msgApi.success("Thêm nhân viên thành công!");
       form.resetFields();
       setIsModalOpen(false);
     } catch (e) {
@@ -246,7 +249,9 @@ export default function UserManagementPage() {
   ];
 
   return (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
+    <>
+      {contextHolder}
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
       {/* Header */}
       <Card
         styles={{ padding: 16 }}
@@ -389,5 +394,6 @@ export default function UserManagementPage() {
         </Form>
       </Modal>
     </Space>
+    </>
   );
 }
