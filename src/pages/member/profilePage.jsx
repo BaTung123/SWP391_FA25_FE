@@ -116,10 +116,20 @@ const ProfilePage = () => {
   const normalizeMaintenanceRecord = (item) => {
     if (!item) return null;
 
-    const status =
-      typeof item.status === "string"
-        ? item.status
-        : STATUS_LABELS[item.status] ?? "Đang thực hiện";
+    // Map status code to Vietnamese label
+    const statusCode = item.status;
+    let status = "Chờ thanh toán";
+    if (typeof statusCode === "number") {
+      if (statusCode === 4) {
+        status = "Đã thanh toán";
+      } else if (statusCode === 0) {
+        status = "Chờ thanh toán";
+      } else {
+        status = STATUS_LABELS[statusCode] ?? "Chờ thanh toán";
+      }
+    } else if (typeof statusCode === "string") {
+      status = statusCode;
+    }
 
     return {
       id: item.maintenanceId ?? item.id ?? Date.now(),
@@ -596,7 +606,11 @@ const ProfilePage = () => {
       const found = arr.find((it) => Number(it?.carId ?? it?.id) === Number(carId));
       if (!found) return null;
       return Number(found?.carUserId ?? found?.CarUserId ?? found?.id);
-    } catch {
+    } catch (error) {
+      // Silently ignore 404 errors (user doesn't exist or has no cars)
+      if (error?.response?.status !== 404) {
+        console.debug(`Error resolving carUserId for carId ${carId}, userId ${uid}:`, error);
+      }
       return null;
     }
   };
@@ -619,7 +633,14 @@ const ProfilePage = () => {
               const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
               const has = arr.some((c) => Number(c?.carId ?? c?.id) === Number(carId));
               return has ? uid : null;
-            } catch { return null; }
+            } catch (error) {
+              // Silently ignore 404 errors (user doesn't exist or has no cars)
+              // Only log non-404 errors for debugging
+              if (error?.response?.status !== 404) {
+                console.debug(`Error fetching cars for user ${uid}:`, error);
+              }
+              return null;
+            }
           })
         );
         results.forEach((uid) => { if (uid) userIds.push(uid); });
@@ -766,9 +787,54 @@ const ProfilePage = () => {
   const isStaff = userRole === 2 || userRole === "2" || Number(userRole) === 2;
   const isAdminOrStaff = isAdmin || isStaff;
 
-  useEffect(() => {
-    if (activeTab !== "insurance" || isAdminOrStaff) return;
+  // Function to load payments from Maintenance API
+  const loadPayments = async () => {
     if (!userId) return;
+    try {
+      const [maintenanceResponse, carsResponse] = await Promise.all([
+        api.get("/Maintenance"),
+        api.get(`/users/${userId}/cars`),
+      ]);
+
+      const maintenanceData = Array.isArray(maintenanceResponse.data)
+        ? maintenanceResponse.data
+        : maintenanceResponse.data?.data ?? [];
+
+      if (!Array.isArray(maintenanceData)) {
+        throw new Error("Invalid maintenance data format");
+      }
+
+      const normalized = maintenanceData
+        .map(normalizeMaintenanceRecord)
+        .filter(Boolean);
+
+      const carsRaw = Array.isArray(carsResponse.data)
+        ? carsResponse.data
+        : carsResponse.data?.data ?? [];
+
+      const ownedCarIds = new Set(
+        (carsRaw || [])
+          .map((car) =>
+            Number(car?.carId ?? car?._carId ?? car?.id ?? car?.Id ?? car?.vehicleId)
+          )
+          .filter((id) => Number.isFinite(id))
+      );
+
+      const filteredPayments = normalized.filter((record) => {
+        if (!ownedCarIds.size) return false;
+        const cid = Number(record.carId);
+        return Number.isFinite(cid) && ownedCarIds.has(cid);
+      });
+
+      return filteredPayments;
+    } catch (e) {
+      console.error("Lỗi khi lấy thông tin bảo dưỡng hoặc xe của người dùng:", e);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "insurance" || isAdminOrStaff || !userId) return;
     let mounted = true;
     setLoadingPayments(true);
 
@@ -778,53 +844,9 @@ const ProfilePage = () => {
     setPaymentCurrentPage(1);
 
     (async () => {
-      try {
-        const [maintenanceResponse, carsResponse] = await Promise.all([
-          api.get("/Maintenance"),
-          api.get(`/users/${userId}/cars`),
-        ]);
-
-        const maintenanceData = Array.isArray(maintenanceResponse.data)
-          ? maintenanceResponse.data
-          : maintenanceResponse.data?.data ?? [];
-
-        if (!Array.isArray(maintenanceData)) {
-          throw new Error("Invalid maintenance data format");
-        }
-
-        const normalized = maintenanceData
-          .map(normalizeMaintenanceRecord)
-          .filter(Boolean);
-
-        const carsRaw = Array.isArray(carsResponse.data)
-          ? carsResponse.data
-          : carsResponse.data?.data ?? [];
-
-        const ownedCarIds = new Set(
-          (carsRaw || [])
-            .map((car) =>
-              Number(car?.carId ?? car?._carId ?? car?.id ?? car?.Id ?? car?.vehicleId)
-            )
-            .filter((id) => Number.isFinite(id))
-        );
-
-        const filteredPayments = normalized.filter((record) => {
-          if (!ownedCarIds.size) return false;
-          const cid = Number(record.carId);
-          return Number.isFinite(cid) && ownedCarIds.has(cid);
-        });
-
-        if (mounted) {
-          setPayments(filteredPayments);
-        }
-      } catch (e) {
-        console.error("Lỗi khi lấy thông tin bảo dưỡng hoặc xe của người dùng:", e);
-        if (mounted) {
-          setPayments([]);
-        }
-      } finally {
-        if (mounted) setLoadingPayments(false);
-      }
+      const filteredPayments = await loadPayments();
+      if (mounted) setPayments(filteredPayments);
+      if (mounted) setLoadingPayments(false);
     })();
 
     return () => { mounted = false; };
@@ -910,9 +932,17 @@ const ProfilePage = () => {
       ownershipPercentage = ownershipCache.get(numCarId);
     }
     
-    // If still not found, return full amount (shouldn't happen if fetch is working)
+    // If still not found, try to get from payment data itself
     if (ownershipPercentage === undefined || ownershipPercentage === null) {
-      console.warn(`Ownership percentage not found for carId: ${carId}, userId: ${paymentUserId}`);
+      // Check if payment has ownershipPercentage directly
+      if (payment.ownershipPercentage != null) {
+        ownershipPercentage = Number(payment.ownershipPercentage);
+      }
+    }
+    
+    // If still not found, return full amount (default to 100% if data not loaded yet)
+    // This is not an error - it just means we use the full amount as fallback
+    if (ownershipPercentage === undefined || ownershipPercentage === null) {
       return totalAmount;
     }
     
@@ -1040,6 +1070,15 @@ const ProfilePage = () => {
         throw lastError;
       }
 
+      // Refresh payments list
+      const response = await api.get("/Payment");
+      const data = response.data?.data ?? response.data ?? [];
+      if (Array.isArray(data)) {
+        const normalized = data
+          .map(normalizePaymentRecord)
+          .filter(Boolean);
+        setPayments(normalized);
+      }
     } catch (error) {
       console.error("Error updating payment status:", error);
       alert("Không thể cập nhật trạng thái thanh toán. Vui lòng thử lại.");
@@ -1055,18 +1094,19 @@ const ProfilePage = () => {
       return;
     }
 
-    if (payment.status === "Đã thanh toán") {
+    if (payment.status === "Đã thanh toán" || payment.statusCode === 4) {
       alert("Khoản thanh toán này đã được hoàn tất.");
       return;
     }
 
-    const paymentKey = payment.originalPaymentId ?? payment.id;
+    const paymentKey = payment.maintenanceId ?? payment.id;
     const amountToPay = calculateAmountToPay(payment);
     const carId =
       payment.carId ??
       payment.vehicle?.carId ??
       payment.vehicle?.id ??
       null;
+    const maintenanceId = payment.maintenanceId ?? payment.id;
 
     if (!Number.isFinite(amountToPay) || amountToPay <= 0) {
       alert("Không xác định được số tiền cần thanh toán.");
@@ -1076,11 +1116,16 @@ const ProfilePage = () => {
       alert("Không tìm thấy thông tin xe để thanh toán.");
       return;
     }
+    if (!maintenanceId) {
+      alert("Không tìm thấy mã bảo dưỡng để thanh toán.");
+      return;
+    }
 
     const payload = {
       userId: Number(userId),
       amount: Math.round(amountToPay),
       description: payment.description ?? payment.serviceType ?? "Maintenance payment",
+      maintenanceId: Number(maintenanceId),
     };
 
     setProcessingPaymentId(paymentKey);
@@ -1096,10 +1141,10 @@ const ProfilePage = () => {
       // Update local state optimistically
       setPayments((prev) =>
         prev.map((item) => {
-          const itemId = item.originalPaymentId ?? item.id;
-          const paymentItemId = payment.originalPaymentId ?? payment.id;
-          return itemId === paymentItemId || item.id === payment.id
-            ? { ...item, status: "Đã thanh toán", statusCode: 1 }
+          const itemId = item.maintenanceId ?? item.id;
+          const paymentItemId = payment.maintenanceId ?? payment.id;
+          return itemId === paymentItemId
+            ? { ...item, status: "Đã thanh toán", statusCode: 4 }
             : item;
         })
       );
@@ -1109,14 +1154,21 @@ const ProfilePage = () => {
           "Thanh toán bằng ví đã được xử lý thành công."
       );
 
+      // Refresh payments list from Maintenance API to ensure consistency
       try {
+        const refreshedPayments = await loadPayments();
+        setPayments(refreshedPayments);
+      } catch (refreshError) {
+        console.error("Error refreshing payments list:", refreshError);
+        // Don't show error to user as payment was already successful
+      }
+
+      // Reload page after successful payment to ensure all data is up to date
+      setTimeout(() => {
         if (typeof window !== "undefined" && window?.location?.reload) {
           window.location.reload();
         }
-      } catch (reloadError) {
-        console.warn("Không thể tự động tải lại trang:", reloadError);
-      }
-
+      }, 1000); // Delay 1 second to allow user to see success message
     } catch (error) {
       console.error("handleWalletPayment error:", error);
       let errorMessage =
@@ -1887,16 +1939,17 @@ const ProfilePage = () => {
                                     onClick={() => handleWalletPayment(payment)}
                                     disabled={
                                       processingPaymentId ===
-                                        (payment.originalPaymentId ?? payment.id) ||
-                                      payment.status === "Đã thanh toán"
+                                        (payment.maintenanceId ?? payment.id) ||
+                                      payment.status === "Đã thanh toán" ||
+                                      payment.statusCode === 4
                                     }
                                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Thanh toán"
                                   >
                                     {processingPaymentId ===
-                                    (payment.originalPaymentId ?? payment.id)
+                                    (payment.maintenanceId ?? payment.id)
                                       ? "Đang xử lý..."
-                                      : payment.status === "Đã thanh toán"
+                                      : payment.status === "Đã thanh toán" || payment.statusCode === 4
                                       ? "Đã thanh toán"
                                       : "Thanh toán"}
                                   </button>
