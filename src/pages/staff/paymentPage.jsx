@@ -94,7 +94,6 @@ const PaymentPage = () => {
   const [selectedMaintenance, setSelectedMaintenance] = useState(null);
   const [ownerPaymentDetails, setOwnerPaymentDetails] = useState([]);
   const [ownerPaymentLoading, setOwnerPaymentLoading] = useState(false);
-  const [ownerPaymentError, setOwnerPaymentError] = useState("");
   const itemsPerPage = 5;
 
   const [newMaintenance, setNewMaintenance] = useState({
@@ -234,6 +233,9 @@ const PaymentPage = () => {
     }
   }, [allUsers.length]); // Only trigger when users are loaded
 
+  // Note: We don't auto-refresh modal on maintenanceRecords change to avoid infinite loops
+  // Modal will refresh when user clicks the refresh button or reopens it
+
   // Fetch cars for dropdown
   useEffect(() => {
     const fetchCars = async () => {
@@ -290,7 +292,11 @@ const PaymentPage = () => {
               const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
               const has = arr.some((c) => Number(c?.carId ?? c?.id) === Number(carId));
               return has ? uid : null;
-            } catch {
+            } catch (error) {
+              // Silently ignore 404 errors (user doesn't exist or has no cars)
+              if (error?.response?.status !== 404) {
+                console.debug(`Error fetching cars for user ${uid}:`, error);
+              }
               return null;
             }
           })
@@ -306,15 +312,16 @@ const PaymentPage = () => {
     }
   };
 
-  // Helper function to check payment status for all owners
-  const isPaidStatus = (status) => {
-    if (status === null || status === undefined) return false;
-    if (typeof status === "number") {
-      return Number(status) === 1;
+  // Helper function to check if payment is paid/completed
+  const isPaymentPaid = (paymentStatus) => {
+    if (paymentStatus === null || paymentStatus === undefined) return false;
+    if (typeof paymentStatus === "number") {
+      return Number(paymentStatus) === 1 || Number(paymentStatus) === 4;
     }
-    const normalized = String(status).trim().toLowerCase();
+    const normalized = String(paymentStatus).trim().toLowerCase();
     return (
       normalized === "1" ||
+      normalized === "4" ||
       normalized === "completed" ||
       normalized === "paid" ||
       normalized === "success" ||
@@ -322,6 +329,7 @@ const PaymentPage = () => {
     );
   };
 
+  // Helper function to check payment status for all owners
   const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     if (!maintenanceId || !carId) return null;
 
@@ -339,8 +347,7 @@ const PaymentPage = () => {
         ? paymentResponse.data
         : paymentResponse.data?.data ?? [];
 
-      // Filter payments related to this car
-      // Payments can be linked by carId and optionally by maintenanceId
+      // Filter payments related to this maintenance and car
       const relatedPayments = paymentData.filter((p) => {
         const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
         const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
@@ -363,8 +370,8 @@ const PaymentPage = () => {
         const paymentStatus = payment.status ?? payment.Status;
         const paymentUserId = payment.userId ?? payment.UserId;
         
-        // Check if payment is completed/paid
-        if (isPaidStatus(paymentStatus)) {
+        // Check if payment is completed/paid using unified function
+        if (isPaymentPaid(paymentStatus)) {
           if (paymentUserId) {
             paidOwnerIds.add(Number(paymentUserId));
           }
@@ -376,8 +383,8 @@ const PaymentPage = () => {
         paidOwnerIds.has(Number(ownerId))
       );
 
-      // Return the appropriate status
-      return allOwnersPaid ? 1 : 0; // 1 = Đã thanh toán, 0 = Chờ thanh toán
+      // Return the appropriate status: 1 = Đã thanh toán, 0 = Chờ thanh toán
+      return allOwnersPaid ? 1 : 0;
     } catch (error) {
       console.error("Error checking payment status:", error);
       return null;
@@ -546,80 +553,6 @@ const PaymentPage = () => {
     setIsEditModalOpen(true);
   };
 
-  const resolveUserName = (uid) => {
-    const user =
-      allUsers.find(
-        (u) =>
-          Number(u?.id ?? u?.userId ?? u?.Id ?? u?.UserId) === Number(uid)
-      ) || null;
-    if (!user) return `User #${uid}`;
-    return user.fullName || user.name || user.email || `User #${uid}`;
-  };
-
-  const fetchOwnerPaymentDetails = async (carId, maintenanceId) => {
-    if (!carId) return [];
-
-    const ownerIds = await getOwnersByCarId(carId);
-    if (!ownerIds.length) return [];
-
-    const paymentResponse = await api.get("/Payment");
-    const paymentData = Array.isArray(paymentResponse.data)
-      ? paymentResponse.data
-      : paymentResponse.data?.data ?? [];
-
-    const relatedPayments = paymentData.filter((p) => {
-      const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
-      const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
-
-      const carIdMatch = Number(pCarId) === Number(carId);
-      const maintenanceMatch = pMaintenanceId
-        ? Number(pMaintenanceId) === Number(maintenanceId)
-        : true;
-
-      return carIdMatch && maintenanceMatch;
-    });
-
-    return ownerIds.map((ownerId) => {
-      const displayName = resolveUserName(ownerId);
-      const hasPaid = relatedPayments.some((payment) => {
-        const paymentUserId = Number(payment.userId ?? payment.UserId);
-        if (!Number.isFinite(paymentUserId)) return false;
-        if (paymentUserId !== Number(ownerId)) return false;
-        return isPaidStatus(payment.status ?? payment.Status);
-      });
-      return { userId: ownerId, name: displayName, hasPaid };
-    });
-  };
-
-  const handleViewMaintenanceDetail = async (record) => {
-    setSelectedMaintenance(record);
-    setOwnerPaymentDetails([]);
-    setOwnerPaymentError("");
-
-    if (!record?.carId) return;
-
-    setOwnerPaymentLoading(true);
-    try {
-      const details = await fetchOwnerPaymentDetails(
-        record.carId,
-        record.maintenanceId
-      );
-      setOwnerPaymentDetails(details);
-    } catch (error) {
-      console.error("Failed to load owner payment details:", error);
-      setOwnerPaymentError("Không thể tải thông tin thanh toán của thành viên.");
-    } finally {
-      setOwnerPaymentLoading(false);
-    }
-  };
-
-  const closeDetailModal = () => {
-    setSelectedMaintenance(null);
-    setOwnerPaymentDetails([]);
-    setOwnerPaymentError("");
-    setOwnerPaymentLoading(false);
-  };
-
   // Update maintenance
   const handleUpdateMaintenance = async () => {
     if (
@@ -741,6 +674,124 @@ const PaymentPage = () => {
         {label}
       </span>
     );
+  };
+
+  // Fetch owner payment details when modal opens
+  const fetchOwnerPaymentDetails = async (maintenanceId, carId, forceRefresh = false) => {
+    if (!maintenanceId || !carId) {
+      setOwnerPaymentDetails([]);
+      return;
+    }
+
+    setOwnerPaymentLoading(true);
+    try {
+      // Get all owners of this car
+      const ownerIds = await getOwnersByCarId(carId);
+      
+      if (ownerIds.length === 0) {
+        setOwnerPaymentDetails([]);
+        setOwnerPaymentLoading(false);
+        return;
+      }
+
+      // Get all payments for this maintenance
+      const paymentResponse = await api.get("/Payment");
+      const paymentData = Array.isArray(paymentResponse.data)
+        ? paymentResponse.data
+        : paymentResponse.data?.data ?? [];
+
+      // Filter payments related to this maintenance and car
+      const relatedPayments = paymentData.filter((p) => {
+        const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
+        const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
+        
+        const carIdMatch = Number(pCarId) === Number(carId);
+        const maintenanceMatch = pMaintenanceId 
+          ? Number(pMaintenanceId) === Number(maintenanceId)
+          : true;
+        
+        return carIdMatch && maintenanceMatch;
+      });
+
+      // Get user info and payment status for each owner
+      const ownerDetails = await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          try {
+            // Get user info
+            const userRes = await api.get(`/User/${ownerId}`);
+            const userData = userRes?.data ?? {};
+            const userName = userData.fullName ?? userData.name ?? userData.email ?? `User #${ownerId}`;
+
+            // Check if this owner has paid
+            const ownerPayment = relatedPayments.find((p) => {
+              const paymentUserId = p.userId ?? p.UserId;
+              return Number(paymentUserId) === Number(ownerId);
+            });
+
+            // Use unified isPaymentPaid function
+            const paymentStatus = ownerPayment && isPaymentPaid(ownerPayment.status ?? ownerPayment.Status)
+              ? "Đã thanh toán"
+              : "Chờ thanh toán";
+
+            return {
+              userId: ownerId,
+              name: userName,
+              paymentStatus,
+            };
+          } catch (error) {
+            // Silently ignore 404 errors
+            if (error?.response?.status !== 404) {
+              console.debug(`Error fetching user ${ownerId}:`, error);
+            }
+            return {
+              userId: ownerId,
+              name: `User #${ownerId}`,
+              paymentStatus: "Chờ thanh toán",
+            };
+          }
+        })
+      );
+
+      setOwnerPaymentDetails(ownerDetails);
+
+      // If all owners have paid, update maintenance status in backend and refresh list
+      // Only do this when forceRefresh is true to avoid infinite loops
+      if (forceRefresh) {
+        const allPaid = ownerDetails.every(owner => owner.paymentStatus === "Đã thanh toán");
+        if (allPaid) {
+          // Check and update maintenance status
+          const newStatus = await checkAndUpdatePaymentStatus(maintenanceId, carId);
+          if (newStatus !== null && newStatus === 1) {
+            // Find current record to check if status needs updating
+            const currentRecord = maintenanceRecords.find(
+              r => (r.maintenanceId ?? r.id) === maintenanceId
+            );
+            if (currentRecord && currentRecord.statusCode !== 1) {
+              // Update backend
+              try {
+                await api.put(`/Maintenance/${maintenanceId}/update`, {
+                  carId: Number(carId),
+                  maintenanceType: currentRecord.type,
+                  maintenanceDay: currentRecord.maintenanceDay || currentRecord.scheduledDate,
+                  status: 1, // Đã thanh toán
+                  description: currentRecord.description,
+                  price: currentRecord.price || 0,
+                });
+                // Refresh maintenance list to update status in table
+                await refreshMaintenanceList(true);
+              } catch (updateError) {
+                console.error(`Failed to update status for maintenance ${maintenanceId}:`, updateError);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching owner payment details:", error);
+      setOwnerPaymentDetails([]);
+    } finally {
+      setOwnerPaymentLoading(false);
+    }
   };
 
   return (
@@ -883,7 +934,10 @@ const PaymentPage = () => {
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex justify-center space-x-2">
                       <button
-                        onClick={() => handleViewMaintenanceDetail(record)}
+                        onClick={() => {
+                          setSelectedMaintenance(record);
+                          fetchOwnerPaymentDetails(record.maintenanceId, record.carId, true);
+                        }}
                         className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
                         title="Chi tiết"
                       >
@@ -1301,95 +1355,81 @@ const PaymentPage = () => {
       {/* Detail Modal */}
       {selectedMaintenance && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold text-gray-800">
-                Chi tiết bảo dưỡng
+                Chi tiết thanh toán
               </h2>
-              <button
-                onClick={closeDetailModal}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FaTimes />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (selectedMaintenance?.maintenanceId && selectedMaintenance?.carId) {
+                      fetchOwnerPaymentDetails(selectedMaintenance.maintenanceId, selectedMaintenance.carId, true);
+                    }
+                  }}
+                  className="text-blue-600 hover:text-blue-800 p-1 transition-colors"
+                  title="Làm mới"
+                  disabled={ownerPaymentLoading}
+                >
+                  <FaSearch className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedMaintenance(null);
+                    setOwnerPaymentDetails([]);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FaTimes />
+                </button>
+              </div>
             </div>
 
-            <div className="mt-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Xe
-                  </label>
-                  <div className="mt-1 text-sm text-gray-900">
-                    {selectedMaintenance.vehicle?.name || "N/A"}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Biển số: {selectedMaintenance.vehicle?.license || "N/A"}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Trạng thái
-                  </label>
-                  <div className="mt-1">
-                    {getStatusBadge(selectedMaintenance.status)}
-                  </div>
-                </div>
-              </div>
-
+            <div className="mt-4">
+              {/* Owner Payment Status Section */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Thành viên &amp; trạng thái thanh toán
-                </label>
-                <div className="mt-2">
-                  {ownerPaymentLoading ? (
-                    <div className="text-sm text-gray-500">
-                      Đang tải danh sách thành viên...
-                    </div>
-                  ) : ownerPaymentError ? (
-                    <div className="text-sm text-red-600">
-                      {ownerPaymentError}
-                    </div>
-                  ) : ownerPaymentDetails.length === 0 ? (
-                    <div className="text-sm text-gray-500">
-                      Không tìm thấy thành viên sở hữu xe.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {ownerPaymentDetails.map((owner) => (
-                        <div
-                          key={owner.userId}
-                          className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2"
-                        >
-                          <span className="text-sm text-gray-900 font-semibold">
-                            {owner.name || `User #${owner.userId}`}
-                          </span>
-                          <span
-                            className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                              owner.hasPaid
-                                ? "bg-green-100 text-green-700"
-                                : "bg-yellow-100 text-yellow-700"
-                            }`}
-                          >
-                            {owner.hasPaid
-                              ? "Đã thanh toán"
-                              : "Chưa thanh toán"}
+                {ownerPaymentLoading ? (
+                  <div className="text-center py-4">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <p className="mt-2 text-sm text-gray-500">Đang tải thông tin...</p>
+                  </div>
+                ) : ownerPaymentDetails.length === 0 ? (
+                  <div className="text-sm text-gray-500 text-center py-4">
+                    Chưa có thông tin thành viên sở hữu
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {ownerPaymentDetails.map((owner) => (
+                      <div
+                        key={owner.userId}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white text-xs font-semibold">
+                              {owner.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {owner.name}
                           </span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <div>
+                          {owner.paymentStatus === "Đã thanh toán" ? (
+                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Đã thanh toán
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              Chờ thanh toán
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={closeDetailModal}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Đóng
-              </button>
             </div>
           </div>
         </div>

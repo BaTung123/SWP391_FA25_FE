@@ -783,7 +783,7 @@ const MaintenancePage = () => {
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Ngày dự kiến <span className="text-red-500">*</span>
+                    Ngày hiện tại <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <input
@@ -975,7 +975,7 @@ const MaintenancePage = () => {
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Ngày dự kiến <span className="text-red-500">*</span>
+                    Ngày hiện tại <span className="text-red-500">*</span>
                   </label>
                 </div>
                 <input
