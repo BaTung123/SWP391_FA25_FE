@@ -12,10 +12,10 @@ import {
 import api from "../../config/axios";
 
 const STATUS_LABELS = {
-  0: "Đã lên lịch",
-  1: "Đang thực hiện",
-  2: "Hoàn thành",
-  3: "Quá hạn",
+  1: "Đã lên lịch",
+  2: "Quá hạn",
+  3: "Đang thực hiện",
+  4: "Hoàn thành",
 };
 
 // Allowed options for selects in the edit modal
@@ -39,6 +39,57 @@ const formatCurrency = (value) => {
     minimumFractionDigits: 0,
   });
 };
+
+const getTodayInputDate = () => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset();
+  const local = new Date(now.getTime() - tzOffset * 60000);
+  return local.toISOString().split("T")[0];
+};
+
+const toUtcStartOfDayISOString = (dateStr) => {
+  if (!dateStr) return new Date().toISOString();
+  return new Date(dateStr + "T00:00:00Z").toISOString();
+};
+
+const toInputDateValue = (value) => {
+  if (!value) return "";
+  try {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString().split("T")[0];
+    }
+  } catch {
+    // ignore parsing error
+  }
+
+  if (typeof value === "string" && value.includes("/")) {
+    const [day, month, year] = value.split("/");
+    if (day && month && year) {
+      return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(
+        2,
+        "0"
+      )}`;
+    }
+  }
+
+  return "";
+};
+
+const isPastDate = (dateStr) => {
+  if (!dateStr) return false;
+  const today = getTodayInputDate();
+  return dateStr < today;
+};
+
+const buildDefaultMaintenanceState = () => ({
+  carId: "",
+  type: "Bảo dưỡng định kỳ",
+  scheduledDate: getTodayInputDate(),
+  description: "",
+  price: "",
+  status: 0,
+});
 
 const normalizeMaintenanceRecord = (item) => {
   if (!item) return null;
@@ -91,23 +142,13 @@ const MaintenancePage = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const itemsPerPage = 5;
 
-  const [newMaintenance, setNewMaintenance] = useState({
-    carId: "",
-    type: "Bảo dưỡng định kỳ",
-    scheduledDate: "",
-    description: "",
-    price: "",
-    status: 0,
-  });
+  const [newMaintenance, setNewMaintenance] = useState(
+    () => buildDefaultMaintenanceState()
+  );
 
-  const [editMaintenance, setEditMaintenance] = useState({
-    carId: "",
-    type: "Bảo dưỡng định kỳ",
-    scheduledDate: "",
-    description: "",
-    price: "",
-    status: 0,
-  });
+  const [editMaintenance, setEditMaintenance] = useState(
+    () => buildDefaultMaintenanceState()
+  );
 
   // Build car options and ensure current car appears first
   const editCarOptions = useMemo(() => {
@@ -240,16 +281,19 @@ const MaintenancePage = () => {
       return;
     }
 
+    if (isPastDate(newMaintenance.scheduledDate)) {
+      setModalError("Không thể chọn ngày trong quá khứ.");
+      return;
+    }
+
     try {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to ISO string
-      // Date input gives YYYY-MM-DD, we append time to ensure correct timezone handling
-      const dateStr = newMaintenance.scheduledDate;
-      const maintenanceDay = dateStr 
-        ? new Date(dateStr + "T00:00:00").toISOString()
-        : new Date().toISOString();
+      // Convert date to UTC ISO string to avoid timezone shift
+      const maintenanceDay = toUtcStartOfDayISOString(
+        newMaintenance.scheduledDate
+      );
 
       // Prepare request body
       const requestBody = {
@@ -265,13 +309,7 @@ const MaintenancePage = () => {
       await api.post("/Maintenance", requestBody);
 
       // Reset form
-      setNewMaintenance({
-        carId: "",
-        type: "Bảo dưỡng định kỳ",
-        scheduledDate: "",
-        description: "",
-        price: "",
-      });
+      setNewMaintenance(buildDefaultMaintenanceState());
       setModalError("");
       setIsModalOpen(false);
 
@@ -296,40 +334,8 @@ const MaintenancePage = () => {
     setEditMaintenance({ ...editMaintenance, [e.target.name]: e.target.value });
   };
 
-  // Convert date from ISO string to YYYY-MM-DD format for date input
-  const formatDateForInput = (dateString) => {
-    if (!dateString) return "";
-    try {
-      const date = new Date(dateString);
-      if (Number.isNaN(date.getTime())) return "";
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    } catch {
-      return "";
-    }
-  };
-
   // Open edit modal
   const handleEditClick = (record) => {
-    // Try to get the original date from maintenanceDay, fallback to creating from formatted date
-    let dateForInput = "";
-    if (record.maintenanceDay) {
-      dateForInput = formatDateForInput(record.maintenanceDay);
-    } else if (record.scheduledDate) {
-      // If we only have formatted date, try to parse it back
-      // This is a fallback - ideally maintenanceDay should always be available
-      try {
-        const parsed = new Date(record.scheduledDate.split('/').reverse().join('-'));
-        if (!Number.isNaN(parsed.getTime())) {
-          dateForInput = formatDateForInput(parsed.toISOString());
-        }
-      } catch {
-        dateForInput = "";
-      }
-    }
-
     // Normalize values to ensure selects show the current data
     const normalizedType = TYPE_OPTIONS.includes(record.type)
       ? record.type
@@ -339,10 +345,15 @@ const MaintenancePage = () => {
         ? record.statusCode
         : 0;
 
+    const inputDate =
+      toInputDateValue(record.maintenanceDay) ||
+      toInputDateValue(record.scheduledDate) ||
+      getTodayInputDate();
+
     setEditMaintenance({
       carId: String(record.carId || ""),
       type: normalizedType,
-      scheduledDate: dateForInput,
+      scheduledDate: inputDate,
       description: record.description || "",
       price: String(record.price || 0),
       status: normalizedStatus,
@@ -364,6 +375,11 @@ const MaintenancePage = () => {
       return;
     }
 
+    if (isPastDate(editMaintenance.scheduledDate)) {
+      setModalError("Không thể chọn ngày trong quá khứ.");
+      return;
+    }
+
     if (!editingMaintenance?.maintenanceId) {
       setModalError("Không tìm thấy thông tin bảo dưỡng cần cập nhật.");
       return;
@@ -373,11 +389,10 @@ const MaintenancePage = () => {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to ISO string
-      const dateStr = editMaintenance.scheduledDate;
-      const maintenanceDay = dateStr
-        ? new Date(dateStr + "T00:00:00").toISOString()
-        : new Date().toISOString();
+      // Convert date to UTC ISO string to avoid timezone shift
+      const maintenanceDay = toUtcStartOfDayISOString(
+        editMaintenance.scheduledDate
+      );
 
       // Prepare request body
       const requestBody = {
@@ -395,14 +410,7 @@ const MaintenancePage = () => {
       await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
 
       // Reset form
-      setEditMaintenance({
-        carId: "",
-        type: "Bảo dưỡng định kỳ",
-        scheduledDate: "",
-        description: "",
-        price: "",
-        status: 0,
-      });
+      setEditMaintenance(buildDefaultMaintenanceState());
       setEditingMaintenance(null);
       setModalError("");
       setIsEditModalOpen(false);
@@ -536,6 +544,7 @@ const MaintenancePage = () => {
             <button
               onClick={() => {
                 setModalError("");
+                setNewMaintenance(buildDefaultMaintenanceState());
                 setIsModalOpen(true);
               }}
               className="bg-blue-600 text-white px-4 py-1.5 h-8 text-sm rounded-md hover:bg-blue-700 flex items-center gap-2 whitespace-nowrap transition-colors font-medium"
@@ -699,13 +708,7 @@ const MaintenancePage = () => {
                 onClick={() => {
                   setIsModalOpen(false);
                   setModalError("");
-                  setNewMaintenance({
-                    carId: "",
-                    type: "Bảo dưỡng định kỳ",
-                    scheduledDate: "",
-                    description: "",
-                    price: "",
-                  });
+                  setNewMaintenance(buildDefaultMaintenanceState());
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -791,6 +794,7 @@ const MaintenancePage = () => {
                   name="scheduledDate"
                   value={newMaintenance.scheduledDate}
                   onChange={handleInputChange}
+                  min={getTodayInputDate()}
                   placeholder="mm/dd/yyyy"
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   required
@@ -857,14 +861,7 @@ const MaintenancePage = () => {
                 onClick={() => {
                   setIsEditModalOpen(false);
                   setModalError("");
-                  setEditMaintenance({
-                    carId: "",
-                    type: "Bảo dưỡng định kỳ",
-                    scheduledDate: "",
-                    description: "",
-                    price: "",
-                    status: 0,
-                  });
+                  setEditMaintenance(buildDefaultMaintenanceState());
                   setEditingMaintenance(null);
                 }}
                 className="text-gray-400 hover:text-gray-600"
@@ -983,6 +980,7 @@ const MaintenancePage = () => {
                   name="scheduledDate"
                   value={editMaintenance.scheduledDate}
                   onChange={handleEditInputChange}
+                  min={getTodayInputDate()}
                   placeholder="mm/dd/yyyy"
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   required
