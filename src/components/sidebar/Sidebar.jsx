@@ -118,7 +118,7 @@ const Sidebar = () => {
   const allMenuItems =
     role === 1
       ? [...roleMenus, logoutItem] // admin: không có profile
-      : [...roleMenus, ...informationMenu, logoutItem]; // staff/member: có profile
+      : [...roleMenus,  logoutItem]; // staff/member: có profile
 
   const handleLogout = () => {
     localStorage.removeItem("user");
