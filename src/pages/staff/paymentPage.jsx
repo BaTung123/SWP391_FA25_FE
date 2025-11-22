@@ -398,7 +398,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     const kw = keyword.trim().toLowerCase();
     return payments.filter((p) => {
       const method = String(p?.paymentMethod ?? "").trim().toLowerCase();
-      if (method === "payos" || /pay\s*os/.test(method)) return false;
+      if (!(method === "payos" || /pay\s*os/.test(method))) return false;
       const matchKW =
         !kw ||
         [
@@ -865,8 +865,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Mã thanh toán</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phương thức</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Xe</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Biển số</th>
+                
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian</th>
@@ -882,14 +881,12 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
                 return (
                   <tr key={p?.paymentId ?? p?.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-sm text-gray-900">#{p?.paymentId ?? p?.id}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{(() => { const m = String(p?.paymentMethod ?? "").trim(); return /^(payos)$/i.test(m) ? "—" : (m || "—"); })()}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{(() => { const m = String(p?.paymentMethod ?? "").trim(); return m || "—"; })()}</td>
                     <td className="px-6 py-4 text-sm">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}>
                         {paid ? "Đã thanh toán" : (p?.status || "Chưa thanh toán")}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{p?.carName ?? "—"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{p?.plateNumber ?? "—"}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{amountText}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs" title={p?.description ?? ""}>{p?.description ?? "—"}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{p?.createdAt ? new Date(p.createdAt).toLocaleString("vi-VN") : "—"}</td>
@@ -899,7 +896,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
               {loading && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={6}
                     className="px-6 py-10 text-sm text-gray-500 text-center"
                   >
                     Đang tải dữ liệu...
@@ -909,7 +906,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
               {!loading && currentRecords.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={6}
                     className="px-6 py-10 text-sm text-gray-500 text-center"
                   >
                     {errorMessage || "Không có dữ liệu thanh toán."}

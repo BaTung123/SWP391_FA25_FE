@@ -33,6 +33,7 @@ const ProfilePage = () => {
 
   // ✅ danh sách maintenanceId đã được user này thanh toán
   const [paidMaintenanceSet, setPaidMaintenanceSet] = useState(new Set());
+  const [leaderPaidMaintenanceSet, setLeaderPaidMaintenanceSet] = useState(new Set());
 
   // auth/session
   const [userRole, setUserRole] = useState(null);
@@ -980,6 +981,7 @@ const ProfilePage = () => {
 
   // State to cache ownership percentages for payments
   const [ownershipCache, setOwnershipCache] = useState(new Map());
+  const [leadersCache, setLeadersCache] = useState(new Map());
 
   // Map carId to ownershipPercentage from vehicleData
   const ownershipMap = useMemo(() => {
@@ -991,6 +993,86 @@ const ProfilePage = () => {
     });
     return map;
   }, [vehicleData]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const uniqueCarIds = Array.from(
+          new Set(
+            (payments || [])
+              .map((p) => Number(p?.carId ?? p?.vehicle?.carId ?? p?.vehicle?.id))
+              .filter((id) => Number.isFinite(id))
+          )
+        );
+        if (!uniqueCarIds.length) return;
+        const next = new Map(leadersCache);
+        for (const carId of uniqueCarIds) {
+          if (next.has(carId)) continue;
+          try {
+            const ownerIds = await getUsersByCar(carId);
+            if (!ownerIds.length) continue;
+            let bestUserId = null;
+            let bestPct = -1;
+            for (const uid of ownerIds) {
+              try {
+                const userCarsRes = await api.get(`/users/${uid}/cars`);
+                const userCars = Array.isArray(userCarsRes.data)
+                  ? userCarsRes.data
+                  : [];
+                const carMatch = userCars.find(
+                  (c) => Number(c.carId ?? c.id) === Number(carId)
+                );
+                const pct = Number(carMatch?.ownershipPercentage ?? 0);
+                if (pct > bestPct) {
+                  bestPct = pct;
+                  bestUserId = uid;
+                }
+              } catch {}
+            }
+            if (bestUserId != null) next.set(carId, bestUserId);
+          } catch {}
+        }
+        setLeadersCache(next);
+      } catch (e) {
+        console.error("Error computing leaders per car:", e);
+      }
+    };
+    run();
+  }, [payments]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const leaderIds = Array.from(new Set(Array.from(leadersCache.values()).filter((v) => Number.isFinite(Number(v)))));
+        if (!leaderIds.length) {
+          setLeaderPaidMaintenanceSet(new Set());
+          return;
+        }
+        const paidSet = new Set();
+        await Promise.all(
+          leaderIds.map(async (lid) => {
+            try {
+              const res = await api.get(`/Payment/${lid}`);
+              const raw = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+              raw.forEach((p) => {
+                const statusRaw = p.status ?? p.paymentStatus ?? p.paymentStatusName;
+                const s = String(statusRaw || "").toLowerCase();
+                const isPaid = s.includes("success") || s.includes("completed") || s.includes("paid") || s.includes("paided") || s.includes("hoanthanh") || s.includes("đã thanh toán");
+                if (!isPaid) return;
+                const mid = p.maintenanceId ?? p.MaintenanceId ?? p.maintenance?.id;
+                if (mid) paidSet.add(Number(mid));
+              });
+            } catch {}
+          })
+        );
+        setLeaderPaidMaintenanceSet(paidSet);
+      } catch (e) {
+        console.error("refreshLeaderPaymentStatus error:", e);
+        setLeaderPaidMaintenanceSet(new Set());
+      }
+    };
+    run();
+  }, [leadersCache]);
 
   // Fetch ownership percentage for a specific carId and userId
   useEffect(() => {
@@ -1049,41 +1131,24 @@ const ProfilePage = () => {
     return paidMaintenanceSet.has(Number(mid));
   };
 
+  const isMaintenancePaid = (paymentRecord) => {
+    if (!paymentRecord) return false;
+    const mid = paymentRecord.maintenanceId ?? paymentRecord.id;
+    if (!mid) return false;
+    const n = Number(mid);
+    return paidMaintenanceSet.has(n) || leaderPaidMaintenanceSet.has(n);
+  };
+
   // Helper function to calculate amount to pay based on ownership percentage
+  const isLeaderForCar = (carId) => {
+    const leaderId = leadersCache.get(Number(carId));
+    return Number(leaderId) === Number(userId);
+  };
   const calculateAmountToPay = (payment) => {
     const totalAmount = payment.price || payment.amount || 0;
-    const carId = payment.carId;
-    const paymentUserId = payment.userId || userId;
-
-    if (!carId) return totalAmount; // If no carId, return full amount
-
-    const numCarId = Number(carId);
-
-    // First try to get from ownershipMap (from vehicleData)
-    let ownershipPercentage = ownershipMap.get(numCarId);
-
-    // If not found in map, try to get from cache
-    if (ownershipPercentage === undefined || ownershipPercentage === null) {
-      ownershipPercentage = ownershipCache.get(numCarId);
-    }
-
-    // If still not found, try to get from payment data itself
-    if (ownershipPercentage === undefined || ownershipPercentage === null) {
-      // Check if payment has ownershipPercentage directly
-      if (payment.ownershipPercentage != null) {
-        ownershipPercentage = Number(payment.ownershipPercentage);
-      }
-    }
-
-    // If still not found, return full amount (default to 100% if data not loaded yet)
-    // This is not an error - it just means we use the full amount as fallback
-    if (ownershipPercentage === undefined || ownershipPercentage === null) {
-      return totalAmount;
-    }
-
-    const amountToPay = (totalAmount * ownershipPercentage) / 100;
-
-    return amountToPay;
+    const carId = payment.carId ?? payment.vehicle?.carId ?? payment.vehicle?.id;
+    if (!Number.isFinite(Number(totalAmount))) return 0;
+    return carId ? (isLeaderForCar(carId) ? Number(totalAmount) : 0) : Number(totalAmount);
   };
 
   // --- Lọc + tìm kiếm thanh toán ---
@@ -1105,7 +1170,7 @@ const ProfilePage = () => {
           .filter(Boolean)
           .some((t) => String(t).toLowerCase().includes(kw));
 
-      const effectiveStatus = isMaintenancePaidByUser(p)
+      const effectiveStatus = isMaintenancePaid(p)
         ? "Đã thanh toán"
         : p.status || "Chờ thanh toán";
       const matchStatus =
@@ -2099,11 +2164,9 @@ const ProfilePage = () => {
                           Giá tiền tổng
                         </th>
                         <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Giá tiền cần trả
-                        </th>
-                        <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Ngày
                         </th>
+                        
                         <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Trạng thái
                         </th>
@@ -2162,15 +2225,12 @@ const ProfilePage = () => {
                                   payment.price || payment.amount
                                 )}
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-900 font-semibold">
-                                {formatCurrency(calculateAmountToPay(payment))}
-                              </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
                                 {payment.scheduledDate || payment.date || "—"}
                               </td>
                               <td className="px-6 py-4">
                                 {getStatusBadge(
-                                  isMaintenancePaidByUser(payment)
+                                  isMaintenancePaid(payment)
                                     ? "Đã thanh toán"
                                     : payment.status || "Chờ thanh toán"
                                 )}
@@ -2183,7 +2243,12 @@ const ProfilePage = () => {
                                     disabled={
                                       processingPaymentId ===
                                         (payment.maintenanceId ?? payment.id) ||
-                                      isMaintenancePaidByUser(payment)
+                                      isMaintenancePaid(payment) ||
+                                      !isLeaderForCar(
+                                        payment.carId ??
+                                          payment.vehicle?.carId ??
+                                          payment.vehicle?.id
+                                      )
                                     }
                                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Thanh toán"
@@ -2191,9 +2256,15 @@ const ProfilePage = () => {
                                     {processingPaymentId ===
                                     (payment.maintenanceId ?? payment.id)
                                       ? "Đang xử lý..."
-                                      : isMaintenancePaidByUser(payment)
+                                      : isMaintenancePaid(payment)
                                       ? "Đã thanh toán"
-                                      : "Thanh toán"}
+                                      : isLeaderForCar(
+                                          payment.carId ??
+                                            payment.vehicle?.carId ??
+                                            payment.vehicle?.id
+                                        )
+                                      ? "Thanh toán"
+                                      : "Chỉ trưởng nhóm"}
                                   </button>
                                 </div>
                               </td>
