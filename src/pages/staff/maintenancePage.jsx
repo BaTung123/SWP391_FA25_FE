@@ -95,10 +95,7 @@ const buildDefaultMaintenanceState = () => ({
 const normalizeMaintenanceRecord = (item) => {
   if (!item) return null;
 
-  const status =
-    typeof item.status === "string"
-      ? item.status
-      : STATUS_LABELS[item.status] ?? "Đang thực hiện";
+  const status = STATUS_LABELS[item.status] ?? "Đang thực hiện";
 
   return {
     id: item.maintenanceId ?? item.id ?? Date.now(),

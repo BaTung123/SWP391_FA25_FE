@@ -201,15 +201,6 @@ const PaymentPage = () => {
             // If status changed, update the record and backend
             if (newStatus !== null && newStatus !== record.statusCode) {
               try {
-                // Update backend
-                await api.put(`/Maintenance/${maintenanceId}/update`, {
-                  carId: Number(carId),
-                  maintenanceType: record.type,
-                  maintenanceDay: record.maintenanceDay || record.scheduledDate,
-                  status: newStatus,
-                  description: record.description,
-                  price: record.price || 0,
-                });
                 
                 // Update local record
                 return {
