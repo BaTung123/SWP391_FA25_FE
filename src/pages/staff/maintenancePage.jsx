@@ -8,6 +8,7 @@ import {
   FaChevronRight,
   FaSearch,
   FaTools,
+  FaCheck,
 } from "react-icons/fa";
 import api from "../../config/axios";
 
@@ -141,6 +142,7 @@ const MaintenancePage = () => {
   const [modalError, setModalError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const itemsPerPage = 5;
+  const [completingId, setCompletingId] = useState(null);
 
   const [newMaintenance, setNewMaintenance] = useState(
     () => buildDefaultMaintenanceState()
@@ -416,6 +418,27 @@ const MaintenancePage = () => {
     }
   };
 
+  const handleCompleteMaintenance = async (record) => {
+    if (!record?.maintenanceId) return;
+    try {
+      setCompletingId(record.maintenanceId);
+      const maintenanceDay =
+        record?.maintenanceDay ?? record?.scheduledDate ?? new Date().toISOString();
+      const requestBody = {
+        carId: Number(record.carId),
+        maintenanceType: record.type,
+        maintenanceDay: maintenanceDay,
+        status: 4,
+        description: record.description ?? "",
+        price: Number(record.price) || 0,
+      };
+      await api.put(`/Maintenance/${record.maintenanceId}/update`, requestBody);
+      await refreshMaintenanceList();
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
   // Delete maintenance
   const handleDeleteMaintenance = async (record) => {
     if (!record?.maintenanceId) {
@@ -603,6 +626,17 @@ const MaintenancePage = () => {
                   </td>
                   <td className="px-6 py-4 text-sm font-medium">
                     <div className="flex justify-center space-x-2">
+                      <button
+                        onClick={() => handleCompleteMaintenance(record)}
+                        className="text-green-600 hover:text-green-900 p-1 transition-colors"
+                        title="Hoàn thành"
+                        disabled={
+                          completingId === record.maintenanceId ||
+                          String(record.status).toLowerCase() === "hoàn thành"
+                        }
+                      >
+                        <FaCheck />
+                      </button>
                       <button
                         onClick={() => handleEditClick(record)}
                         className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
