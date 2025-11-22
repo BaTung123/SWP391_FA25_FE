@@ -9,7 +9,7 @@ import {
   CarOutlined,
   DollarOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion"; // ✅ ĐÃ BẬT LẠI IMPORT NÀY
+import { motion } from "framer-motion"; 
 
 const { Content } = Layout;
 const { Title, Paragraph, Text } = Typography;

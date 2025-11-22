@@ -404,41 +404,65 @@ const RegistercarPage = () => {
       const rawAll = Array.isArray(rAll.data) ? rAll.data : rAll.data?.data || [];
       const normAll = rawAll.map(normalizeSchedule).filter(Boolean);
 
+      // Fallback: nếu API thiếu carId trong Schedule, xác định cùng xe bằng ownerCarUserId thuộc tập đồng sở hữu của xe đang chọn
+      // Bước 1: lấy danh sách người dùng để phục vụ cả việc hiển thị tên và dựng tập carUserId của đồng sở hữu
+      let allUsers = [];
+      try {
+        const rUsers = await api.get("/User");
+        allUsers = Array.isArray(rUsers.data) ? rUsers.data : rUsers.data?.data || [];
+      } catch {}
+
+      // Bước 2: dựng tập carUserId của đồng sở hữu đối với xe đang chọn
+      const ownerCarUserIdSet = new Set();
+      try {
+        const chunkSize = 8;
+        for (let i = 0; i < allUsers.length; i += chunkSize) {
+          const batch = allUsers.slice(i, i + chunkSize);
+          const rs = await Promise.allSettled(
+            batch.map(async (u) => {
+              const uid = Number(u.userId ?? u.id);
+              if (!Number.isFinite(uid)) return null;
+              const r = await api.get(`/users/${uid}/cars`).catch(() => ({ data: [] }));
+              const list = Array.isArray(r.data) ? r.data : r.data?.data || [];
+              const match = list.find((c) => Number(c.carId ?? c.id) === Number(carId));
+              if (!match) return null;
+              return Number(match.carUserId ?? match.CarUserId ?? match?.carUser?.carUserId);
+            })
+          );
+          rs.forEach((x) => {
+            if (x.status === "fulfilled" && Number.isFinite(x.value)) ownerCarUserIdSet.add(Number(x.value));
+          });
+        }
+      } catch {}
+
+      // Bước 3: lọc lịch đồng sở hữu theo: cùng xe (carId trùng, hoặc ownerCarUserId thuộc tập đồng sở hữu) và không phải của tôi
       const others = normAll.filter((s) => {
-        const hasCar = s.carId != null && Number.isFinite(Number(s.carId));
-        const sameCar = hasCar && Number(s.carId) === Number(carId);
         const notMine =
           (myCarUserId ? Number(s.ownerCarUserId) !== Number(myCarUserId) : true) &&
           (s.ownerUserId ? Number(s.ownerUserId) !== Number(userId) : true);
-        return sameCar && notMine;
+        const hasCar = s.carId != null && Number.isFinite(Number(s.carId));
+        const sameCarById = hasCar && Number(s.carId) === Number(carId);
+        const sameCarByOwner = ownerCarUserIdSet.size > 0 && ownerCarUserIdSet.has(Number(s.ownerCarUserId));
+        return notMine && (sameCarById || (!hasCar && sameCarByOwner));
       });
+
+      // Bước 4: điền tên nếu thiếu
       let resolved = others;
-      const needIds = Array.from(
-        new Set(
-          resolved
-            .filter((x) => !x.ownerName && Number.isFinite(Number(x.ownerUserId)))
-            .map((x) => Number(x.ownerUserId))
-        )
-      );
-      if (needIds.length) {
-        try {
-          const rUsers = await api.get("/User");
-          const list = Array.isArray(rUsers.data) ? rUsers.data : rUsers.data?.data || [];
-          const map = new Map(userNameCache);
-          list.forEach((u) => {
-            const id = Number(u.userId ?? u.id);
-            if (Number.isFinite(id)) {
-              const name = u.fullName ?? u.userName ?? u.email ?? "User";
-              map.set(id, name);
-            }
-          });
-          setUserNameCache(map);
-          resolved = resolved.map((x) => ({
-            ...x,
-            ownerName: x.ownerName || map.get(Number(x.ownerUserId)) || x.ownerName,
-          }));
-        } catch {}
-      }
+      try {
+        const map = new Map(userNameCache);
+        allUsers.forEach((u) => {
+          const id = Number(u.userId ?? u.id);
+          if (Number.isFinite(id)) {
+            const name = u.fullName ?? u.userName ?? u.email ?? "User";
+            map.set(id, name);
+          }
+        });
+        setUserNameCache(map);
+        resolved = resolved.map((x) => ({
+          ...x,
+          ownerName: x.ownerName || map.get(Number(x.ownerUserId)) || x.ownerName,
+        }));
+      } catch {}
 
       const othersGrouped = {};
       resolved.forEach((s) => {
