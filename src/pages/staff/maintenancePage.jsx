@@ -334,9 +334,9 @@ const MaintenancePage = () => {
       ? record.type
       : "Bảo dưỡng định kỳ";
     const normalizedStatus =
-      typeof record.statusCode === "number" && record.statusCode >= 0 && record.statusCode <= 3
+      typeof record.statusCode === "number" && record.statusCode >= 1 && record.statusCode <= 4
         ? record.statusCode
-        : 0;
+        : 1;
 
     const inputDate =
       toInputDateValue(record.maintenanceDay) ||
@@ -632,7 +632,7 @@ const MaintenancePage = () => {
                         title="Hoàn thành"
                         disabled={
                           completingId === record.maintenanceId ||
-                          String(record.status).toLowerCase() === "hoàn thành"
+                          record.statusCode === 4 || String(record.status).toLowerCase() === "hoàn thành"
                         }
                       >
                         <FaCheck />
@@ -956,10 +956,10 @@ const MaintenancePage = () => {
                   className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   required
                 >
-                  <option value={0}>Đã lên lịch</option>
-                  <option value={1}>Đang thực hiện</option>
-                  <option value={2}>Hoàn thành</option>
-                  <option value={3}>Quá hạn</option>
+                  <option value={1}>Đã lên lịch</option>
+                  <option value={3}>Đang thực hiện</option>
+                  <option value={4}>Hoàn thành</option>
+                  <option value={2}>Quá hạn</option>
                 </select>
               </div>
 
