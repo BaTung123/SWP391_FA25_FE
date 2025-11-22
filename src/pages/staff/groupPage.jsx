@@ -33,6 +33,8 @@ export default function GroupPage() {
   const [cars, setCars] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [percentNotice, setPercentNotice] = useState(null);
 
   // carId -> [userId] (sở hữu xe)
   const [carOwnersMap, setCarOwnersMap] = useState({});
@@ -186,8 +188,22 @@ export default function GroupPage() {
     const toAdd = [...next].filter((id) => !prev.has(id));
     const toRemove = [...prev].filter((id) => !next.has(id));
 
-    for (const uid of toAdd) await addCarUser(Number(carId), Number(uid));
-    for (const uid of toRemove) await removeCarUser(Number(carId), Number(uid));
+    let added = 0;
+    let removed = 0;
+    for (const uid of toAdd) {
+      try {
+        await addCarUser(Number(carId), Number(uid));
+        added++;
+      } catch {}
+    }
+    for (const uid of toRemove) {
+      try {
+        await removeCarUser(Number(carId), Number(uid));
+        removed++;
+      } catch {}
+    }
+
+    return { added, removed };
   }
 
   /* ========= Owners hydrate ========= */
@@ -336,6 +352,7 @@ export default function GroupPage() {
 
       await api.delete(`/Group/${groupId}/delete`);
       message.success("Đã xoá nhóm và gỡ liên kết sở hữu của các thành viên.");
+      setNotice({ type: "success", text: "Đã xoá nhóm và gỡ liên kết sở hữu của các thành viên." });
 
       await fetchGroupsAndRehydrate();
     } catch {
@@ -380,10 +397,20 @@ export default function GroupPage() {
           return Array.isArray(carOwnersMap[cid]) ? carOwnersMap[cid] : [];
         })();
         const nextMemberIds = (values.memberIds || []).map(Number);
-        await syncCarUsersForGroup({ carId, prevMemberIds, nextMemberIds });
+        const { added, removed } = await syncCarUsersForGroup({ carId, prevMemberIds, nextMemberIds });
+        if (added > 0 || removed > 0) {
+          const txt = `Đã cập nhật thành viên: +${added}, -${removed}.`;
+          message.success(txt);
+          setNotice({ type: "success", text: txt });
+        } else {
+          const txt = "Đã cập nhật thành viên nhóm thành công.";
+          message.success(txt);
+          setNotice({ type: "success", text: txt });
+        }
       }
 
       message.success("Cập nhật nhóm thành công!");
+      setNotice({ type: "success", text: "Cập nhật nhóm thành công!" });
       setIsEditModalVisible(false);
 
       await hydrateCarOwners(cars, users);
@@ -405,6 +432,7 @@ export default function GroupPage() {
 
     setIsPercentModalVisible(true);
     setLoadingPercent(true);
+    setPercentNotice(null);
 
     try {
       // userId đang sở hữu xe này (từ CarUser map)
@@ -470,6 +498,7 @@ export default function GroupPage() {
     } catch (e) {
       console.error("Lỗi khi tải phần trăm đồng sở hữu:", e);
       message.error("Không thể tải phần trăm đồng sở hữu. Vui lòng thử lại.");
+      setNotice({ type: "error", text: "Không thể tải phần trăm đồng sở hữu. Vui lòng thử lại." });
       setIsPercentModalVisible(false);
     } finally {
       setLoadingPercent(false);
@@ -477,12 +506,25 @@ export default function GroupPage() {
   };
 
   const handleSavePercent = async () => {
-    const total = Object.values(ownershipMap).reduce(
-      (sum, v) => sum + Number(v || 0),
-      0
-    );
-    if (total !== 100) {
-      message.warning("Tổng phần trăm phải bằng 100%!");
+    const values = Object.values(ownershipMap).map((v) => Number(v || 0));
+    const invalid = values.some((v) => Number.isNaN(v) || v < 0 || v > 100);
+    if (invalid) {
+      const txt = "Giá trị phần trăm phải trong khoảng 0% đến 100%.";
+      message.error(txt);
+      setPercentNotice({ type: "error", text: txt });
+      return;
+    }
+    const total = values.reduce((sum, v) => sum + v, 0);
+    if (total > 100) {
+      const txt = `Tổng phần trăm đang vượt quá 100% (=${total}%).`;
+      message.error(txt);
+      setPercentNotice({ type: "error", text: txt });
+      return;
+    }
+    if (total < 100) {
+      const txt = `Tổng phần trăm chưa đủ 100% (=${total}%).`;
+      message.warning(txt);
+      setPercentNotice({ type: "warning", text: txt });
       return;
     }
 
@@ -509,12 +551,16 @@ export default function GroupPage() {
         }
       }
 
-      message.success("Đã lưu phần trăm đồng sở hữu!");
+      const affected = members.length;
+      const txt = `Đã lưu phần trăm cho ${affected} thành viên.`;
+      message.success(txt);
+      setPercentNotice({ type: "success", text: txt });
       setIsPercentModalVisible(false);
       await hydrateCarOwners(cars, users);
     } catch (e) {
       console.error(e);
       message.error("Lưu phần trăm thất bại!");
+      setPercentNotice({ type: "error", text: "Lưu phần trăm thất bại!" });
     }
   };
 
@@ -656,6 +702,15 @@ export default function GroupPage() {
         }
       />
 
+      {notice && (
+        <div className={`px-4 py-2 rounded-md border ${notice.type === "error" ? "bg-red-50 border-red-200 text-red-700" : notice.type === "warning" ? "bg-yellow-50 border-yellow-200 text-yellow-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{notice.text}</span>
+            <button className="text-current opacity-70 hover:opacity-100" onClick={() => setNotice(null)} aria-label="Close">×</button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <Card>
         <Table
@@ -753,6 +808,7 @@ export default function GroupPage() {
         onCancel={() => {
           setIsPercentModalVisible(false);
           setLoadingPercent(false);
+          setPercentNotice(null);
         }}
         onOk={handleSavePercent}
         okText="Lưu"
@@ -760,6 +816,14 @@ export default function GroupPage() {
         destroyOnClose
         width={700}
       >
+        {percentNotice && (
+          <div className={`mb-3 px-4 py-2 rounded-md border ${percentNotice.type === "error" ? "bg-red-50 border-red-200 text-red-700" : percentNotice.type === "warning" ? "bg-yellow-50 border-yellow-200 text-yellow-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{percentNotice.text}</span>
+              <button className="opacity-70 hover:opacity-100" onClick={() => setPercentNotice(null)} aria-label="Close">×</button>
+            </div>
+          </div>
+        )}
         {loadingPercent ? (
           <div className="text-center py-8">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
