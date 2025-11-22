@@ -26,14 +26,14 @@ const Sidebar = () => {
   const dashboardItem = {
     key: "/admin",
     icon: <FaTachometerAlt />,
-    label: "Dashboard",
+    label: "Thống Kê",
     path: "/admin"
   };
 
   const userManagementItem = {
     key: "/admin/user-management",
     icon: <FaUsers />,
-    label: "User Management",
+    label: "Quản Lý Người Dùng",
     path: "/admin/user-management"
   };
 
