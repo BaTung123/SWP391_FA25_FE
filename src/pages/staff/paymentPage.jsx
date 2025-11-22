@@ -96,6 +96,26 @@ const PaymentPage = () => {
   const [ownerPaymentLoading, setOwnerPaymentLoading] = useState(false);
   const itemsPerPage = 5;
 
+  const [payments, setPayments] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+        const res = await api.get("/Payment");
+        const data = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+        setPayments(data);
+        setCurrentPage(1);
+      } catch (e) {
+        console.error("Failed to fetch payments", e);
+        setErrorMessage("Không thể tải lịch sử thanh toán. Vui lòng thử lại.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
   const [newMaintenance, setNewMaintenance] = useState({
     carId: "",
     type: "Bảo dưỡng định kỳ",
@@ -313,111 +333,96 @@ const PaymentPage = () => {
   };
 
   // Helper function to check if payment is paid/completed
-  const isPaymentPaid = (paymentStatus) => {
-    if (paymentStatus === null || paymentStatus === undefined) return false;
-    if (typeof paymentStatus === "number") {
-      return Number(paymentStatus) === 1 || Number(paymentStatus) === 4;
-    }
-    const normalized = String(paymentStatus).trim().toLowerCase();
-    return (
-      normalized === "1" ||
-      normalized === "4" ||
-      normalized === "completed" ||
-      normalized === "paid" ||
-      normalized === "success" ||
-      normalized === "đã thanh toán"
-    );
-  };
+const isPaymentPaid = (paymentStatus) => {
+  if (paymentStatus === null || paymentStatus === undefined) return false;
+  if (typeof paymentStatus === "number") {
+    return Number(paymentStatus) === 1 || Number(paymentStatus) === 4;
+  }
+  const normalized = String(paymentStatus).trim().toLowerCase();
+  return (
+    normalized === "1" ||
+    normalized === "4" ||
+    normalized === "completed" ||
+    normalized === "paid" ||
+    normalized === "paided" ||
+    normalized === "success" ||
+    normalized === "đã thanh toán"
+  );
+};
 
   // Helper function to check payment status for all owners
-  const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
-    if (!maintenanceId || !carId) return null;
+const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
+  if (!maintenanceId || !carId) return null;
 
-    try {
-      // Get all owners of this car
-      const ownerIds = await getOwnersByCarId(carId);
-      if (ownerIds.length === 0) {
-        // No owners found, keep current status
-        return null;
-      }
-
-      // Get all payments for this car
-      const paymentResponse = await api.get("/Payment");
-      const paymentData = Array.isArray(paymentResponse.data)
-        ? paymentResponse.data
-        : paymentResponse.data?.data ?? [];
-
-      // Filter payments related to this maintenance and car
-      const relatedPayments = paymentData.filter((p) => {
-        const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
-        const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
-        
-        // Match by carId
-        const carIdMatch = Number(pCarId) === Number(carId);
-        
-        // If payment has maintenanceId, it must match
-        // If not, consider it a match if carId matches (for payments without specific maintenanceId)
-        const maintenanceMatch = pMaintenanceId 
-          ? Number(pMaintenanceId) === Number(maintenanceId)
-          : true; // If no maintenanceId in payment, consider it a match if carId matches
-        
-        return carIdMatch && maintenanceMatch;
-      });
-
-      // Check if all owners have paid
-      const paidOwnerIds = new Set();
-      relatedPayments.forEach((payment) => {
-        const paymentStatus = payment.status ?? payment.Status;
-        const paymentUserId = payment.userId ?? payment.UserId;
-        
-        // Check if payment is completed/paid using unified function
-        if (isPaymentPaid(paymentStatus)) {
-          if (paymentUserId) {
-            paidOwnerIds.add(Number(paymentUserId));
-          }
-        }
-      });
-
-      // Check if all owners have paid
-      const allOwnersPaid = ownerIds.length > 0 && ownerIds.every((ownerId) =>
-        paidOwnerIds.has(Number(ownerId))
-      );
-
-      // Return the appropriate status: 1 = Đã thanh toán, 0 = Chờ thanh toán
-      return allOwnersPaid ? 1 : 0;
-    } catch (error) {
-      console.error("Error checking payment status:", error);
+  try {
+    // Get all owners of this car
+    const ownerIds = await getOwnersByCarId(carId);
+    if (ownerIds.length === 0) {
       return null;
     }
-  };
 
-  // --- Lọc + tìm kiếm ---
+    // Query payments per owner via Payment/{userId}
+    const ownerPaidMap = new Map();
+    await Promise.all(
+      ownerIds.map(async (ownerId) => {
+        try {
+          const resp = await api.get(`/Payment/${ownerId}`);
+          const list = Array.isArray(resp.data) ? resp.data : resp.data?.data ?? [];
+          const hasPaid = list.some((p) => {
+            const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
+            const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId ?? p.maintenance?.id;
+            const status = p.status ?? p.Status;
+            return (
+              Number(pCarId) === Number(carId) &&
+              Number(pMaintenanceId) === Number(maintenanceId) &&
+              isPaymentPaid(status)
+            );
+          });
+          ownerPaidMap.set(Number(ownerId), hasPaid);
+        } catch (e) {
+          ownerPaidMap.set(Number(ownerId), false);
+        }
+      })
+    );
+
+    const allOwnersPaid = ownerIds.length > 0 && ownerIds.every((id) => ownerPaidMap.get(Number(id)));
+    return allOwnersPaid ? 1 : 0;
+  } catch (error) {
+    console.error("Error checking payment status:", error);
+    return null;
+  }
+};
+
+  // --- Lọc + tìm kiếm (Payments) ---
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return maintenanceRecords.filter((r) => {
+    return payments.filter((p) => {
+      const method = String(p?.paymentMethod ?? "").trim().toLowerCase();
+      if (method === "payos" || /pay\s*os/.test(method)) return false;
       const matchKW =
         !kw ||
         [
-          r?.vehicle?.name,
-          r?.vehicle?.license,
-          r?.type,
-          r?.description,
-          r?.price,
+          p?.paymentId,
+          p?.orderId,
+          p?.carName,
+          p?.plateNumber,
+          p?.description,
+          p?.paymentMethod,
         ]
           .filter(Boolean)
           .some((t) => String(t).toLowerCase().includes(kw));
 
-      const statusLabel =
-        typeof r.status === "number"
-          ? STATUS_LABELS[r.status] ?? String(r.status)
-          : r.status;
-
+      const paid = isPaymentPaid(p?.status);
       const matchStatus =
-        statusFilter === "all" ? true : statusLabel === statusFilter;
+        statusFilter === "all"
+          ? true
+          : statusFilter === "paid"
+          ? paid
+          : !paid;
 
       return matchKW && matchStatus;
     });
-  }, [maintenanceRecords, keyword, statusFilter]);
+  }, [payments, keyword, statusFilter]);
 
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
@@ -694,24 +699,18 @@ const PaymentPage = () => {
         return;
       }
 
-      // Get all payments for this maintenance
-      const paymentResponse = await api.get("/Payment");
-      const paymentData = Array.isArray(paymentResponse.data)
-        ? paymentResponse.data
-        : paymentResponse.data?.data ?? [];
-
-      // Filter payments related to this maintenance and car
-      const relatedPayments = paymentData.filter((p) => {
-        const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
-        const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId;
-        
-        const carIdMatch = Number(pCarId) === Number(carId);
-        const maintenanceMatch = pMaintenanceId 
-          ? Number(pMaintenanceId) === Number(maintenanceId)
-          : true;
-        
-        return carIdMatch && maintenanceMatch;
-      });
+  // Build per-owner payment map via Payment/{userId}
+  const ownerPaymentLists = await Promise.all(
+    ownerIds.map(async (ownerId) => {
+      try {
+        const resp = await api.get(`/Payment/${ownerId}`);
+        const list = Array.isArray(resp.data) ? resp.data : resp.data?.data ?? [];
+        return { ownerId, list };
+      } catch {
+        return { ownerId, list: [] };
+      }
+    })
+  );
 
       // Get user info and payment status for each owner
       const ownerDetails = await Promise.all(
@@ -722,16 +721,20 @@ const PaymentPage = () => {
             const userData = userRes?.data ?? {};
             const userName = userData.fullName ?? userData.name ?? userData.email ?? `User #${ownerId}`;
 
-            // Check if this owner has paid
-            const ownerPayment = relatedPayments.find((p) => {
-              const paymentUserId = p.userId ?? p.UserId;
-              return Number(paymentUserId) === Number(ownerId);
-            });
+      // Locate paid payment for this owner
+      const ownerEntry = ownerPaymentLists.find((x) => Number(x.ownerId) === Number(ownerId));
+      const hasPaid = (ownerEntry?.list || []).some((p) => {
+        const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
+        const pMaintenanceId = p.maintenanceId ?? p.MaintenanceId ?? p.maintenance?.id;
+        const status = p.status ?? p.Status;
+        return (
+          Number(pCarId) === Number(carId) &&
+          Number(pMaintenanceId) === Number(maintenanceId) &&
+          isPaymentPaid(status)
+        );
+      });
 
-            // Use unified isPaymentPaid function
-            const paymentStatus = ownerPayment && isPaymentPaid(ownerPayment.status ?? ownerPayment.Status)
-              ? "Đã thanh toán"
-              : "Chờ thanh toán";
+      const paymentStatus = hasPaid ? "Đã thanh toán" : "Chờ thanh toán";
 
             return {
               userId: ownerId,
@@ -802,7 +805,7 @@ const PaymentPage = () => {
           {/* Title */}
           <div className="flex items-center gap-2">
             <FaTools className="text-gray-600" />
-            <span className="font-semibold text-gray-900">Quản lý thanh toán</span>
+            <span className="font-semibold text-gray-900">Lịch sử thanh toán</span>
           </div>
 
           {/* Filters and Actions */}
@@ -844,120 +847,59 @@ const PaymentPage = () => {
               className="px-3 py-1.5 h-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               style={{ width: 180 }}
             >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="Chờ thanh toán">Chờ thanh toán</option>
-              <option value="Đã thanh toán">Đã thanh toán</option>
-              <option value="Thất bại">Thất bại</option>
-              <option value="Đã hủy">Đã hủy</option>
+              <option value="all">Tất cả</option>
+              <option value="paid">Đã thanh toán</option>
+              <option value="unpaid">Chưa thanh toán</option>
             </select>
-
-            {/* Add Button */}
-            <button
-              onClick={() => {
-                setIsModalOpen(true);
-                setModalError("");
-                setNewMaintenance({
-                  carId: "",
-                  type: "Bảo dưỡng định kỳ",
-                  scheduledDate: "",
-                  description: "",
-                  price: "",
-                  status: 0,
-                });
-              }}
-              className="flex items-center gap-2 px-4 py-1.5 h-8 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <FaPlus className="w-3 h-3" />
-              Thêm mới
-            </button>
+            
           </div>
         </div>
       </div>
 
-      {/* Danh sách bảo dưỡng */}
+      {/* Lịch sử thanh toán */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-center">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Xe
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Loại bảo dưỡng
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Giá tiền
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ngày thực hiện
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Mô tả
-                </th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thao tác
-                </th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Mã thanh toán</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phương thức</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Xe</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Biển số</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Số tiền</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Mô tả</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Thời gian</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentRecords.map((record) => (
-                <tr
-                  key={record.id}
-                  className="hover:bg-gray-50 transition-colors"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="font-medium">{record.vehicle.name}</div>
-                    <div className="text-gray-500 text-sm">
-                      Biển số: {record.vehicle.license}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {record.type}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {formatCurrency(record.price)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
-                    {record.scheduledDate}
-                  </td>
-                  <td className="px-6 py-4">{getStatusBadge(record.status)}</td>
-                  <td
-                    className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs"
-                    title={record.description}
-                  >
-                    {record.description}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium">
-                    <div className="flex justify-center space-x-2">
-                      <button
-                        onClick={() => {
-                          setSelectedMaintenance(record);
-                          fetchOwnerPaymentDetails(record.maintenanceId, record.carId, true);
-                        }}
-                        className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
-                        title="Chi tiết"
-                      >
-                        <FaEye />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(record)}
-                        className="text-red-600 hover:text-red-900 p-1 transition-colors"
-                        title="Xóa"
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {currentRecords.map((p) => {
+                const paid = isPaymentPaid(p?.status);
+                const badgeClass = paid ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800";
+                const amount = Number(p?.amount ?? 0);
+                // const currency = p?.currency ?? "VND";
+                const amountText = formatCurrency(amount);
+                return (
+                  <tr key={p?.paymentId ?? p?.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-gray-900">#{p?.paymentId ?? p?.id}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{(() => { const m = String(p?.paymentMethod ?? "").trim(); return /^(payos)$/i.test(m) ? "—" : (m || "—"); })()}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}>
+                        {paid ? "Đã thanh toán" : (p?.status || "Chưa thanh toán")}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{p?.carName ?? "—"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{p?.plateNumber ?? "—"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{amountText}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 truncate max-w-xs" title={p?.description ?? ""}>{p?.description ?? "—"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">{p?.createdAt ? new Date(p.createdAt).toLocaleString("vi-VN") : "—"}</td>
+                  </tr>
+                );
+              })}
               {loading && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-10 text-sm text-gray-500 text-center"
                   >
                     Đang tải dữ liệu...
@@ -967,10 +909,10 @@ const PaymentPage = () => {
               {!loading && currentRecords.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-10 text-sm text-gray-500 text-center"
                   >
-                    {errorMessage || "Không có dữ liệu bảo dưỡng."}
+                    {errorMessage || "Không có dữ liệu thanh toán."}
                   </td>
                 </tr>
               )}

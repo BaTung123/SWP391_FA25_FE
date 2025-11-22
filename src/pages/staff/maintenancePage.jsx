@@ -88,7 +88,7 @@ const buildDefaultMaintenanceState = () => ({
   scheduledDate: getTodayInputDate(),
   description: "",
   price: "",
-  status: 0,
+  status: 1,
 });
 
 const normalizeMaintenanceRecord = (item) => {
@@ -273,7 +273,6 @@ const MaintenancePage = () => {
   const handleAddMaintenance = async () => {
     if (
       !newMaintenance.carId ||
-      !newMaintenance.scheduledDate ||
       !newMaintenance.description ||
       newMaintenance.price === ""
     ) {
@@ -281,26 +280,18 @@ const MaintenancePage = () => {
       return;
     }
 
-    if (isPastDate(newMaintenance.scheduledDate)) {
-      setModalError("Không thể chọn ngày trong quá khứ.");
-      return;
-    }
-
     try {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to UTC ISO string to avoid timezone shift
-      const maintenanceDay = toUtcStartOfDayISOString(
-        newMaintenance.scheduledDate
-      );
+      const maintenanceDay = new Date().toISOString();
 
       // Prepare request body
       const requestBody = {
         carId: Number(newMaintenance.carId),
         maintenanceType: newMaintenance.type,
         maintenanceDay: maintenanceDay,
-        status: 0, // Đã lên lịch
+        status: 1, // Đã lên lịch
         description: newMaintenance.description,
         price: Number(newMaintenance.price) || 0,
       };
@@ -375,10 +366,7 @@ const MaintenancePage = () => {
       return;
     }
 
-    if (isPastDate(editMaintenance.scheduledDate)) {
-      setModalError("Không thể chọn ngày trong quá khứ.");
-      return;
-    }
+    
 
     if (!editingMaintenance?.maintenanceId) {
       setModalError("Không tìm thấy thông tin bảo dưỡng cần cập nhật.");
@@ -389,10 +377,10 @@ const MaintenancePage = () => {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to UTC ISO string to avoid timezone shift
-      const maintenanceDay = toUtcStartOfDayISOString(
-        editMaintenance.scheduledDate
-      );
+      const maintenanceDay =
+        editingMaintenance?.maintenanceDay ??
+        editingMaintenance?.scheduledDate ??
+        new Date().toISOString();
 
       // Prepare request body
       const requestBody = {
@@ -785,20 +773,11 @@ const MaintenancePage = () => {
 
               <div className="flex flex-col">
                 <div className="text-left">
-                  <label className="text-sm text-gray-700">
-                    Ngày hiện tại <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-sm text-gray-700">Ngày giờ khởi tạo</label>
                 </div>
-                <input
-                  type="date"
-                  name="scheduledDate"
-                  value={newMaintenance.scheduledDate}
-                  onChange={handleInputChange}
-                  min={getTodayInputDate()}
-                  placeholder="mm/dd/yyyy"
-                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
-                />
+                <div className="w-full px-3 py-2 mt-1 bg-gray-100 border border-gray-300 rounded-md text-gray-700">
+                  {new Date().toLocaleString("vi-VN")}
+                </div>
               </div>
 
               <div className="flex flex-col">
@@ -971,20 +950,18 @@ const MaintenancePage = () => {
 
               <div className="flex flex-col">
                 <div className="text-left">
-                  <label className="text-sm text-gray-700">
-                    Ngày hiện tại <span className="text-red-500">*</span>
-                  </label>
+                  <label className="text-sm text-gray-700">Ngày giờ khởi tạo</label>
                 </div>
-                <input
-                  type="date"
-                  name="scheduledDate"
-                  value={editMaintenance.scheduledDate}
-                  onChange={handleEditInputChange}
-                  min={getTodayInputDate()}
-                  placeholder="mm/dd/yyyy"
-                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
-                />
+                <div className="w-full px-3 py-2 mt-1 bg-gray-100 border border-gray-300 rounded-md text-gray-700">
+                  {(() => {
+                    const v = editingMaintenance?.maintenanceDay ?? editMaintenance?.scheduledDate;
+                    try {
+                      return v ? new Date(v).toLocaleString("vi-VN") : "—";
+                    } catch {
+                      return String(v || "—");
+                    }
+                  })()}
+                </div>
               </div>
 
               <div className="flex flex-col">

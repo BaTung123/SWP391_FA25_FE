@@ -121,11 +121,11 @@ export default function UserManagementPage() {
         fullName: values.name,
         email: values.email,
         password: values.password,
-        role: 2, // Nhân viên (Staff)
+        role: 0,
       });
 
       await fetchUsers();
-      msgApi.success("Thêm nhân viên thành công!");
+      msgApi.success("Thêm thành viên thành công!");
       form.resetFields();
       setIsModalOpen(false);
     } catch (e) {
@@ -353,7 +353,7 @@ export default function UserManagementPage() {
         title={
           <Space>
             <UserAddOutlined />
-            <span>Thêm nhân viên mới</span>
+            <span>Thêm thành viên mới</span>
           </Space>
         }
         open={isModalOpen}

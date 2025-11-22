@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   FaSearch,
   FaTimes,
   FaChevronLeft,
   FaChevronRight,
-  FaEye,
-} from 'react-icons/fa';
-import Header from '../../components/header/header';
-import api from '../../config/axios';
+} from "react-icons/fa";
+import Header from "../../components/header/header";
+import api from "../../config/axios";
 
 const ProfilePage = () => {
   // =========================
@@ -17,13 +16,23 @@ const ProfilePage = () => {
 
   const [showCoOwnersModal, setShowCoOwnersModal] = useState(false);
   const [showAgreementModal, setShowAgreementModal] = useState(false);
-  const [showInsuranceModal, setShowInsuranceModal] = useState(false);
 
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [coOwnersData, setCoOwnersData] = useState([]);
   const [loadingCoOwners, setLoadingCoOwners] = useState(false);
   const [groupInfo, setGroupInfo] = useState(null);
   const [groupLeaderId, setGroupLeaderId] = useState(null);
+  // PAYMENTS (Insurance)
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [processingPaymentId, setProcessingPaymentId] = useState(null);
+  const [paymentKeyword, setPaymentKeyword] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
+  const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
+  const paymentItemsPerPage = 5;
+
+  // ✅ danh sách maintenanceId đã được user này thanh toán
+  const [paidMaintenanceSet, setPaidMaintenanceSet] = useState(new Set());
 
   // auth/session
   const [userRole, setUserRole] = useState(null);
@@ -72,14 +81,6 @@ const ProfilePage = () => {
   // =========================
   // PAYMENT HELPERS (from paymentPage.jsx)
   // =========================
-  const STATUS_LABELS = {
-    0: "Đã lên lịch",
-    1: "Đang thực hiện",
-    2: "Hoàn thành",
-    3: "Quá hạn",
-    4: "Đã thanh toán",
-  };
-
   const STATUS_MAP = {
     Pending: "Chờ thanh toán",
     Success: "Đã thanh toán",
@@ -108,53 +109,25 @@ const ProfilePage = () => {
     });
   };
 
-  const safeNum = (v, fb = 0) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : fb;
-  };
+  
 
   const normalizeMaintenanceRecord = (item) => {
     if (!item) return null;
-
-    // Map status code to Vietnamese label
-    const statusCode = item.status;
-    let status = "Chờ thanh toán";
-    if (typeof statusCode === "number") {
-      if (statusCode === 4) {
-        status = "Đã thanh toán";
-      } else if (statusCode === 0) {
-        status = "Chờ thanh toán";
-      } else {
-        status = STATUS_LABELS[statusCode] ?? "Chờ thanh toán";
-      }
-    } else if (typeof statusCode === "string") {
-      status = statusCode;
-    }
-
     return {
       id: item.maintenanceId ?? item.id ?? Date.now(),
-      maintenanceId: item.maintenanceId ?? item.id, // Store original ID for API calls
+      maintenanceId: item.maintenanceId ?? item.id,
       carId: item.carId ?? item.car?.carId ?? item.car?.id,
       vehicle: {
         name:
-          item.car?.carName ??
-          item.vehicle?.name ??
-          item.carName ??
-          "Đang cập nhật",
+          item.car?.carName ?? item.vehicle?.name ?? item.carName ?? "Đang cập nhật",
         license:
-          item.car?.plateNumber ??
-          item.vehicle?.license ??
-          item.plateNumber ??
-          "Đang cập nhật",
+          item.car?.plateNumber ?? item.vehicle?.license ?? item.plateNumber ?? "Đang cập nhật",
       },
       type: item.maintenanceType ?? item.type ?? "Khác",
       scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
-      maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // Store original date
-      status,
+      maintenanceDay: item.maintenanceDay ?? item.scheduledDate,
       description: item.description ?? "",
-      statusCode: item.status,
       price: item.price ?? 0,
-      // For compatibility with payment table
       paymentId: `#MAINT${String(item.maintenanceId ?? item.id ?? Date.now()).padStart(6, "0")}`,
       serviceType: item.maintenanceType ?? item.type ?? "Bảo dưỡng",
       amount: item.price ?? 0,
@@ -171,7 +144,8 @@ const ProfilePage = () => {
         : "Chờ thanh toán";
 
     // Use amountVnd if available and > 0, otherwise use amount
-    const amount = item.amountVnd && item.amountVnd > 0 ? item.amountVnd : item.amount;
+    const amount =
+      item.amountVnd && item.amountVnd > 0 ? item.amountVnd : item.amount;
 
     const originalPaymentId = item.paymentId ?? item.id ?? Date.now();
 
@@ -180,7 +154,12 @@ const ProfilePage = () => {
       originalPaymentId: originalPaymentId, // Keep original for API calls
       paymentId: `#PAY${String(originalPaymentId).padStart(6, "0")}`,
       userId: item.userId ?? item.user?.id ?? null,
-      carId: item.carId ?? item.vehicleId ?? item.vehicle?.carId ?? item.vehicle?.id ?? null,
+      carId:
+        item.carId ??
+        item.vehicleId ??
+        item.vehicle?.carId ??
+        item.vehicle?.id ??
+        null,
       vehicle: {
         name: item.carName ?? item.vehicle?.name ?? "Đang cập nhật",
         license: item.plateNumber ?? item.vehicle?.license ?? "Đang cập nhật",
@@ -204,7 +183,8 @@ const ProfilePage = () => {
       const raw = localStorage.getItem("user");
       if (!raw) return;
       const parsed = JSON.parse(raw);
-      const id = parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
+      const id =
+        parsed?.id ?? parsed?.userId ?? parsed?.Id ?? parsed?.UserId ?? null;
       const role = parsed?.role ?? parsed?.Role ?? null;
       setUserRole(role);
       setUserId(id);
@@ -216,7 +196,8 @@ const ProfilePage = () => {
 
   // Admin/Staff chỉ xem tab profile
   useEffect(() => {
-    const roleNum = typeof userRole === "number" ? userRole : Number(userRole ?? 0);
+    const roleNum =
+      typeof userRole === "number" ? userRole : Number(userRole ?? 0);
     if ((roleNum === 1 || roleNum === 2) && activeTab !== "profile") {
       setActiveTab("profile");
     }
@@ -235,22 +216,26 @@ const ProfilePage = () => {
       try {
         // Gọi API GET /User (không có parameter)
         const res = await api.get("/User", { signal: controller.signal });
-        
+
         // Xử lý response: có thể là array hoặc object
         let users = [];
         if (Array.isArray(res.data)) {
           users = res.data;
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           users = res.data.data;
-        } else if (res.data && typeof res.data === 'object') {
+        } else if (res.data && typeof res.data === "object") {
           // Nếu là object đơn, thêm vào array
           users = [res.data];
         }
 
         // Tìm user có userId khớp
-        const data = users.find(u => 
-          Number(u.userId ?? u.id ?? u.Id ?? u.UserId) === Number(userId)
-        ) || users[0] || {};
+        const data =
+          users.find(
+            (u) =>
+              Number(u.userId ?? u.id ?? u.Id ?? u.UserId) === Number(userId)
+          ) ||
+          users[0] ||
+          {};
 
         const safe = (v, fb = "") => (v === null || v === undefined ? fb : v);
 
@@ -261,8 +246,8 @@ const ProfilePage = () => {
             const date = new Date(dateValue);
             if (isNaN(date.getTime())) return "";
             const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
             return `${year}-${month}-${day}`;
           } catch {
             return "";
@@ -287,8 +272,22 @@ const ProfilePage = () => {
         });
 
         try {
-          setIdCardFront(safe(data.cccdFront ?? data.cccdFrontUrl ?? data.idCardFront ?? data.idCardImageUrl ?? null, null));
-          setIdCardBack(safe(data.cccdBack ?? data.cccdBackUrl ?? data.idCardBack ?? null, null));
+          setIdCardFront(
+            safe(
+              data.cccdFront ??
+                data.cccdFrontUrl ??
+                data.idCardFront ??
+                data.idCardImageUrl ??
+                null,
+              null
+            )
+          );
+          setIdCardBack(
+            safe(
+              data.cccdBack ?? data.cccdBackUrl ?? data.idCardBack ?? null,
+              null
+            )
+          );
         } catch {}
         setValidationErrors({});
       } catch (e) {
@@ -311,26 +310,35 @@ const ProfilePage = () => {
       case "name":
       case "fullName": {
         const displayName = value || "";
-        if (!displayName || displayName.trim().length === 0) error = "Họ và tên không được để trống";
-        else if (displayName.trim().length < 2) error = "Họ và tên phải có ít nhất 2 ký tự";
-        else if (displayName.trim().length > 100) error = "Họ và tên không được vượt quá 100 ký tự";
-        else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(displayName.trim())) error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
+        if (!displayName || displayName.trim().length === 0)
+          error = "Họ và tên không được để trống";
+        else if (displayName.trim().length < 2)
+          error = "Họ và tên phải có ít nhất 2 ký tự";
+        else if (displayName.trim().length > 100)
+          error = "Họ và tên không được vượt quá 100 ký tự";
+        else if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(displayName.trim()))
+          error = "Họ và tên chỉ được chứa chữ cái và khoảng trắng";
         break;
       }
       case "email": {
-        if (!value || value.trim().length === 0) error = "Email không được để trống";
+        if (!value || value.trim().length === 0)
+          error = "Email không được để trống";
         else {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(value.trim())) error = "Email không hợp lệ. Vui lòng nhập đúng định dạng email";
+          if (!emailRegex.test(value.trim()))
+            error = "Email không hợp lệ. Vui lòng nhập đúng định dạng email";
         }
         break;
       }
       case "phone": {
-        if (!value || value.trim().length === 0) error = "Số điện thoại không được để trống";
+        if (!value || value.trim().length === 0)
+          error = "Số điện thoại không được để trống";
         else {
           const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
           const cleanedPhone = value.replace(/\s+/g, "");
-          if (!phoneRegex.test(cleanedPhone)) error = "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)";
+          if (!phoneRegex.test(cleanedPhone))
+            error =
+              "Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam (10 số, bắt đầu bằng 0)";
         }
         break;
       }
@@ -338,42 +346,45 @@ const ProfilePage = () => {
         if (!value) error = "Ngày sinh không được để trống";
         else {
           const selectedDate = new Date(value);
-          const today = new Date(); today.setHours(0,0,0,0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
           if (isNaN(selectedDate.getTime())) error = "Ngày sinh không hợp lệ";
-          else if (selectedDate > today) error = "Ngày sinh không được trong tương lai";
+          else if (selectedDate > today)
+            error = "Ngày sinh không được trong tương lai";
           else {
             const age = today.getFullYear() - selectedDate.getFullYear();
             const monthDiff = today.getMonth() - selectedDate.getMonth();
-            const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < selectedDate.getDate()) ? age - 1 : age;
+            const actualAge =
+              monthDiff < 0 ||
+              (monthDiff === 0 && today.getDate() < selectedDate.getDate())
+                ? age - 1
+                : age;
             if (actualAge < 18) error = "Bạn phải đủ 18 tuổi trở lên";
             else if (actualAge > 120) error = "Ngày sinh không hợp lệ";
           }
         }
         break;
       }
-      case "licenseNumber":
-        if (value && value.trim().length > 0) {
-          if (value.trim().length < 5) error = "Số bằng lái xe phải có ít nhất 5 ký tự";
-          else if (value.trim().length > 20) error = "Số bằng lái xe không được vượt quá 20 ký tự";
-        }
-        break;
-      default: break;
-    }
-    return error;
-  };
+
+        default:
+          break;
+      }
+      return error;
+    };
 
   const validateForm = () => {
     const errors = {};
     const nameError = validateField("name", form.name || form.fullName);
-    if (nameError) { errors.name = nameError; errors.fullName = nameError; }
+    if (nameError) {
+      errors.name = nameError;
+      errors.fullName = nameError;
+    }
     const emailError = validateField("email", form.email);
     if (emailError) errors.email = emailError;
     const phoneError = validateField("phone", form.phone);
     if (phoneError) errors.phone = phoneError;
     const dobError = validateField("dob", form.dob);
     if (dobError) errors.dob = dobError;
-    const licenseError = validateField("licenseNumber", form.licenseNumber);
-    if (licenseError) errors.licenseNumber = licenseError;
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -385,17 +396,29 @@ const ProfilePage = () => {
     const { name, value } = e.target;
     setForm((prev) => {
       const updated = { ...prev, [name]: value };
-      const error = validateField(name, name === "name" || name === "fullName"
-        ? (name === "name" ? value : (value || prev.name))
-        : value);
+      const error = validateField(
+        name,
+        name === "name" || name === "fullName"
+          ? name === "name"
+            ? value
+            : value || prev.name
+          : value
+      );
 
       setValidationErrors((prevErrors) => {
         const next = { ...prevErrors };
         if (name === "name" || name === "fullName") {
-          const displayName = (name === "name" ? value : updated.name) || (name === "fullName" ? value : updated.fullName);
+          const displayName =
+            (name === "name" ? value : updated.name) ||
+            (name === "fullName" ? value : updated.fullName);
           const nmErr = validateField("name", displayName);
-          if (nmErr) { next.name = nmErr; next.fullName = nmErr; }
-          else { delete next.name; delete next.fullName; }
+          if (nmErr) {
+            next.name = nmErr;
+            next.fullName = nmErr;
+          } else {
+            delete next.name;
+            delete next.fullName;
+          }
         } else {
           if (error) next[name] = error;
           else delete next[name];
@@ -407,56 +430,77 @@ const ProfilePage = () => {
     });
   };
 
-  const handleIdCardUpload = (e, side = 'front') => {
+  const handleIdCardUpload = (e, side = "front") => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Vui lòng chọn file hình ảnh'); return; }
-    if (file.size > 5 * 1024 * 1024) { alert('Kích thước file không được vượt quá 5MB'); return; }
+    if (!file.type.startsWith("image/")) {
+      alert("Vui lòng chọn file hình ảnh");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Kích thước file không được vượt quá 5MB");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
-      if (side === 'back') setIdCardBack(dataUrl);
+      if (side === "back") setIdCardBack(dataUrl);
       else setIdCardFront(dataUrl);
-      setUser((prev) => ({ ...prev, idCardImageUrl: prev.idCardImageUrl || dataUrl }));
+      setUser((prev) => ({
+        ...prev,
+        idCardImageUrl: prev.idCardImageUrl || dataUrl,
+      }));
     };
-    reader.onerror = () => { alert('Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.'); };
+    reader.onerror = () => {
+      alert("Đã xảy ra lỗi khi đọc file. Vui lòng thử lại.");
+    };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveIdCard = (side = 'front') => {
-    if (side === 'back') setIdCardBack(null);
+  const handleRemoveIdCard = (side = "front") => {
+    if (side === "back") setIdCardBack(null);
     else setIdCardFront(null);
     setUser((prev) => ({ ...prev, idCardImageUrl: null }));
     try {
       const inputs = document.querySelectorAll('input[type="file"]');
-      inputs.forEach((i) => { try { i.value = ''; } catch {} });
+      inputs.forEach((i) => {
+        try {
+          i.value = "";
+        } catch {}
+      });
     } catch {}
   };
 
   const toIsoDateOnly = (v) => {
-    if (!v) return '';
+    if (!v) return "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
     const m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
-      const [ , d, mo, y ] = m;
-      const dd = String(d).padStart(2, '0');
-      const mm = String(mo).padStart(2, '0');
+      const [, d, mo, y] = m;
+      const dd = String(d).padStart(2, "0");
+      const mm = String(mo).padStart(2, "0");
       return `${y}-${mm}-${dd}`;
     }
     const dt = new Date(v);
     if (!isNaN(dt)) {
       const yyyy = dt.getFullYear();
-      const mm = String(dt.getMonth()+1).padStart(2, '0');
-      const dd = String(dt.getDate()).padStart(2, '0');
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
       return `${yyyy}-${mm}-${dd}`;
     }
-    return '';
+    return "";
   };
 
   const handleSaveProfile = async () => {
-    if (!userId) { alert("Không xác định được người dùng."); return; }
-    if (!validateForm()) { alert("Vui lòng kiểm tra lại các thông tin đã nhập."); return; }
+    if (!userId) {
+      alert("Không xác định được người dùng.");
+      return;
+    }
+    if (!validateForm()) {
+      alert("Vui lòng kiểm tra lại các thông tin đã nhập.");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -470,7 +514,7 @@ const ProfilePage = () => {
           dobIso = dobDate.toISOString();
         }
       }
-      
+
       // Prepare request body according to API specification
       const requestBody = {
         email: form.email || "",
@@ -479,20 +523,21 @@ const ProfilePage = () => {
         gender: form.gender || "",
         dob: dobIso,
         cccdFront: idCardFront || user.idCardImageUrl || "",
-        cccdBack: idCardBack || ""
+        cccdBack: idCardBack || "",
       };
 
       const res = await api.put(`/User/${userId}`, requestBody, {
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
       });
 
-      const updated = res?.data && Object.keys(res.data).length ? res.data : requestBody;
+      const updated =
+        res?.data && Object.keys(res.data).length ? res.data : requestBody;
 
       setUser((u) => ({
         ...u,
         email: updated.email ?? u.email,
         avatarImageUrl: updated.avatarImageUrl ?? u.avatarImageUrl,
-        idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl
+        idCardImageUrl: updated.idCardImageUrl ?? u.idCardImageUrl,
       }));
 
       setForm((f) => ({
@@ -504,7 +549,7 @@ const ProfilePage = () => {
         nationalId: updated.nationalId ?? f.nationalId,
         licenseNumber: updated.licenseNumber ?? f.licenseNumber,
         gender: updated.gender ?? f.gender,
-        dob: updated.dob ? toIsoDateOnly(updated.dob) : f.dob
+        dob: updated.dob ? toIsoDateOnly(updated.dob) : f.dob,
       }));
 
       try {
@@ -521,15 +566,16 @@ const ProfilePage = () => {
       alert("Thông tin thành viên đã được lưu thành công!");
     } catch (e) {
       console.error(e);
-      
+
       // Extract error message from API response
-      let errorMessage = "Cập nhật không thành công. Vui lòng kiểm tra lại thông tin đã nhập.";
-      
+      let errorMessage =
+        "Cập nhật không thành công. Vui lòng kiểm tra lại thông tin đã nhập.";
+
       if (e?.response?.data) {
         const errorData = e.response.data;
-        
+
         // Handle string response (may contain escaped JSON)
-        if (typeof errorData === 'string') {
+        if (typeof errorData === "string") {
           try {
             // Try to parse as JSON first
             const parsed = JSON.parse(errorData);
@@ -539,9 +585,14 @@ const ProfilePage = () => {
           } catch {
             // If parsing fails, try to extract message using regex
             // Handle cases like: {"\n \"message\": \"Email already exists\"\n}"
-            const match = errorData.match(/"message":\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+            const match = errorData.match(
+              /"message":\s*"([^"\\]*(\\.[^"\\]*)*)"/
+            );
             if (match && match[1]) {
-              errorMessage = match[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').trim();
+              errorMessage = match[1]
+                .replace(/\\n/g, " ")
+                .replace(/\\"/g, '"')
+                .trim();
             } else {
               // Try simpler pattern
               const simpleMatch = errorData.match(/message["\s:]+"([^"]+)"/);
@@ -550,16 +601,16 @@ const ProfilePage = () => {
               }
             }
           }
-        } 
+        }
         // Handle object response
-        else if (typeof errorData === 'object') {
+        else if (typeof errorData === "object") {
           if (errorData.message) {
             errorMessage = errorData.message;
           } else if (errorData.error) {
             errorMessage = errorData.error;
           }
         }
-      } 
+      }
       // Handle response text if available (for cases where data is not parsed)
       else if (e?.response?.data?.responseText) {
         try {
@@ -568,7 +619,9 @@ const ProfilePage = () => {
             errorMessage = parsed.message;
           }
         } catch {
-          const match = e.response.data.responseText.match(/"message":\s*"([^"]+)"/);
+          const match = e.response.data.responseText.match(
+            /"message":\s*"([^"]+)"/
+          );
           if (match && match[1]) {
             errorMessage = match[1];
           }
@@ -578,7 +631,7 @@ const ProfilePage = () => {
       else if (e?.message) {
         errorMessage = e.message;
       }
-      
+
       setError(errorMessage);
       alert(errorMessage);
     } finally {
@@ -592,7 +645,7 @@ const ProfilePage = () => {
   const fetchAllUsers = async () => {
     try {
       const r = await api.get("/User");
-      return Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
+      return Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
     } catch (e) {
       console.error("fetchAllUsers error:", e);
       return [];
@@ -602,14 +655,19 @@ const ProfilePage = () => {
   const resolveCarUserId = async (carId, uid) => {
     try {
       const r = await api.get(`/users/${uid}/cars`);
-      const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
-      const found = arr.find((it) => Number(it?.carId ?? it?.id) === Number(carId));
+      const arr = Array.isArray(r.data) ? r.data : r.data ? [r.data] : [];
+      const found = arr.find(
+        (it) => Number(it?.carId ?? it?.id) === Number(carId)
+      );
       if (!found) return null;
       return Number(found?.carUserId ?? found?.CarUserId ?? found?.id);
     } catch (error) {
       // Silently ignore 404 errors (user doesn't exist or has no cars)
       if (error?.response?.status !== 404) {
-        console.debug(`Error resolving carUserId for carId ${carId}, userId ${uid}:`, error);
+        console.debug(
+          `Error resolving carUserId for carId ${carId}, userId ${uid}:`,
+          error
+        );
       }
       return null;
     }
@@ -619,9 +677,11 @@ const ProfilePage = () => {
     try {
       const all = await fetchAllUsers();
       if (!all.length) return [];
-      const limit = 8, userIds = [];
+      const limit = 8,
+        userIds = [];
       const chunks = [];
-      for (let i = 0; i < all.length; i += limit) chunks.push(all.slice(i, i + limit));
+      for (let i = 0; i < all.length; i += limit)
+        chunks.push(all.slice(i, i + limit));
 
       for (const batch of chunks) {
         const results = await Promise.all(
@@ -630,8 +690,14 @@ const ProfilePage = () => {
             if (!Number.isFinite(uid)) return null;
             try {
               const r = await api.get(`/users/${uid}/cars`);
-              const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
-              const has = arr.some((c) => Number(c?.carId ?? c?.id) === Number(carId));
+              const arr = Array.isArray(r.data)
+                ? r.data
+                : r.data
+                ? [r.data]
+                : [];
+              const has = arr.some(
+                (c) => Number(c?.carId ?? c?.id) === Number(carId)
+              );
               return has ? uid : null;
             } catch (error) {
               // Silently ignore 404 errors (user doesn't exist or has no cars)
@@ -643,7 +709,9 @@ const ProfilePage = () => {
             }
           })
         );
-        results.forEach((uid) => { if (uid) userIds.push(uid); });
+        results.forEach((uid) => {
+          if (uid) userIds.push(uid);
+        });
       }
       return userIds;
     } catch (e) {
@@ -659,11 +727,11 @@ const ProfilePage = () => {
       return {
         id: uid,
         name: data.fullName || data.name || data.email || `User #${uid}`,
-        email: data.email || '',
-        phone: data.phone || '',
+        email: data.email || "",
+        phone: data.phone || "",
       };
     } catch {
-      return { id: uid, name: `User #${uid}`, email: '', phone: '' };
+      return { id: uid, name: `User #${uid}`, email: "", phone: "" };
     }
   };
 
@@ -691,7 +759,9 @@ const ProfilePage = () => {
       }
     })();
 
-    return () => { aborted = true; };
+    return () => {
+      aborted = true;
+    };
   }, [activeTab]);
 
   // =========================
@@ -701,7 +771,8 @@ const ProfilePage = () => {
 
   useEffect(() => {
     // Load vehicleData for both "vehicles" and "insurance" tabs
-    if ((activeTab !== "vehicles" && activeTab !== "insurance") || !userId) return;
+    if ((activeTab !== "vehicles" && activeTab !== "insurance") || !userId)
+      return;
     let mounted = true;
     setLoading(true);
 
@@ -711,43 +782,65 @@ const ProfilePage = () => {
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
 
         const mapped = await Promise.all(
-          (list || [])
-            .filter(Boolean)
-            .map(async (it) => {
-              const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
+          (list || []).filter(Boolean).map(async (it) => {
+            const carId = it.carId ?? it._carId ?? it.id ?? it.Id ?? null;
 
-              const g = carId ? groupsMap.get(K(carId)) : null;
-              const groupId = g?.id ?? g?.groupId ?? null;
-              const groupName = g?.name ?? g?.groupName ?? (g ? `Nhóm #${g.id ?? g.groupId}` : "Chưa có nhóm");
+            const g = carId ? groupsMap.get(K(carId)) : null;
+            const groupId = g?.id ?? g?.groupId ?? null;
+            const groupName =
+              g?.name ??
+              g?.groupName ??
+              (g ? `Nhóm #${g.id ?? g.groupId}` : "Chưa có nhóm");
 
-              let memberCount = 1;
-              if (carId) {
-                try {
-                  const ownerIds = await getUsersByCar(carId);
-                  memberCount = ownerIds?.length ? ownerIds.length : 1;
-                } catch (e) {
-                  console.error(`Lỗi khi lấy số thành viên cho xe ${carId}:`, e);
-                }
+            let memberCount = 1;
+            if (carId) {
+              try {
+                const ownerIds = await getUsersByCar(carId);
+                memberCount = ownerIds?.length ? ownerIds.length : 1;
+              } catch (e) {
+                console.error(`Lỗi khi lấy số thành viên cho xe ${carId}:`, e);
               }
+            }
 
-              return {
-                id: carId,
-                carUserId:
-                  it.carUserId ?? it.CarUserId ?? it.carUser?.id ?? it.linkId ?? null,
-                vehicleName: it.carName ?? it.name ?? it.VehicleName ?? it.vehicleName ?? "",
-                licensePlate: it.plateNumber ?? it.plate ?? it.PlateNumber ?? it.licensePlate ?? "",
-                purchaseDate: it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
-                status: it.status ?? it.Status ?? "Active",
-                insurance: it.insurance ?? it.Insurance ?? {
-                  provider: "", policyNumber: "", startDate: null, endDate: null,
-                  premium: 0, monthlyPayment: 0, nextPayment: null, status: "Active"
+            return {
+              id: carId,
+              carUserId:
+                it.carUserId ??
+                it.CarUserId ??
+                it.carUser?.id ??
+                it.linkId ??
+                null,
+              vehicleName:
+                it.carName ?? it.name ?? it.VehicleName ?? it.vehicleName ?? "",
+              licensePlate:
+                it.plateNumber ??
+                it.plate ??
+                it.PlateNumber ??
+                it.licensePlate ??
+                "",
+              purchaseDate:
+                it.purchaseDate ?? it.PurchaseDate ?? it.createdAt ?? null,
+              status: it.status ?? it.Status ?? "Active",
+              insurance: it.insurance ??
+                it.Insurance ?? {
+                  provider: "",
+                  policyNumber: "",
+                  startDate: null,
+                  endDate: null,
+                  premium: 0,
+                  monthlyPayment: 0,
+                  nextPayment: null,
+                  status: "Active",
                 },
-                ownershipPercentage: it.ownershipPercentage != null ? Number(it.ownershipPercentage) : 100,
-                memberCount,
-                groupId,
-                groupName,
-              };
-            })
+              ownershipPercentage:
+                it.ownershipPercentage != null
+                  ? Number(it.ownershipPercentage)
+                  : 100,
+              memberCount,
+              groupId,
+              groupName,
+            };
+          })
         );
 
         if (mounted) setVehicleData(mapped);
@@ -759,28 +852,27 @@ const ProfilePage = () => {
       }
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [activeTab, userId, groupsMap]);
 
   // =========================
   // GROUP ACTIVITIES = FORMS (API wired)
   // =========================
-  const [activities, setActivities] = useState([]);         // [{id,title,yes,no,status,hasVoted,...}]
+  const [activities, setActivities] = useState([]); // [{id,title,yes,no,status,hasVoted,...}]
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [showCreateActivity, setShowCreateActivity] = useState(false);
-  const [newActivity, setNewActivity] = useState({ title: "", description: "" });
+  const [newActivity, setNewActivity] = useState({
+    title: "",
+    description: "",
+  });
   const [votingActivity, setVotingActivity] = useState(null);
 
   // =========================
   // PAYMENTS (Insurance)
   // =========================
-  const [payments, setPayments] = useState([]);
-  const [loadingPayments, setLoadingPayments] = useState(false);
-  const [processingPaymentId, setProcessingPaymentId] = useState(null);
-  const [paymentKeyword, setPaymentKeyword] = useState("");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
-  const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
-  const paymentItemsPerPage = 5;
+ 
 
   const isMember = userRole === 0 || userRole === "0" || Number(userRole) === 0;
   const isAdmin = userRole === 1 || userRole === "1" || Number(userRole) === 1;
@@ -789,7 +881,7 @@ const ProfilePage = () => {
 
   // Function to load payments from Maintenance API
   const loadPayments = async () => {
-    if (!userId) return;
+    if (!userId) return [];
     try {
       const [maintenanceResponse, carsResponse] = await Promise.all([
         api.get("/Maintenance"),
@@ -799,37 +891,68 @@ const ProfilePage = () => {
       const maintenanceData = Array.isArray(maintenanceResponse.data)
         ? maintenanceResponse.data
         : maintenanceResponse.data?.data ?? [];
-
-      if (!Array.isArray(maintenanceData)) {
-        throw new Error("Invalid maintenance data format");
-      }
-
-      const normalized = maintenanceData
-        .map(normalizeMaintenanceRecord)
-        .filter(Boolean);
+      if (!Array.isArray(maintenanceData)) return [];
 
       const carsRaw = Array.isArray(carsResponse.data)
         ? carsResponse.data
         : carsResponse.data?.data ?? [];
-
       const ownedCarIds = new Set(
         (carsRaw || [])
           .map((car) =>
-            Number(car?.carId ?? car?._carId ?? car?.id ?? car?.Id ?? car?.vehicleId)
+            Number(
+              car?.carId ?? car?._carId ?? car?.id ?? car?.Id ?? car?.vehicleId
+            )
           )
           .filter((id) => Number.isFinite(id))
       );
 
-      const filteredPayments = normalized.filter((record) => {
-        if (!ownedCarIds.size) return false;
-        const cid = Number(record.carId);
-        return Number.isFinite(cid) && ownedCarIds.has(cid);
-      });
+      const normalized = maintenanceData
+        .map(normalizeMaintenanceRecord)
+        .filter(Boolean)
+        .filter((p) => {
+          const cid = Number(p.carId);
+          return ownedCarIds.size === 0 || ownedCarIds.has(cid);
+        });
 
-      return filteredPayments;
+      return normalized;
     } catch (e) {
       console.error("Lỗi khi lấy thông tin bảo dưỡng hoặc xe của người dùng:", e);
       return [];
+    }
+  };
+  // Helper: load danh sách payment của user để biết những maintenance nào đã thanh toán
+  const refreshUserPaymentStatus = async (uid) => {
+    if (!uid) return;
+
+    try {
+      const res = await api.get(`/Payment/${uid}`);
+      const raw = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+
+      const paidSet = new Set();
+      raw.forEach((p) => {
+        const statusRaw = p.status ?? p.paymentStatus ?? p.paymentStatusName;
+        const status = (statusRaw || "").toString().toLowerCase();
+
+        const isPaid =
+          status.includes("success") ||
+          status.includes("completed") ||
+          status.includes("paid") ||
+          status.includes("paided") ||
+          status.includes("hoanthanh") ||
+          status.includes("đã thanh toán");
+
+        if (!isPaid) return;
+
+        const mid = p.maintenanceId ?? p.MaintenanceId ?? p.maintenance?.id;
+        if (mid) {
+          paidSet.add(Number(mid));
+        }
+      });
+
+      setPaidMaintenanceSet(paidSet);
+    } catch (e) {
+      console.error("refreshUserPaymentStatus error:", e);
+      setPaidMaintenanceSet(new Set());
     }
   };
 
@@ -838,18 +961,21 @@ const ProfilePage = () => {
     let mounted = true;
     setLoadingPayments(true);
 
-    // Reset filters when switching to insurance tab
+    // Reset filters khi chuyển tab
     setPaymentKeyword("");
     setPaymentStatusFilter("all");
     setPaymentCurrentPage(1);
 
     (async () => {
-      const filteredPayments = await loadPayments();
-      if (mounted) setPayments(filteredPayments);
+      const allPayments = await loadPayments();
+      await refreshUserPaymentStatus(userId);
+      if (mounted) setPayments(allPayments);
       if (mounted) setLoadingPayments(false);
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [activeTab, isAdminOrStaff, userId]);
 
   // State to cache ownership percentages for payments
@@ -869,10 +995,10 @@ const ProfilePage = () => {
   // Fetch ownership percentage for a specific carId and userId
   useEffect(() => {
     if (activeTab !== "insurance" || !userId || payments.length === 0) return;
-    
+
     const fetchMissingOwnership = async () => {
       const missingCarIds = new Set();
-      
+
       // Find carIds that don't have ownership percentage in cache or map
       payments.forEach((payment) => {
         const carId = payment.carId;
@@ -890,13 +1016,15 @@ const ProfilePage = () => {
       try {
         const res = await api.get(`/users/${userId}/cars`);
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-        
+
         setOwnershipCache((prevCache) => {
           const newCache = new Map(prevCache);
           missingCarIds.forEach((carId) => {
             // Only update if not already in cache
             if (!newCache.has(carId)) {
-              const car = list.find(c => Number(c.carId ?? c.id ?? c.Id) === Number(carId));
+              const car = list.find(
+                (c) => Number(c.carId ?? c.id ?? c.Id) === Number(carId)
+              );
               if (car && car.ownershipPercentage != null) {
                 newCache.set(carId, Number(car.ownershipPercentage));
               } else {
@@ -913,25 +1041,32 @@ const ProfilePage = () => {
 
     fetchMissingOwnership();
   }, [activeTab, userId, payments, ownershipMap]);
+  // check maintenance đã được user hiện tại thanh toán chưa (dựa trên Payment/{userId})
+  const isMaintenancePaidByUser = (paymentRecord) => {
+    if (!paymentRecord) return false;
+    const mid = paymentRecord.maintenanceId ?? paymentRecord.id;
+    if (!mid) return false;
+    return paidMaintenanceSet.has(Number(mid));
+  };
 
   // Helper function to calculate amount to pay based on ownership percentage
   const calculateAmountToPay = (payment) => {
     const totalAmount = payment.price || payment.amount || 0;
     const carId = payment.carId;
     const paymentUserId = payment.userId || userId;
-    
+
     if (!carId) return totalAmount; // If no carId, return full amount
-    
+
     const numCarId = Number(carId);
-    
+
     // First try to get from ownershipMap (from vehicleData)
     let ownershipPercentage = ownershipMap.get(numCarId);
-    
+
     // If not found in map, try to get from cache
     if (ownershipPercentage === undefined || ownershipPercentage === null) {
       ownershipPercentage = ownershipCache.get(numCarId);
     }
-    
+
     // If still not found, try to get from payment data itself
     if (ownershipPercentage === undefined || ownershipPercentage === null) {
       // Check if payment has ownershipPercentage directly
@@ -939,15 +1074,15 @@ const ProfilePage = () => {
         ownershipPercentage = Number(payment.ownershipPercentage);
       }
     }
-    
+
     // If still not found, return full amount (default to 100% if data not loaded yet)
     // This is not an error - it just means we use the full amount as fallback
     if (ownershipPercentage === undefined || ownershipPercentage === null) {
       return totalAmount;
     }
-    
+
     const amountToPay = (totalAmount * ownershipPercentage) / 100;
-    
+
     return amountToPay;
   };
 
@@ -970,18 +1105,25 @@ const ProfilePage = () => {
           .filter(Boolean)
           .some((t) => String(t).toLowerCase().includes(kw));
 
+      const effectiveStatus = isMaintenancePaidByUser(p)
+        ? "Đã thanh toán"
+        : p.status || "Chờ thanh toán";
       const matchStatus =
-        paymentStatusFilter === "all" ? true : p.status === paymentStatusFilter;
+        paymentStatusFilter === "all" ? true : effectiveStatus === paymentStatusFilter;
 
       return matchKW && matchStatus;
     });
-  }, [payments, paymentKeyword, paymentStatusFilter]);
+  }, [payments, paymentKeyword, paymentStatusFilter, paidMaintenanceSet]);
 
   const paymentTotalItems = filteredPayments.length;
-  const paymentTotalPages = Math.ceil(paymentTotalItems / paymentItemsPerPage) || 1;
+  const paymentTotalPages =
+    Math.ceil(paymentTotalItems / paymentItemsPerPage) || 1;
   const paymentStartIndex = (paymentCurrentPage - 1) * paymentItemsPerPage;
   const paymentEndIndex = paymentStartIndex + paymentItemsPerPage;
-  const currentPaymentRecords = filteredPayments.slice(paymentStartIndex, paymentEndIndex);
+  const currentPaymentRecords = filteredPayments.slice(
+    paymentStartIndex,
+    paymentEndIndex
+  );
 
   const handlePaymentPageChange = (page) => {
     if (page >= 1 && page <= paymentTotalPages) setPaymentCurrentPage(page);
@@ -995,7 +1137,7 @@ const ProfilePage = () => {
       "Đã hủy": "bg-gray-100 text-gray-800",
     };
     const badgeClass = statusClasses[status] ?? "bg-gray-100 text-gray-800";
-    
+
     return (
       <span
         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClass}`}
@@ -1031,25 +1173,27 @@ const ProfilePage = () => {
 
       for (const endpoint of endpoints) {
         try {
-          const response = await api.put(endpoint, {
-            status: "Completed",
-            orderId: orderId,
-          }, {
-            headers: {
-              'Content-Type': 'application/json'
+          const response = await api.put(
+            endpoint,
+            {
+              status: "Completed",
+              orderId: orderId,
+            },
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
             }
-          });
+          );
 
           console.log(`Success with endpoint: ${endpoint}`, response?.data);
           success = true;
 
           // Update local state optimistically
-          setPayments(prev =>
-            prev.map(p => {
+          setPayments((prev) =>
+            prev.map((p) => {
               const pId = p.originalPaymentId ?? p.id;
-              return pId === paymentId
-                ? { ...p, status: "Đã thanh toán" }
-                : p;
+              return pId === paymentId ? { ...p, status: "Đã thanh toán" } : p;
             })
           );
 
@@ -1074,9 +1218,7 @@ const ProfilePage = () => {
       const response = await api.get("/Payment");
       const data = response.data?.data ?? response.data ?? [];
       if (Array.isArray(data)) {
-        const normalized = data
-          .map(normalizePaymentRecord)
-          .filter(Boolean);
+        const normalized = data.map(normalizePaymentRecord).filter(Boolean);
         setPayments(normalized);
       }
     } catch (error) {
@@ -1086,6 +1228,16 @@ const ProfilePage = () => {
       setProcessingPaymentId(null);
     }
   };
+  // Helper: check đã thanh toán hay chưa
+  const isPaymentPaid = (payment) => {
+    if (!payment) return false;
+    return (
+      isMaintenancePaidByUser(payment) ||
+      payment.status === "Đã thanh toán" ||
+      payment.statusCode === 4 ||
+      payment.isPaid === true
+    );
+  };
 
   const handleWalletPayment = async (payment) => {
     if (!payment) return;
@@ -1094,7 +1246,7 @@ const ProfilePage = () => {
       return;
     }
 
-    if (payment.status === "Đã thanh toán" || payment.statusCode === 4) {
+    if (isPaymentPaid(payment)) {
       alert("Khoản thanh toán này đã được hoàn tất.");
       return;
     }
@@ -1102,10 +1254,7 @@ const ProfilePage = () => {
     const paymentKey = payment.maintenanceId ?? payment.id;
     const amountToPay = calculateAmountToPay(payment);
     const carId =
-      payment.carId ??
-      payment.vehicle?.carId ??
-      payment.vehicle?.id ??
-      null;
+      payment.carId ?? payment.vehicle?.carId ?? payment.vehicle?.id ?? null;
     const maintenanceId = payment.maintenanceId ?? payment.id;
 
     if (!Number.isFinite(amountToPay) || amountToPay <= 0) {
@@ -1124,7 +1273,8 @@ const ProfilePage = () => {
     const payload = {
       userId: Number(userId),
       amount: Math.round(amountToPay),
-      description: payment.description ?? payment.serviceType ?? "Maintenance payment",
+      description:
+        payment.description ?? payment.serviceType ?? "Maintenance payment",
       maintenanceId: Number(maintenanceId),
     };
 
@@ -1137,38 +1287,36 @@ const ProfilePage = () => {
           headers: { "Content-Type": "application/json" },
         }
       );
-
-      // Update local state optimistically
-      setPayments((prev) =>
-        prev.map((item) => {
-          const itemId = item.maintenanceId ?? item.id;
-          const paymentItemId = payment.maintenanceId ?? payment.id;
-          return itemId === paymentItemId
-            ? { ...item, status: "Đã thanh toán", statusCode: 4 }
-            : item;
-        })
-      );
-
       alert(
         response?.data?.message ??
           "Thanh toán bằng ví đã được xử lý thành công."
       );
 
-      // Refresh payments list from Maintenance API to ensure consistency
+      try {
+        setPaidMaintenanceSet((prev) => {
+          const next = new Set(prev);
+          next.add(Number(maintenanceId));
+          return next;
+        });
+        setPayments((prev) =>
+          prev.map((p) => {
+            const key = p.maintenanceId ?? p.id;
+            return Number(key) === Number(maintenanceId)
+              ? { ...p, status: "Đã thanh toán" }
+              : p;
+          })
+        );
+      } catch {}
+
+      // Nếu anh vẫn muốn sync lại từ BE thì giữ đoạn này,
+      // còn nếu BE chưa cập nhật status thì có thể comment đi.
       try {
         const refreshedPayments = await loadPayments();
         setPayments(refreshedPayments);
+          await refreshUserPaymentStatus(userId);
       } catch (refreshError) {
         console.error("Error refreshing payments list:", refreshError);
-        // Don't show error to user as payment was already successful
       }
-
-      // Reload page after successful payment to ensure all data is up to date
-      setTimeout(() => {
-        if (typeof window !== "undefined" && window?.location?.reload) {
-          window.location.reload();
-        }
-      }, 1000); // Delay 1 second to allow user to see success message
     } catch (error) {
       console.error("handleWalletPayment error:", error);
       let errorMessage =
@@ -1192,11 +1340,14 @@ const ProfilePage = () => {
   };
 
   const patchActivity = (formId, patchOrProducer) => {
-    setActivities(prev =>
-      prev.map(a => {
+    setActivities((prev) =>
+      prev.map((a) => {
         if (a.id !== formId) return a;
         const base = { ...a };
-        const patch = typeof patchOrProducer === 'function' ? patchOrProducer(base) : patchOrProducer;
+        const patch =
+          typeof patchOrProducer === "function"
+            ? patchOrProducer(base)
+            : patchOrProducer;
         return { ...base, ...patch };
       })
     );
@@ -1210,8 +1361,8 @@ const ProfilePage = () => {
       const list = Array.isArray(r?.data) ? r.data : [];
 
       const filtered = list
-        .filter(f => Number(f.groupId) === Number(gid))
-        .map(f => ({
+        .filter((f) => Number(f.groupId) === Number(gid))
+        .map((f) => ({
           id: f.formId ?? f.id,
           title: f.formTitle ?? f.title ?? `Form #${f.formId ?? f.id}`,
           description: "",
@@ -1232,8 +1383,11 @@ const ProfilePage = () => {
             const rs = await api.get(`/Form/${a.id}/results`);
             const d = rs?.data ?? {};
             const yes = Number(d.agreeVotes ?? 0);
-            const no  = Number(d.disagreeVotes ?? 0);
-            const status = d.endDate && new Date(d.endDate) < new Date() ? "Closed" : "Pending";
+            const no = Number(d.disagreeVotes ?? 0);
+            const status =
+              d.endDate && new Date(d.endDate) < new Date()
+                ? "Closed"
+                : "Pending";
             patchActivity(a.id, { yes, no, status });
           } catch {}
         })
@@ -1249,7 +1403,10 @@ const ProfilePage = () => {
   // Tạo form -> POST /Form, rồi leader auto-vote đồng ý
   const createActivity = async (gid) => {
     const title = newActivity.title?.trim();
-    if (!title) { alert("Nhập tiêu đề yêu cầu"); return; }
+    if (!title) {
+      alert("Nhập tiêu đề yêu cầu");
+      return;
+    }
 
     const payload = {
       groupId: Number(gid),
@@ -1264,7 +1421,7 @@ const ProfilePage = () => {
       const newId = created.formId ?? created.id ?? Date.now();
 
       // thêm tạm
-      setActivities(prev => ([
+      setActivities((prev) => [
         {
           id: newId,
           title,
@@ -1278,7 +1435,7 @@ const ProfilePage = () => {
           groupId: created.groupId ?? gid,
         },
         ...prev,
-      ]));
+      ]);
 
       // leader auto vote = agree
       await api.post("/Vote", {
@@ -1288,7 +1445,7 @@ const ProfilePage = () => {
       });
 
       // optimistic + đánh dấu đã vote cho leader
-      patchActivity(newId, prev => ({
+      patchActivity(newId, (prev) => ({
         yes: (prev?.yes ?? 0) + 1,
         hasVoted: true,
       }));
@@ -1310,8 +1467,9 @@ const ProfilePage = () => {
       const r = await api.get(`/Form/${formId}/results`);
       const d = r?.data ?? {};
       const yes = Number(d.agreeVotes ?? 0);
-      const no  = Number(d.disagreeVotes ?? 0);
-      const status = d.endDate && new Date(d.endDate) < new Date() ? "Closed" : "Pending";
+      const no = Number(d.disagreeVotes ?? 0);
+      const status =
+        d.endDate && new Date(d.endDate) < new Date() ? "Closed" : "Pending";
       patchActivity(formId, { yes, no, status });
     } catch (e) {
       console.warn("refresh results error:", e);
@@ -1332,12 +1490,15 @@ const ProfilePage = () => {
       return;
     }
 
-    if (!confirm("Bạn chắc chắn muốn xóa form này? Hành động không thể hoàn tác.")) return;
+    if (
+      !confirm("Bạn chắc chắn muốn xóa form này? Hành động không thể hoàn tác.")
+    )
+      return;
 
     try {
       setDeletingId(activityId);
       await api.delete(`/Form/${activityId}/delete`);
-      setActivities(prev => prev.filter(a => a.id !== activityId));
+      setActivities((prev) => prev.filter((a) => a.id !== activityId));
       alert("Đã xóa form thành công.");
     } catch (e) {
       console.error("delete form error:", e);
@@ -1350,7 +1511,7 @@ const ProfilePage = () => {
   // POST /Vote – cho phép leader & member vote 1 lần
   const voteActivity = async (activityId, agree) => {
     try {
-      const cur = activities.find(a => a.id === activityId);
+      const cur = activities.find((a) => a.id === activityId);
       if (cur?.hasVoted) return;
 
       await api.post("/Vote", {
@@ -1360,9 +1521,9 @@ const ProfilePage = () => {
       });
 
       // optimistic
-      patchActivity(activityId, prev => ({
+      patchActivity(activityId, (prev) => ({
         yes: (prev?.yes ?? 0) + (agree ? 1 : 0),
-        no:  (prev?.no ?? 0)  + (!agree ? 1 : 0),
+        no: (prev?.no ?? 0) + (!agree ? 1 : 0),
         hasVoted: true,
       }));
 
@@ -1390,7 +1551,7 @@ const ProfilePage = () => {
     try {
       const carId = vehicle.id || vehicle.carId;
       if (!carId) {
-        alert('Không tìm thấy thông tin xe.');
+        alert("Không tìm thấy thông tin xe.");
         setLoadingCoOwners(false);
         return;
       }
@@ -1402,14 +1563,17 @@ const ProfilePage = () => {
         if (g.id || g.groupId) await loadActivities(g.id ?? g.groupId);
       } else {
         try {
-          const groupRes = await api.get('/Group');
+          const groupRes = await api.get("/Group");
           const groups = Array.isArray(groupRes.data) ? groupRes.data : [];
-          const group = groups.find(x => Number(x.carId) === Number(carId));
+          const group = groups.find((x) => Number(x.carId) === Number(carId));
           if (group) {
             setGroupInfo(group);
-            if (group.id || group.groupId) await loadActivities(group.id ?? group.groupId);
+            if (group.id || group.groupId)
+              await loadActivities(group.id ?? group.groupId);
           }
-        } catch (e) { console.error('Lỗi khi lấy thông tin nhóm:', e); }
+        } catch (e) {
+          console.error("Lỗi khi lấy thông tin nhóm:", e);
+        }
       }
 
       // owners
@@ -1426,8 +1590,12 @@ const ProfilePage = () => {
           let percentage = 0;
           try {
             const userCarsRes = await api.get(`/users/${uid}/cars`);
-            const userCars = Array.isArray(userCarsRes.data) ? userCarsRes.data : [];
-            const carMatch = userCars.find(c => Number(c.carId ?? c.id) === Number(carId));
+            const userCars = Array.isArray(userCarsRes.data)
+              ? userCarsRes.data
+              : [];
+            const carMatch = userCars.find(
+              (c) => Number(c.carId ?? c.id) === Number(carId)
+            );
             if (carMatch && carMatch.ownershipPercentage != null) {
               percentage = Number(carMatch.ownershipPercentage);
             }
@@ -1437,10 +1605,15 @@ const ProfilePage = () => {
         })
       );
 
-      if (ownersWithInfo.every(o => o.percentage === 0) && ownersWithInfo.length > 0) {
+      if (
+        ownersWithInfo.every((o) => o.percentage === 0) &&
+        ownersWithInfo.length > 0
+      ) {
         const equalPercent = Math.floor(100 / ownersWithInfo.length);
-        const remainder = 100 - (equalPercent * ownersWithInfo.length);
-        ownersWithInfo.forEach((o, idx) => { o.percentage = equalPercent + (idx === 0 ? remainder : 0); });
+        const remainder = 100 - equalPercent * ownersWithInfo.length;
+        ownersWithInfo.forEach((o, idx) => {
+          o.percentage = equalPercent + (idx === 0 ? remainder : 0);
+        });
       }
 
       ownersWithInfo.sort((a, b) => (b.percentage || 0) - (a.percentage || 0));
@@ -1449,8 +1622,8 @@ const ProfilePage = () => {
       // leader = highest percentage
       if (ownersWithInfo.length) setGroupLeaderId(ownersWithInfo[0].id);
     } catch (e) {
-      console.error('Lỗi khi tải thông tin đồng sở hữu:', e);
-      alert('Không thể tải thông tin đồng sở hữu. Vui lòng thử lại.');
+      console.error("Lỗi khi tải thông tin đồng sở hữu:", e);
+      alert("Không thể tải thông tin đồng sở hữu. Vui lòng thử lại.");
       setCoOwnersData([]);
     } finally {
       setLoadingCoOwners(false);
@@ -1475,10 +1648,6 @@ const ProfilePage = () => {
     setSelectedVehicle(null);
   };
 
-  const closeInsuranceModal = () => {
-    setShowInsuranceModal(false);
-    setSelectedVehicle(null);
-  };
 
   const handlePrintAgreement = () => window.print();
 
@@ -1534,14 +1703,20 @@ const ProfilePage = () => {
         {/* PROFILE TAB */}
         {activeTab === "profile" && (
           <>
-            {loading && <div className="mb-4 text-sm text-gray-600">Đang tải thông tin...</div>}
+            {loading && (
+              <div className="mb-4 text-sm text-gray-600">
+                Đang tải thông tin...
+              </div>
+            )}
             {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left - ID Card */}
               <div className="border-indigo-100 shadow-lg lg:col-span-1 rounded-lg border p-4 bg-white">
                 <div className="pb-4">
-                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Ảnh căn cước</div>
+                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">
+                    Ảnh căn cước
+                  </div>
                 </div>
                 <div className="space-y-4">
                   {/* Front */}
@@ -1550,19 +1725,30 @@ const ProfilePage = () => {
                     <div className="relative group">
                       {idCardFront ? (
                         <div className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border-2 border-indigo-200 shadow-md">
-                          <img src={idCardFront} alt="ID Card Front" className="w-full h-full object-cover" />
+                          <img
+                            src={idCardFront}
+                            alt="ID Card Front"
+                            className="w-full h-full object-cover"
+                          />
                           <button
                             className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white rounded-full flex items-center justify-center"
-                            onClick={() => handleRemoveIdCard('front')}
+                            onClick={() => handleRemoveIdCard("front")}
                           >
                             X
                           </button>
                         </div>
                       ) : (
                         <label className="relative w-full aspect-[3/2] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50 cursor-pointer transition-all">
-                          <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdCardUpload(e, 'front')} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => handleIdCardUpload(e, "front")}
+                          />
                           <div className="w-8 h-8 text-slate-400">📤</div>
-                          <span className="text-sm text-slate-500">Click để tải lên</span>
+                          <span className="text-sm text-slate-500">
+                            Click để tải lên
+                          </span>
                         </label>
                       )}
                     </div>
@@ -1573,19 +1759,30 @@ const ProfilePage = () => {
                     <div className="relative group">
                       {idCardBack ? (
                         <div className="relative w-full aspect-[3/2] rounded-lg overflow-hidden border-2 border-indigo-200 shadow-md">
-                          <img src={idCardBack} alt="ID Card Back" className="w-full h-full object-cover" />
+                          <img
+                            src={idCardBack}
+                            alt="ID Card Back"
+                            className="w-full h-full object-cover"
+                          />
                           <button
                             className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white rounded-full flex items-center justify-center"
-                            onClick={() => handleRemoveIdCard('back')}
+                            onClick={() => handleRemoveIdCard("back")}
                           >
                             X
                           </button>
                         </div>
                       ) : (
                         <label className="relative w-full aspect-[3/2] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50 cursor-pointer transition-all">
-                          <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleIdCardUpload(e, 'back')} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => handleIdCardUpload(e, "back")}
+                          />
                           <div className="w-8 h-8 text-slate-400">📤</div>
-                          <span className="text-sm text-slate-500">Click để tải lên</span>
+                          <span className="text-sm text-slate-500">
+                            Click để tải lên
+                          </span>
                         </label>
                       )}
                     </div>
@@ -1596,17 +1793,21 @@ const ProfilePage = () => {
               {/* Right - Profile form */}
               <div className="border-indigo-100 shadow-lg lg:col-span-2 rounded-lg border p-4 bg-white">
                 <div className="pb-4">
-                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">Thông tin cá nhân</div>
+                  <div className="flex items-center gap-2 text-lg font-semibold text-indigo-900">
+                    Thông tin cá nhân
+                  </div>
                 </div>
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Họ và tên <span className="text-red-500">*</span></label>
-                      <input 
-                        type="text" 
-                        name="name" 
-                        value={form.name} 
-                        onChange={handleChange} 
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        Họ và tên <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={form.name}
+                        onChange={handleChange}
                         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                           validationErrors.name || validationErrors.fullName
                             ? "border-red-500 focus:ring-red-500 focus:border-red-500"
@@ -1614,17 +1815,21 @@ const ProfilePage = () => {
                         }`}
                       />
                       {(validationErrors.name || validationErrors.fullName) && (
-                        <p className="text-xs text-red-600 mt-1">{validationErrors.name || validationErrors.fullName}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {validationErrors.name || validationErrors.fullName}
+                        </p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Email <span className="text-red-500">*</span></label>
-                      <input 
-                        type="email" 
-                        name="email" 
-                        value={form.email} 
-                        onChange={handleChange} 
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={form.email}
+                        onChange={handleChange}
                         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                           validationErrors.email
                             ? "border-red-500 focus:ring-red-500 focus:border-red-500"
@@ -1633,35 +1838,43 @@ const ProfilePage = () => {
                         placeholder="Nhập email"
                       />
                       {validationErrors.email && (
-                        <p className="text-xs text-red-600 mt-1">{validationErrors.email}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {validationErrors.email}
+                        </p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Số điện thoại <span className="text-red-500">*</span></label>
-                      <input 
-                        type="tel" 
-                        name="phone" 
-                        value={form.phone} 
-                        onChange={handleChange} 
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        Số điện thoại <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={form.phone}
+                        onChange={handleChange}
                         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                           validationErrors.phone
                             ? "border-red-500 focus:ring-red-500 focus:border-red-500"
                             : "border-slate-300 focus:ring-indigo-500 focus:border-indigo-500"
                         }`}
-                        placeholder="Nhập số điện thoại" 
+                        placeholder="Nhập số điện thoại"
                       />
                       {validationErrors.phone && (
-                        <p className="text-xs text-red-600 mt-1">{validationErrors.phone}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {validationErrors.phone}
+                        </p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Giới tính</label>
-                      <select 
-                        name="gender" 
-                        value={form.gender} 
-                        onChange={handleChange} 
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        Giới tính
+                      </label>
+                      <select
+                        name="gender"
+                        value={form.gender}
+                        onChange={handleChange}
                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                         title="Chọn giới tính"
                       >
@@ -1673,13 +1886,15 @@ const ProfilePage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-slate-700">Ngày sinh <span className="text-red-500">*</span></label>
-                      <input 
-                        type="date" 
-                        name="dob" 
-                        value={form.dob} 
-                        onChange={handleChange} 
-                        max={new Date().toISOString().split('T')[0]} 
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        Ngày sinh <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        name="dob"
+                        value={form.dob}
+                        onChange={handleChange}
+                        max={new Date().toISOString().split("T")[0]}
                         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-all ${
                           validationErrors.dob
                             ? "border-red-500 focus:ring-red-500 focus:border-red-500"
@@ -1688,7 +1903,9 @@ const ProfilePage = () => {
                         title="Chọn ngày sinh"
                       />
                       {validationErrors.dob && (
-                        <p className="text-xs text-red-600 mt-1">{validationErrors.dob}</p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {validationErrors.dob}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -1700,8 +1917,8 @@ const ProfilePage = () => {
                   )}
 
                   <div className="mt-8 flex justify-center">
-                    <button 
-                      className="px-12 py-3 bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed" 
+                    <button
+                      className="px-12 py-3 bg-gradient-to-r from-indigo-600 to-blue-500 hover:from-indigo-700 hover:to-blue-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={handleSaveProfile}
                       disabled={saving}
                     >
@@ -1729,12 +1946,20 @@ const ProfilePage = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {vehicleData.map((vehicle) => {
-                  const modelMatch = vehicle.vehicleName?.match(/(VF\d+|VF-\d+)/i);
-                  const modelName = modelMatch ? modelMatch[1].toUpperCase() : vehicle.vehicleName?.split(' ').pop() || 'Xe';
+                  const modelMatch =
+                    vehicle.vehicleName?.match(/(VF\d+|VF-\d+)/i);
+                  const modelName = modelMatch
+                    ? modelMatch[1].toUpperCase()
+                    : vehicle.vehicleName?.split(" ").pop() || "Xe";
                   return (
-                    <div key={vehicle.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+                    <div
+                      key={vehicle.id}
+                      className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+                    >
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-700">{modelName}</h3>
+                        <h3 className="text-lg font-semibold text-gray-700">
+                          {modelName}
+                        </h3>
                       </div>
 
                       <div className="space-y-3 mb-6">
@@ -1746,13 +1971,17 @@ const ProfilePage = () => {
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm text-gray-600">Tên xe:</span>
+                            <span className="text-sm text-gray-600">
+                              Tên xe:
+                            </span>
                             <span className="text-sm font-medium text-gray-900 mt-1">
                               {vehicle.vehicleName || "---"}
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm text-gray-600">Biển số xe:</span>
+                            <span className="text-sm text-gray-600">
+                              Biển số xe:
+                            </span>
                             <span className="mt-1">
                               <span className="bg-blue-400 text-white px-2 py-1 rounded text-sm font-medium">
                                 {vehicle.licensePlate || "---"}
@@ -1761,7 +1990,9 @@ const ProfilePage = () => {
                           </div>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600">Phần của bạn:</span>
+                          <span className="text-sm text-gray-600">
+                            Phần của bạn:
+                          </span>
                           <div className="text-sm font-medium text-gray-900 mt-1">
                             {vehicle.ownershipPercentage || 0}%
                           </div>
@@ -1792,7 +2023,9 @@ const ProfilePage = () => {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   {/* Title */}
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-900">Lịch sử thanh toán</span>
+                    <span className="font-semibold text-gray-900">
+                      Lịch sử thanh toán
+                    </span>
                   </div>
 
                   {/* Filters and Actions */}
@@ -1890,18 +2123,19 @@ const ProfilePage = () => {
                           </td>
                         </tr>
                       )}
-                      {!loadingPayments && currentPaymentRecords.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={9}
-                            className="px-6 py-10 text-sm text-gray-500 text-center"
-                          >
-                            {paymentKeyword || paymentStatusFilter !== "all"
-                              ? "Không tìm thấy kết quả phù hợp."
-                              : "Chưa có dữ liệu bảo dưỡng."}
-                          </td>
-                        </tr>
-                      )}
+                      {!loadingPayments &&
+                        currentPaymentRecords.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={9}
+                              className="px-6 py-10 text-sm text-gray-500 text-center"
+                            >
+                              {paymentKeyword || paymentStatusFilter !== "all"
+                                ? "Không tìm thấy kết quả phù hợp."
+                                : "Chưa có dữ liệu bảo dưỡng."}
+                            </td>
+                          </tr>
+                        )}
                       {!loadingPayments &&
                         currentPaymentRecords.map((payment) => {
                           return (
@@ -1924,7 +2158,9 @@ const ProfilePage = () => {
                                 {payment.type || payment.serviceType || "—"}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
-                                {formatCurrency(payment.price || payment.amount)}
+                                {formatCurrency(
+                                  payment.price || payment.amount
+                                )}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900 font-semibold">
                                 {formatCurrency(calculateAmountToPay(payment))}
@@ -1932,7 +2168,14 @@ const ProfilePage = () => {
                               <td className="px-6 py-4 text-sm text-gray-900">
                                 {payment.scheduledDate || payment.date || "—"}
                               </td>
-                              <td className="px-6 py-4">{getStatusBadge(payment.status)}</td>
+                              <td className="px-6 py-4">
+                                {getStatusBadge(
+                                  isMaintenancePaidByUser(payment)
+                                    ? "Đã thanh toán"
+                                    : payment.status || "Chờ thanh toán"
+                                )}
+                              </td>
+
                               <td className="px-6 py-4 text-sm font-medium">
                                 <div className="flex justify-center space-x-2">
                                   <button
@@ -1940,8 +2183,7 @@ const ProfilePage = () => {
                                     disabled={
                                       processingPaymentId ===
                                         (payment.maintenanceId ?? payment.id) ||
-                                      payment.status === "Đã thanh toán" ||
-                                      payment.statusCode === 4
+                                      isMaintenancePaidByUser(payment)
                                     }
                                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     title="Thanh toán"
@@ -1949,7 +2191,7 @@ const ProfilePage = () => {
                                     {processingPaymentId ===
                                     (payment.maintenanceId ?? payment.id)
                                       ? "Đang xử lý..."
-                                      : payment.status === "Đã thanh toán" || payment.statusCode === 4
+                                      : isMaintenancePaidByUser(payment)
                                       ? "Đã thanh toán"
                                       : "Thanh toán"}
                                   </button>
@@ -1971,14 +2213,19 @@ const ProfilePage = () => {
                     aria-label="Pagination"
                   >
                     <button
-                      onClick={() => handlePaymentPageChange(paymentCurrentPage - 1)}
+                      onClick={() =>
+                        handlePaymentPageChange(paymentCurrentPage - 1)
+                      }
                       disabled={paymentCurrentPage === 1}
                       className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
                       <FaChevronLeft className="h-4 w-4" />
                     </button>
 
-                    {Array.from({ length: paymentTotalPages }, (_, i) => i + 1).map((page) => (
+                    {Array.from(
+                      { length: paymentTotalPages },
+                      (_, i) => i + 1
+                    ).map((page) => (
                       <button
                         key={page}
                         onClick={() => handlePaymentPageChange(page)}
@@ -1993,7 +2240,9 @@ const ProfilePage = () => {
                     ))}
 
                     <button
-                      onClick={() => handlePaymentPageChange(paymentCurrentPage + 1)}
+                      onClick={() =>
+                        handlePaymentPageChange(paymentCurrentPage + 1)
+                      }
                       disabled={paymentCurrentPage === paymentTotalPages}
                       className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
@@ -2009,13 +2258,22 @@ const ProfilePage = () => {
         {/* CO-OWNERS MODAL */}
         {showCoOwnersModal && selectedVehicle && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto" style={{ maxWidth: '680px' }}>
+            <div
+              className="bg-white rounded-lg shadow-xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              style={{ maxWidth: "680px" }}
+            >
               <div className="p-6">
                 {/* Header */}
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                      <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <svg
+                        className="w-7 h-7 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                      >
                         <rect x="3" y="8" width="18" height="6" rx="1" />
                         <circle cx="7" cy="17" r="2" />
                         <circle cx="17" cy="17" r="2" />
@@ -2023,16 +2281,32 @@ const ProfilePage = () => {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">
-                        {groupInfo?.name ?? groupInfo?.groupName ?? (selectedVehicle.groupName || "—")}
+                        {groupInfo?.name ??
+                          groupInfo?.groupName ??
+                          (selectedVehicle.groupName || "—")}
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {selectedVehicle.vehicleName || "---"} • {selectedVehicle.licensePlate || "---"}
+                        {selectedVehicle.vehicleName || "---"} •{" "}
+                        {selectedVehicle.licensePlate || "---"}
                       </p>
                     </div>
                   </div>
-                  <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition-colors">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <button
+                    onClick={closeModal}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -2047,14 +2321,18 @@ const ProfilePage = () => {
                   <div className="space-y-8">
                     <div>
                       <div className="border-b border-gray-200 pb-3 mb-4 flex justify-between items-center">
-                        <h4 className="text-lg font-semibold text-gray-900">Thành viên</h4>
+                        <h4 className="text-lg font-semibold text-gray-900">
+                          Thành viên
+                        </h4>
                         {groupLeaderId && (
                           <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800" />
                         )}
                       </div>
 
                       {coOwnersData.length === 0 ? (
-                        <p className="text-gray-500 text-sm">Chưa có thông tin thành viên.</p>
+                        <p className="text-gray-500 text-sm">
+                          Chưa có thông tin thành viên.
+                        </p>
                       ) : (
                         <>
                           <div className="grid grid-cols-3 gap-4 mb-3 text-sm font-medium text-gray-600">
@@ -2064,22 +2342,42 @@ const ProfilePage = () => {
 
                           <div className="space-y-3 mb-4">
                             {coOwnersData.map((owner, index) => {
-                              const isCurrentUser = userId && Number(owner.id) === Number(userId);
-                              const isLeader = groupLeaderId && Number(owner.id) === Number(groupLeaderId);
+                              const isCurrentUser =
+                                userId && Number(owner.id) === Number(userId);
+                              const isLeader =
+                                groupLeaderId &&
+                                Number(owner.id) === Number(groupLeaderId);
                               const percentage = owner.percentage || 0;
-                              const avatarColor = isCurrentUser ? 'bg-purple-500' : 'bg-gray-400';
+                              const avatarColor = isCurrentUser
+                                ? "bg-purple-500"
+                                : "bg-gray-400";
 
                               return (
-                                <div key={owner.id || index} className="flex items-center justify-between">
+                                <div
+                                  key={owner.id || index}
+                                  className="flex items-center justify-between"
+                                >
                                   <div className="flex items-center gap-3 flex-1">
-                                    <div className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center`}>
-                                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    <div
+                                      className={`w-10 h-10 ${avatarColor} rounded-full flex items-center justify-center`}
+                                    >
+                                      <svg
+                                        className="w-6 h-6 text-white"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                        />
                                       </svg>
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm font-medium text-gray-900">
-                                        {isCurrentUser ? 'Bạn' : owner.name}
+                                        {isCurrentUser ? "Bạn" : owner.name}
                                       </span>
                                       {isLeader && (
                                         <span className="text-[10px] px-2 py-[2px] rounded bg-yellow-100 text-yellow-800">
@@ -2090,7 +2388,14 @@ const ProfilePage = () => {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <div className="w-24 bg-gray-200 rounded-full h-2">
-                                      <div className={`h-2 rounded-full ${isCurrentUser ? 'bg-purple-500' : 'bg-gray-400'}`} style={{ width: `${percentage}%` }}></div>
+                                      <div
+                                        className={`h-2 rounded-full ${
+                                          isCurrentUser
+                                            ? "bg-purple-500"
+                                            : "bg-gray-400"
+                                        }`}
+                                        style={{ width: `${percentage}%` }}
+                                      ></div>
                                     </div>
                                     <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">
                                       {percentage}%
@@ -2102,30 +2407,51 @@ const ProfilePage = () => {
                           </div>
 
                           <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                            <span className="text-sm font-medium text-gray-900">Tổng cộng</span>
+                            <span className="text-sm font-medium text-gray-900">
+                              Tổng cộng
+                            </span>
                             <div className="flex items-center gap-2">
                               <div className="w-24 bg-gray-200 rounded-full h-2">
-                                <div className="bg-green-500 h-2 rounded-full" style={{ width: '100%' }}></div>
+                                <div
+                                  className="bg-green-500 h-2 rounded-full"
+                                  style={{ width: "100%" }}
+                                ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">100%</span>
+                              <span className="text-sm font-medium text-gray-900 min-w-[3rem] text-right">
+                                100%
+                              </span>
                             </div>
                           </div>
                         </>
                       )}
                     </div>
 
-                      {/* Group Activities (Forms) */}
-                      <div>
-                        <div className="border-b border-gray-200 pb-3 mb-4 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <h4 className="text-lg font-semibold text-gray-900">Hoạt động nhóm</h4>
-                          </div>
+                    {/* Group Activities (Forms) */}
+                    <div>
+                      <div className="border-b border-gray-200 pb-3 mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <svg
+                            className="w-5 h-5 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          <h4 className="text-lg font-semibold text-gray-900">
+                            Hoạt động nhóm
+                          </h4>
+                        </div>
 
-                          {/* Only leader can create new requests */}
-                          {groupInfo && groupLeaderId && Number(userId) === Number(groupLeaderId) && (
+                        {/* Only leader can create new requests */}
+                        {groupInfo &&
+                          groupLeaderId &&
+                          Number(userId) === Number(groupLeaderId) && (
                             <button
                               onClick={() => setShowCreateActivity(true)}
                               className="text-sm px-3 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700"
@@ -2133,7 +2459,7 @@ const ProfilePage = () => {
                               Tạo yêu cầu
                             </button>
                           )}
-                        </div>
+                      </div>
 
                       {loadingActivities ? (
                         <div className="flex items-center gap-3 text-sm text-gray-500">
@@ -2148,12 +2474,16 @@ const ProfilePage = () => {
                         <div className="space-y-4">
                           {activities.map((a) => {
                             const statusLabel = a.status || "Pending";
-                            const isClosed = statusLabel.toLowerCase() === "closed";
+                            const isClosed =
+                              statusLabel.toLowerCase() === "closed";
                             const statusBadgeClass = isClosed
                               ? "bg-rose-100 text-rose-700"
                               : "bg-emerald-100 text-emerald-700";
-                            const endDateObj = a.endDate ? new Date(a.endDate) : null;
-                            const hasValidEndDate = endDateObj && !Number.isNaN(endDateObj.getTime());
+                            const endDateObj = a.endDate
+                              ? new Date(a.endDate)
+                              : null;
+                            const hasValidEndDate =
+                              endDateObj && !Number.isNaN(endDateObj.getTime());
                             return (
                               <div
                                 key={a.id}
@@ -2161,26 +2491,36 @@ const ProfilePage = () => {
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
-                                    <div className="text-base font-semibold text-gray-900">{a.title}</div>
+                                    <div className="text-base font-semibold text-gray-900">
+                                      {a.title}
+                                    </div>
                                     {a.description && (
-                                      <p className="text-sm text-gray-600 mt-1">{a.description}</p>
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        {a.description}
+                                      </p>
                                     )}
                                   </div>
                                   <span
                                     className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${statusBadgeClass}`}
                                   >
-                                    {statusLabel === "Pending" ? "Đang mở" : statusLabel}
+                                    {statusLabel === "Pending"
+                                      ? "Đang mở"
+                                      : statusLabel}
                                   </span>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mt-3">
                                   <span>
                                     Đồng ý:{" "}
-                                    <span className="font-semibold text-emerald-600">{a.yes ?? 0}</span>
+                                    <span className="font-semibold text-emerald-600">
+                                      {a.yes ?? 0}
+                                    </span>
                                   </span>
                                   <span>
                                     Không đồng ý:{" "}
-                                    <span className="font-semibold text-rose-600">{a.no ?? 0}</span>
+                                    <span className="font-semibold text-rose-600">
+                                      {a.no ?? 0}
+                                    </span>
                                   </span>
                                   {hasValidEndDate && (
                                     <span>
@@ -2206,32 +2546,48 @@ const ProfilePage = () => {
                                     </span>
                                   )}
 
-                                  {groupLeaderId && Number(userId) === Number(groupLeaderId) && (
-                                    <button
-                                      onClick={() => deleteActivity(a.id)}
-                                      disabled={deletingId === a.id}
-                                      className="text-xs px-3 py-1.5 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60 transition-colors"
-                                      title="Xóa form"
-                                    >
-                                      {deletingId === a.id ? "Đang xóa..." : "Xóa"}
-                                    </button>
-                                  )}
+                                  {groupLeaderId &&
+                                    Number(userId) ===
+                                      Number(groupLeaderId) && (
+                                      <button
+                                        onClick={() => deleteActivity(a.id)}
+                                        disabled={deletingId === a.id}
+                                        className="text-xs px-3 py-1.5 rounded border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60 transition-colors"
+                                        title="Xóa form"
+                                      >
+                                        {deletingId === a.id
+                                          ? "Đang xóa..."
+                                          : "Xóa"}
+                                      </button>
+                                    )}
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                       )}
-                      </div>
+                    </div>
 
                     {/* Contract button */}
                     <div>
                       <div className="border-b border-gray-200 pb-3 mb-4">
                         <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          <svg
+                            className="w-5 h-5 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
                           </svg>
-                          <h4 className="text-lg font-semibold text-gray-900">Hợp đồng</h4>
+                          <h4 className="text-lg font-semibold text-gray-900">
+                            Hợp đồng
+                          </h4>
                         </div>
                       </div>
                       <button
@@ -2241,8 +2597,18 @@ const ProfilePage = () => {
                         }}
                         className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
                         </svg>
                         Xem hợp đồng
                       </button>
@@ -2268,14 +2634,37 @@ const ProfilePage = () => {
                       onClick={handlePrintAgreement}
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                        />
                       </svg>
                       <span>In</span>
                     </button>
-                    <button onClick={() => setShowAgreementModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <button
+                      onClick={() => setShowAgreementModal(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -2283,55 +2672,125 @@ const ProfilePage = () => {
 
                 <div className="p-8">
                   <div className="text-center mb-8">
-                    <h2 className="text-2xl font-semibold text-gray-900">Hợp đồng sở hữu xe</h2>
-                    <p className="text-gray-600">Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.</p>
+                    <h2 className="text-2xl font-semibold text-gray-900">
+                      Hợp đồng sở hữu xe
+                    </h2>
+                    <p className="text-gray-600">
+                      Hợp đồng giữa các bên liên quan đến xe sử dụng dưới đây.
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6 mb-8 bg-gray-50 p-6 rounded-lg">
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Tên xe</p>
-                      <p className="text-gray-900">{selectedVehicle.vehicleName || '---'}</p>
+                      <p className="text-gray-900">
+                        {selectedVehicle.vehicleName || "---"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm mb-1">Biển số</p>
-                      <p className="text-gray-900">{selectedVehicle.licensePlate || '---'}</p>
+                      <p className="text-gray-900">
+                        {selectedVehicle.licensePlate || "---"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm mb-1">Ngày mua / Hiệu lực</p>
-                      <p className="text-gray-900">{selectedVehicle.purchaseDate ? new Date(selectedVehicle.purchaseDate).toLocaleDateString('vi-VN') : '---'}</p>
+                      <p className="text-gray-600 text-sm mb-1">
+                        Ngày mua / Hiệu lực
+                      </p>
+                      <p className="text-gray-900">
+                        {selectedVehicle.purchaseDate
+                          ? new Date(
+                              selectedVehicle.purchaseDate
+                            ).toLocaleDateString("vi-VN")
+                          : "---"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm mb-1">Trạng thái hợp đồng</p>
-                      <p className="text-gray-900">{selectedVehicle.status === 'Active' ? 'Đang hiệu lực' : (selectedVehicle.status || '---')}</p>
+                      <p className="text-gray-600 text-sm mb-1">
+                        Trạng thái hợp đồng
+                      </p>
+                      <p className="text-gray-900">
+                        {selectedVehicle.status === "Active"
+                          ? "Đang hiệu lực"
+                          : selectedVehicle.status || "---"}
+                      </p>
                     </div>
                   </div>
 
                   <div className="mb-8">
-                    <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">Nội quy hợp đồng</h3>
+                    <h3 className="text-gray-900 mb-4 pb-2 border-b border-gray-200">
+                      Nội quy hợp đồng
+                    </h3>
                     <div className="space-y-4 text-sm text-gray-700">
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">1. Quyền và nghĩa vụ của các bên</h4>
-                        <p className="text-left">- Các bên tham gia hợp đồng sở hữu xe có quyền và nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc chuyển nhượng xe phải được sự đồng ý của tất cả các bên.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          1. Quyền và nghĩa vụ của các bên
+                        </h4>
+                        <p className="text-left">
+                          - Các bên tham gia hợp đồng sở hữu xe có quyền và
+                          nghĩa vụ theo tỷ lệ phần trăm sở hữu đã cam kết. Mọi
+                          quyết định liên quan đến việc sử dụng, bảo dưỡng, hoặc
+                          chuyển nhượng xe phải được sự đồng ý của tất cả các
+                          bên.
+                        </p>
                       </div>
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">2. Trách nhiệm tài chính</h4>
-                        <p className="text-left">- Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy đủ và đúng hạn các khoản chi phí đã thỏa thuận.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          2. Trách nhiệm tài chính
+                        </h4>
+                        <p className="text-left">
+                          - Các chi phí liên quan đến xe bao gồm bảo hiểm, bảo
+                          dưỡng, sửa chữa, và phí đăng kiểm sẽ được phân bổ theo
+                          tỷ lệ sở hữu. Mọi thành viên có nghĩa vụ đóng góp đầy
+                          đủ và đúng hạn các khoản chi phí đã thỏa thuận.
+                        </p>
                       </div>
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">3. Sử dụng và bảo quản xe</h4>
-                        <p className="text-left">- Xe phải được sử dụng đúng mục đích và tuân thủ luật giao thông. Các bên có trách nhiệm bảo quản xe cẩn thận, không cho thuê hoặc chuyển nhượng quyền sử dụng cho bên thứ ba mà không có sự đồng ý bằng văn bản của tất cả các bên.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          3. Sử dụng và bảo quản xe
+                        </h4>
+                        <p className="text-left">
+                          - Xe phải được sử dụng đúng mục đích và tuân thủ luật
+                          giao thông. Các bên có trách nhiệm bảo quản xe cẩn
+                          thận, không cho thuê hoặc chuyển nhượng quyền sử dụng
+                          cho bên thứ ba mà không có sự đồng ý bằng văn bản của
+                          tất cả các bên.
+                        </p>
                       </div>
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">4. Giải quyết tranh chấp</h4>
-                        <p className="text-left">- Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được giải quyết thông qua thương lượng hòa giải. Trường hợp không đạt được thỏa thuận, tranh chấp sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải quyết.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          4. Giải quyết tranh chấp
+                        </h4>
+                        <p className="text-left">
+                          - Mọi tranh chấp phát sinh trong quá trình thực hiện
+                          hợp đồng sẽ được giải quyết thông qua thương lượng hòa
+                          giải. Trường hợp không đạt được thỏa thuận, tranh chấp
+                          sẽ được đưa ra cơ quan pháp luật có thẩm quyền giải
+                          quyết.
+                        </p>
                       </div>
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">5. Chấm dứt hợp đồng</h4>
-                        <p className="text-left">- Hợp đồng có thể chấm dứt khi xe được bán hoặc khi tất cả các bên đồng ý chấm dứt bằng văn bản. Trong trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán các khoản chi phí còn tồn đọng và phân chia tài sản theo tỷ lệ sở hữu.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          5. Chấm dứt hợp đồng
+                        </h4>
+                        <p className="text-left">
+                          - Hợp đồng có thể chấm dứt khi xe được bán hoặc khi
+                          tất cả các bên đồng ý chấm dứt bằng văn bản. Trong
+                          trường hợp chấm dứt hợp đồng, các bên sẽ thanh toán
+                          các khoản chi phí còn tồn đọng và phân chia tài sản
+                          theo tỷ lệ sở hữu.
+                        </p>
                       </div>
                       <div>
-                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">6. Điều khoản khác</h4>
-                        <p className="text-left">- Mọi sửa đổi, bổ sung hợp đồng phải được lập thành văn bản và có chữ ký của tất cả các bên. Hợp đồng này được lập thành nhiều bản có giá trị pháp lý như nhau, mỗi bên giữ một bản.</p>
+                        <h4 className="text-left text-gray-900 mb-1 font-bold uppercase">
+                          6. Điều khoản khác
+                        </h4>
+                        <p className="text-left">
+                          - Mọi sửa đổi, bổ sung hợp đồng phải được lập thành
+                          văn bản và có chữ ký của tất cả các bên. Hợp đồng này
+                          được lập thành nhiều bản có giá trị pháp lý như nhau,
+                          mỗi bên giữ một bản.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -2340,8 +2799,9 @@ const ProfilePage = () => {
                     <div className="text-center max-w-xl">
                       <p className="text-gray-900 mb-2">Ghi chú</p>
                       <p className="text-gray-700 text-sm">
-                        Hợp đồng này được lập làm bằng chứng phân chia quyền sở hữu giữa các bên.
-                        Các bên cam kết thông tin trên là chính xác.
+                        Hợp đồng này được lập làm bằng chứng phân chia quyền sở
+                        hữu giữa các bên. Các bên cam kết thông tin trên là
+                        chính xác.
                       </p>
                     </div>
                   </div>
@@ -2350,28 +2810,6 @@ const ProfilePage = () => {
             </div>
           </div>
         )}
-
-        {/* INSURANCE DETAIL MODAL (reserved) */}
-        {showInsuranceModal && selectedVehicle && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-indigo-900">
-                    Chi tiết bảo hiểm - {selectedVehicle.vehicleName}
-                  </h3>
-                  <button onClick={closeInsuranceModal} className="text-gray-400 hover:text-gray-600 transition-colors">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-
         {/* CREATE ACTIVITY MODAL (Leader only) */}
         {showCoOwnersModal && showCreateActivity && groupInfo && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
@@ -2382,18 +2820,37 @@ const ProfilePage = () => {
                   className="w-full border rounded px-3 py-2"
                   placeholder="Tiêu đề (formTitle)"
                   value={newActivity.title}
-                  onChange={(e) => setNewActivity(s => ({ ...s, title: e.target.value }))}
+                  onChange={(e) =>
+                    setNewActivity((s) => ({ ...s, title: e.target.value }))
+                  }
                 />
                 <textarea
                   rows={4}
                   className="w-full border rounded px-3 py-2"
                   placeholder="Mô tả (hiển thị nội bộ UI)"
                   value={newActivity.description}
-                  onChange={(e) => setNewActivity(s => ({ ...s, description: e.target.value }))}
+                  onChange={(e) =>
+                    setNewActivity((s) => ({
+                      ...s,
+                      description: e.target.value,
+                    }))
+                  }
                 />
                 <div className="flex justify-end gap-2 pt-2">
-                  <button className="px-3 py-2 rounded bg-gray-100" onClick={() => setShowCreateActivity(false)}>Huỷ</button>
-                  <button className="px-3 py-2 rounded bg-indigo-600 text-white" onClick={() => createActivity(groupInfo.id ?? groupInfo.groupId)}>Tạo</button>
+                  <button
+                    className="px-3 py-2 rounded bg-gray-100"
+                    onClick={() => setShowCreateActivity(false)}
+                  >
+                    Huỷ
+                  </button>
+                  <button
+                    className="px-3 py-2 rounded bg-indigo-600 text-white"
+                    onClick={() =>
+                      createActivity(groupInfo.id ?? groupInfo.groupId)
+                    }
+                  >
+                    Tạo
+                  </button>
                 </div>
               </div>
             </div>
@@ -2405,12 +2862,33 @@ const ProfilePage = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-5">
               <h4 className="text-lg font-semibold mb-2">Vote cho yêu cầu</h4>
-              <div className="font-medium text-gray-900">{votingActivity.title}</div>
-              {votingActivity.description && <div className="text-sm text-gray-600 mt-2">{votingActivity.description}</div>}
+              <div className="font-medium text-gray-900">
+                {votingActivity.title}
+              </div>
+              {votingActivity.description && (
+                <div className="text-sm text-gray-600 mt-2">
+                  {votingActivity.description}
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-4">
-                <button className="px-3 py-2 rounded bg-gray-100" onClick={() => setVotingActivity(null)}>Đóng</button>
-                <button className="px-3 py-2 rounded bg-rose-600 text-white" onClick={() => voteActivity(votingActivity.id, false)}>Không đồng ý</button>
-                <button className="px-3 py-2 rounded bg-green-600 text-white" onClick={() => voteActivity(votingActivity.id, true)}>Đồng ý</button>
+                <button
+                  className="px-3 py-2 rounded bg-gray-100"
+                  onClick={() => setVotingActivity(null)}
+                >
+                  Đóng
+                </button>
+                <button
+                  className="px-3 py-2 rounded bg-rose-600 text-white"
+                  onClick={() => voteActivity(votingActivity.id, false)}
+                >
+                  Không đồng ý
+                </button>
+                <button
+                  className="px-3 py-2 rounded bg-green-600 text-white"
+                  onClick={() => voteActivity(votingActivity.id, true)}
+                >
+                  Đồng ý
+                </button>
               </div>
             </div>
           </div>
