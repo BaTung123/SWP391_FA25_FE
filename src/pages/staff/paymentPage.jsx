@@ -19,7 +19,7 @@ const STATUS_LABELS = {
   3: "Đã hủy",
 };
 
-// Allowed options for selects in the edit modal
+// được phép để chọn trong chế độ chỉnh sửa
 const TYPE_OPTIONS = ["Bảo dưỡng định kỳ", "Sửa chữa", "Kiểm định", "Khẩn cấp"];
 
 const formatDate = (value) => {
@@ -51,7 +51,7 @@ const normalizeMaintenanceRecord = (item) => {
 
   return {
     id: item.maintenanceId ?? item.id ?? Date.now(),
-    maintenanceId: item.maintenanceId ?? item.id, // Store original ID for API calls
+    maintenanceId: item.maintenanceId ?? item.id, // lưu ID gốc để gọi API
     carId: item.carId ?? item.car?.carId ?? item.car?.id,
     vehicle: {
       name:
@@ -67,8 +67,8 @@ const normalizeMaintenanceRecord = (item) => {
     },
     type: item.maintenanceType ?? item.type ?? "Khác",
     scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
-    maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // Store original date for editing
-    status,
+    maintenanceDay: item.maintenanceDay ?? item.scheduledDate,
+    status, 
     description: item.description ?? "",
     statusCode: item.status,
     price: item.price ?? 0,
@@ -134,7 +134,7 @@ const PaymentPage = () => {
     status: 0,
   });
 
-  // Build car options and ensure current car appears first
+  // tạo danh sách xe đảm bảo xe hiện tại xuất hiện đầu tiên
   const editCarOptions = useMemo(() => {
     const toOption = (car) => {
       const id = car?.carId ?? car?.id;
@@ -149,7 +149,7 @@ const PaymentPage = () => {
 
     const list = Array.isArray(cars) ? cars.map(toOption) : [];
 
-    // If current car (from edit state) is not in fetched options, prepend it
+    // nếu xe hiện tại không nằm trong danh sách xe thêm vào đầu
     const currentId = String(editMaintenance.carId ?? "");
     const hasCurrent = currentId
       ? list.some((opt) => opt.value === currentId)
@@ -169,7 +169,7 @@ const PaymentPage = () => {
     return list;
   }, [cars, editMaintenance.carId, editingMaintenance]);
 
-  // Refresh maintenance list
+  // làm mới danh sách bảo dưỡng
   const refreshMaintenanceList = async (checkPaymentStatus = true) => {
     try {
       setLoading(true);
@@ -183,7 +183,7 @@ const PaymentPage = () => {
         .map(normalizeMaintenanceRecord)
         .filter(Boolean);
 
-      // Check and update payment status for each maintenance record if enabled and users are loaded
+      // kiểm tra cập nhật trạng thái thanh toán cho mỗi lịch bảo dưỡng nếu đã tải xong danh sách người dùng
       let updatedRecords = normalized;
       if (checkPaymentStatus && allUsers.length > 0) {
         updatedRecords = await Promise.all(
@@ -195,14 +195,14 @@ const PaymentPage = () => {
               return record;
             }
 
-            // Check payment status for all owners
+            // kiểm tra trạng thái thanh toán cho tất cả người dùng
             const newStatus = await checkAndUpdatePaymentStatus(maintenanceId, carId);
             
-            // If status changed, update the record and backend
+            // cập nhật lịch bảo dưỡng
             if (newStatus !== null && newStatus !== record.statusCode) {
               try {
                 
-                // Update local record
+                // cập nhật lịch bảo dưỡng local
                 return {
                   ...record,
                   status: STATUS_LABELS[newStatus] ?? "Chờ thanh toán",
@@ -210,7 +210,7 @@ const PaymentPage = () => {
                 };
               } catch (updateError) {
                 console.error(`Failed to update status for maintenance ${maintenanceId}:`, updateError);
-                // Return original record if update fails
+                // trả về lịch bảo dưỡng gốc nếu cập nhật thất bại
                 return record;
               }
             }
@@ -233,21 +233,18 @@ const PaymentPage = () => {
   };
 
   useEffect(() => {
-    refreshMaintenanceList(false); // Initial load without payment check
+    refreshMaintenanceList(false); // tải lần đầu không kiểm tra thanh toán
   }, []);
 
-  // Auto-check payment status when users are loaded and maintenance records exist
+  // tự động kiểm tra trạng thái thanh toán khi danh sách người dùng và lịch bảo dưỡng đã tải xong
   useEffect(() => {
     if (allUsers.length > 0 && maintenanceRecords.length > 0) {
-      // Refresh with payment status check
+      // làm mới với kiểm tra trạng thái thanh toán
       refreshMaintenanceList(true);
     }
-  }, [allUsers.length]); // Only trigger when users are loaded
+  }, [allUsers.length]);
 
-  // Note: We don't auto-refresh modal on maintenanceRecords change to avoid infinite loops
-  // Modal will refresh when user clicks the refresh button or reopens it
-
-  // Fetch cars for dropdown
+  // lấy danh sách xe
   useEffect(() => {
     const fetchCars = async () => {
       try {
@@ -264,7 +261,7 @@ const PaymentPage = () => {
     fetchCars();
   }, []);
 
-  // Fetch all users for ownership checking
+  // lấy danh sách người dùng
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -281,7 +278,7 @@ const PaymentPage = () => {
     fetchUsers();
   }, []);
 
-  // Helper function to get all user IDs that own a car
+  // hàm trợ giúp để lấy tất cả ID người dùng có xe
   const getOwnersByCarId = async (carId) => {
     if (!carId || !allUsers.length) return [];
     
@@ -304,7 +301,6 @@ const PaymentPage = () => {
               const has = arr.some((c) => Number(c?.carId ?? c?.id) === Number(carId));
               return has ? uid : null;
             } catch (error) {
-              // Silently ignore 404 errors (user doesn't exist or has no cars)
               if (error?.response?.status !== 404) {
                 console.debug(`Error fetching cars for user ${uid}:`, error);
               }
@@ -323,7 +319,7 @@ const PaymentPage = () => {
     }
   };
 
-  // Helper function to check if payment is paid/completed
+  // hàm trợ giúp để kiểm tra nếu thanh toán đã được thanh toán/hoàn thành
 const isPaymentPaid = (paymentStatus) => {
   if (paymentStatus === null || paymentStatus === undefined) return false;
   if (typeof paymentStatus === "number") {
@@ -341,18 +337,18 @@ const isPaymentPaid = (paymentStatus) => {
   );
 };
 
-  // Helper function to check payment status for all owners
+  // hàm trợ giúp để kiểm tra trạng thái thanh toán cho tất cả người dùng
 const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
   if (!maintenanceId || !carId) return null;
 
   try {
-    // Get all owners of this car
+    // lấy tất cả người dùng có xe
     const ownerIds = await getOwnersByCarId(carId);
     if (ownerIds.length === 0) {
       return null;
     }
 
-    // Query payments per owner via Payment/{userId}
+    // lấy thanh toán cho từng người dùng qua Payment/{userId}
     const ownerPaidMap = new Map();
     await Promise.all(
       ownerIds.map(async (ownerId) => {
@@ -384,7 +380,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
   }
 };
 
-  // --- Lọc + tìm kiếm (Payments) ---
+  // tìm kiếm
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return payments.filter((p) => {
@@ -440,14 +436,13 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to ISO string
-      // Date input gives YYYY-MM-DD, we append time to ensure correct timezone handling
+      // chuyển đổi YYYY-MM-DD cho input ngày
       const dateStr = newMaintenance.scheduledDate;
       const maintenanceDay = dateStr 
         ? new Date(dateStr + "T00:00:00").toISOString()
         : new Date().toISOString();
 
-      // Prepare request body
+      // chuẩn hóa request body
       const requestBody = {
         carId: Number(newMaintenance.carId),
         maintenanceType: newMaintenance.type,
@@ -457,10 +452,10 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         price: Number(newMaintenance.price) || 0,
       };
 
-      // Make POST request
+      // gọi POST đến endpoint tạo lịch bảo dưỡng
       await api.post("/Maintenance", requestBody);
 
-      // Reset form
+      // reset form
       setNewMaintenance({
         carId: "",
         type: "Bảo dưỡng định kỳ",
@@ -472,7 +467,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       setModalError("");
       setIsModalOpen(false);
 
-      // Refresh maintenance list
+      // làm mới danh sách bảo dưỡng
       await refreshMaintenanceList();
     } catch (error) {
       console.error("Failed to create maintenance record", error);
@@ -493,7 +488,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     setEditMaintenance({ ...editMaintenance, [e.target.name]: e.target.value });
   };
 
-  // Convert date from ISO string to YYYY-MM-DD format for date input
+  // chuyển đổi ngày từ ISO string sang định dạng YYYY-MM-DD cho input ngày
   const formatDateForInput = (dateString) => {
     if (!dateString) return "";
     try {
@@ -508,15 +503,15 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     }
   };
 
-  // Open edit modal
+  // mở modal chỉnh sửa
   const handleEditClick = (record) => {
-    // Try to get the original date from maintenanceDay, fallback to creating from formatted date
+    // cố gắng lấy ngày gốc từ maintenanceDay, nếu không thành công thì tạo từ ngày đã định dạng
     let dateForInput = "";
     if (record.maintenanceDay) {
       dateForInput = formatDateForInput(record.maintenanceDay);
     } else if (record.scheduledDate) {
-      // If we only have formatted date, try to parse it back
-      // This is a fallback - ideally maintenanceDay should always be available
+      // nếu chúng ta chỉ có ngày đã định dạng, thử phân tích nó lại
+      // đây là fallback - tốt nhất là maintenanceDay nên luôn có sẵn
       try {
         const parsed = new Date(record.scheduledDate.split('/').reverse().join('-'));
         if (!Number.isNaN(parsed.getTime())) {
@@ -527,7 +522,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       }
     }
 
-    // Normalize values to ensure selects show the current data
+    // chuẩn hóa giá trị để đảm bảo các select hiển thị dữ liệu hiện tại
     const normalizedType = TYPE_OPTIONS.includes(record.type)
       ? record.type
       : "Bảo dưỡng định kỳ";
@@ -549,7 +544,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     setIsEditModalOpen(true);
   };
 
-  // Update maintenance
+    // cập nhật bảo dưỡng
   const handleUpdateMaintenance = async () => {
     if (
       !editMaintenance.carId ||
@@ -570,13 +565,13 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       setModalLoading(true);
       setModalError("");
 
-      // Convert date to ISO string
+      // chuyển đổi ngày từ ISO string sang định dạng YYYY-MM-DD cho input ngày
       const dateStr = editMaintenance.scheduledDate;
       const maintenanceDay = dateStr
         ? new Date(dateStr + "T00:00:00").toISOString()
         : new Date().toISOString();
 
-      // Prepare request body
+      // chuẩn hóa request body
       const requestBody = {
         carId: Number(editMaintenance.carId),
         maintenanceType: editMaintenance.type,
@@ -588,10 +583,10 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
 
       const maintenanceId = editingMaintenance.maintenanceId;
 
-      // Make PUT request to update endpoint
+      // gọi PUT đến endpoint cập nhật
       await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
 
-      // Reset form
+      // reset form
       setEditMaintenance({
         carId: "",
         type: "Bảo dưỡng định kỳ",
@@ -604,7 +599,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       setModalError("");
       setIsEditModalOpen(false);
 
-      // Refresh maintenance list
+      // làm mới danh sách bảo dưỡng
       await refreshMaintenanceList();
     } catch (error) {
       console.error("Failed to update maintenance record", error);
@@ -617,7 +612,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     }
   };
 
-  // Delete maintenance
+  // xóa bảo dưỡng
   const handleDeleteMaintenance = async (record) => {
     if (!record?.maintenanceId) {
       setErrorMessage("Không tìm thấy thông tin bảo dưỡng cần xóa.");
@@ -628,17 +623,17 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
       setLoading(true);
       const maintenanceId = record.maintenanceId;
 
-      // Make DELETE request - try multiple endpoints
+      // gọi DELETE đến endpoint xóa - thử nhiều endpoints
       try {
         await api.delete(`/Maintenance/${maintenanceId}`);
       } catch (e) {
-        // Fallback to delete endpoint
+        // fallback đến endpoint xóa
         await api.delete(`/Maintenance/${maintenanceId}/delete`);
       }
 
       setDeleteConfirm(null);
 
-      // Refresh maintenance list
+      // làm mới danh sách bảo dưỡng
       await refreshMaintenanceList();
     } catch (error) {
       console.error("Failed to delete maintenance record", error);
@@ -672,7 +667,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     );
   };
 
-  // Fetch owner payment details when modal opens
+  // lấy thông tin thanh toán khi modal mở
   const fetchOwnerPaymentDetails = async (maintenanceId, carId, forceRefresh = false) => {
     if (!maintenanceId || !carId) {
       setOwnerPaymentDetails([]);
@@ -681,7 +676,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
 
     setOwnerPaymentLoading(true);
     try {
-      // Get all owners of this car
+      // lấy tất cả người dùng có xe
       const ownerIds = await getOwnersByCarId(carId);
       
       if (ownerIds.length === 0) {
@@ -690,7 +685,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         return;
       }
 
-  // Build per-owner payment map via Payment/{userId}
+  // tạo danh sách thanh toán cho từng người dùng qua Payment/{userId}
   const ownerPaymentLists = await Promise.all(
     ownerIds.map(async (ownerId) => {
       try {
@@ -703,16 +698,16 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
     })
   );
 
-      // Get user info and payment status for each owner
+      // lấy thông tin người dùng và trạng thái thanh toán cho từng người dùng
       const ownerDetails = await Promise.all(
         ownerIds.map(async (ownerId) => {
           try {
-            // Get user info
+            // lấy thông tin người dùng
             const userRes = await api.get(`/User/${ownerId}`);
             const userData = userRes?.data ?? {};
             const userName = userData.fullName ?? userData.name ?? userData.email ?? `User #${ownerId}`;
 
-      // Locate paid payment for this owner
+      // tìm kiếm thanh toán đã thanh toán cho người dùng này
       const ownerEntry = ownerPaymentLists.find((x) => Number(x.ownerId) === Number(ownerId));
       const hasPaid = (ownerEntry?.list || []).some((p) => {
         const pCarId = p.carId ?? p.car?.carId ?? p.car?.id;
@@ -733,7 +728,7 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
               paymentStatus,
             };
           } catch (error) {
-            // Silently ignore 404 errors
+            // im lặng bỏ qua lỗi 404
             if (error?.response?.status !== 404) {
               console.debug(`Error fetching user ${ownerId}:`, error);
             }
@@ -748,30 +743,29 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
 
       setOwnerPaymentDetails(ownerDetails);
 
-      // If all owners have paid, update maintenance status in backend and refresh list
-      // Only do this when forceRefresh is true to avoid infinite loops
+      // cập nhật trạng thái bảo dưỡng
       if (forceRefresh) {
         const allPaid = ownerDetails.every(owner => owner.paymentStatus === "Đã thanh toán");
         if (allPaid) {
-          // Check and update maintenance status
+          // kiểm tra và cập nhật trạng thái bảo dưỡng
           const newStatus = await checkAndUpdatePaymentStatus(maintenanceId, carId);
           if (newStatus !== null && newStatus === 1) {
-            // Find current record to check if status needs updating
+            // tìm lịch bảo dưỡng hiện tại để kiểm tra nếu trạng thái cần cập nhật
             const currentRecord = maintenanceRecords.find(
               r => (r.maintenanceId ?? r.id) === maintenanceId
             );
             if (currentRecord && currentRecord.statusCode !== 1) {
-              // Update backend
+              // cập nhật backend
               try {
                 await api.put(`/Maintenance/${maintenanceId}/update`, {
                   carId: Number(carId),
                   maintenanceType: currentRecord.type,
                   maintenanceDay: currentRecord.maintenanceDay || currentRecord.scheduledDate,
-                  status: 1, // Đã thanh toán
+                  status: 1,
                   description: currentRecord.description,
                   price: currentRecord.price || 0,
                 });
-                // Refresh maintenance list to update status in table
+                // làm mới danh sách bảo dưỡng để cập nhật trạng thái trong bảng
                 await refreshMaintenanceList(true);
               } catch (updateError) {
                 console.error(`Failed to update status for maintenance ${maintenanceId}:`, updateError);
@@ -790,18 +784,14 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
 
   return (
     <div className="space-y-4">
-      {/* Header + Actions */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Title */}
           <div className="flex items-center gap-2">
             <FaTools className="text-gray-600" />
             <span className="font-semibold text-gray-900">Lịch sử thanh toán</span>
           </div>
 
-          {/* Filters and Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Search Input */}
             <div className="relative" style={{ width: 260 }}>
               <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
               <input
@@ -828,7 +818,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
               )}
             </div>
 
-            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -847,7 +836,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         </div>
       </div>
 
-      {/* Lịch sử thanh toán */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-center">
@@ -909,7 +897,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         </div>
       </div>
 
-      {/* Phân trang */}
       <div className="flex items-center justify-center py-4">
         <nav
           className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
@@ -947,7 +934,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         </nav>
       </div>
 
-      {/* Modal thêm mới */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
@@ -1282,7 +1268,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         </div>
       )}
 
-      {/* Detail Modal */}
       {selectedMaintenance && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1316,7 +1301,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
             </div>
 
             <div className="mt-4">
-              {/* Owner Payment Status Section */}
               <div>
                 {ownerPaymentLoading ? (
                   <div className="text-center py-4">
@@ -1365,7 +1349,6 @@ const checkAndUpdatePaymentStatus = async (maintenanceId, carId) => {
         </div>
       )}
 
-      {/* Confirm Delete Dialog */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">

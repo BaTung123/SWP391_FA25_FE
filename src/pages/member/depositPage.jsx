@@ -94,7 +94,7 @@ const DepositPage = () => {
     const value = parseFloat(amount);
     
     if (value < 10000 || value > 10000000) {
-      message.error('💰 Số tiền phải nằm trong khoảng từ 10.000 đến 10.000.000 VND.');
+      message.error('Số tiền phải nằm trong khoảng từ 10.000 đến 10.000.000 VND.');
       return;
     }
 
@@ -108,15 +108,14 @@ const DepositPage = () => {
     try {
       const baseUrl = window.location.origin;
       
-      // Đảm bảo amount là số nguyên và các giá trị đúng format
-      const amountValue = Math.floor(value); // Đảm bảo là số nguyên
+      const amountValue = Math.floor(value);
       
       const paymentPayload = {
-        userId: Number(userId), // Đảm bảo là number
+        userId: Number(userId),
         currency: currency,
-        amount: amountValue, // Số nguyên
+        amount: amountValue,
         description: `Nạp tiền vào ví điện tử - ${amountValue.toLocaleString('vi-VN')} ${currency}`,
-        transactionType: 0, // Số nguyên
+        transactionType: 0,
         returnUrl: `${baseUrl}/member/payment-success?orderCode={orderCode}&status={status}`,
         cancelUrl: `${baseUrl}/member/payment-cancelled?orderCode={orderCode}&status={status}`
       };
@@ -131,18 +130,15 @@ const DepositPage = () => {
       
       console.log('Payment API response:', response?.data);
       
-      // Lấy orderId từ response nếu có (để có thể capture sau)
-      const orderId = response?.data?.data?.orderId || 
-                     response?.data?.data?.orderCode ||
-                     response?.data?.orderId || 
-                     response?.data?.orderCode;
+      // Lấy orderId từ response
+      const orderId = response?.data?.orderId 
+      || response?.data?.orderCode;
       
       if (orderId) {
         console.log('OrderId received from payment API:', orderId);
-        // Có thể lưu orderId vào state hoặc localStorage nếu cần capture sau
       }
       
-      // Lấy URL thanh toán từ response (hỗ trợ nhiều cấu trúc response)
+      // Lấy URL thanh toán từ response
       const paymentUrl = response?.data?.data?.approvalUrl || 
                         response?.data?.approvalUrl ||
                         (typeof response?.data === 'string' ? response?.data : null);
@@ -170,7 +166,7 @@ const DepositPage = () => {
       if (error?.response?.status === 404) {
         errorMessage = 'Endpoint thanh toán không tìm thấy. Vui lòng liên hệ quản trị viên.';
       } else if (error?.response?.status === 500) {
-        // Xử lý lỗi 500 từ server
+
         const serverMessage = error?.response?.data?.message || 
                                  error?.response?.data?.error ||
                                  error?.response?.data?.detail ||
@@ -196,16 +192,13 @@ const DepositPage = () => {
 
   const handleChange = (e) => {
     const value = e.target.value;
-    // Không cho nhập số âm
     if (value < 0) return;
-    // Không vượt quá 10 triệu
     if (value > 10000000) return;
     setAmount(value);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* ✅ Header */}
       <Header />
 
       {/* Nội dung trang */}

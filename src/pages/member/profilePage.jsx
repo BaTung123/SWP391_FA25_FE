@@ -31,7 +31,7 @@ const ProfilePage = () => {
   const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
   const paymentItemsPerPage = 5;
 
-  // ✅ danh sách maintenanceId đã được user này thanh toán
+  // danh sách maintenanceId đã được user này thanh toán
   const [paidMaintenanceSet, setPaidMaintenanceSet] = useState(new Set());
   const [leaderPaidMaintenanceSet, setLeaderPaidMaintenanceSet] = useState(new Set());
 
@@ -195,7 +195,6 @@ const ProfilePage = () => {
     }
   }, []);
 
-  // Admin/Staff chỉ xem tab profile
   useEffect(() => {
     const roleNum =
       typeof userRole === "number" ? userRole : Number(userRole ?? 0);
@@ -516,7 +515,7 @@ const ProfilePage = () => {
         }
       }
 
-      // Prepare request body according to API specification
+      // chuẩn hóa request body theo API specification
       const requestBody = {
         email: form.email || "",
         fullName: form.fullName || form.name || "",
@@ -568,24 +567,23 @@ const ProfilePage = () => {
     } catch (e) {
       console.error(e);
 
-      // Extract error message from API response
+      // lấy error message từ response API
       let errorMessage =
         "Cập nhật không thành công. Vui lòng kiểm tra lại thông tin đã nhập.";
 
       if (e?.response?.data) {
         const errorData = e.response.data;
 
-        // Handle string response (may contain escaped JSON)
+        // xử lý response string (có thể chứa JSON escaped)
         if (typeof errorData === "string") {
           try {
-            // Try to parse as JSON first
+            // thử parse là JSON trước
             const parsed = JSON.parse(errorData);
             if (parsed.message) {
               errorMessage = parsed.message;
             }
           } catch {
-            // If parsing fails, try to extract message using regex
-            // Handle cases like: {"\n \"message\": \"Email already exists\"\n}"
+            // nếu parse lỗi, thử lấy message sử dụng regex
             const match = errorData.match(
               /"message":\s*"([^"\\]*(\\.[^"\\]*)*)"/
             );
@@ -595,7 +593,7 @@ const ProfilePage = () => {
                 .replace(/\\"/g, '"')
                 .trim();
             } else {
-              // Try simpler pattern
+              // thử pattern đơn giản
               const simpleMatch = errorData.match(/message["\s:]+"([^"]+)"/);
               if (simpleMatch && simpleMatch[1]) {
                 errorMessage = simpleMatch[1];
@@ -603,7 +601,7 @@ const ProfilePage = () => {
             }
           }
         }
-        // Handle object response
+        // xử lý response object
         else if (typeof errorData === "object") {
           if (errorData.message) {
             errorMessage = errorData.message;
@@ -612,7 +610,7 @@ const ProfilePage = () => {
           }
         }
       }
-      // Handle response text if available (for cases where data is not parsed)
+      // xử lý response text 
       else if (e?.response?.data?.responseText) {
         try {
           const parsed = JSON.parse(e.response.data.responseText);
@@ -1081,7 +1079,7 @@ const ProfilePage = () => {
     const fetchMissingOwnership = async () => {
       const missingCarIds = new Set();
 
-      // Find carIds that don't have ownership percentage in cache or map
+      // tìm carIds không có ownership percentage trong cache hoặc map
       payments.forEach((payment) => {
         const carId = payment.carId;
         if (carId) {
@@ -1094,7 +1092,7 @@ const ProfilePage = () => {
 
       if (missingCarIds.size === 0) return;
 
-      // Fetch ownership percentages for missing carIds
+      // lấy ownership percentages cho carIds thiếu
       try {
         const res = await api.get(`/users/${userId}/cars`);
         const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
@@ -1102,7 +1100,7 @@ const ProfilePage = () => {
         setOwnershipCache((prevCache) => {
           const newCache = new Map(prevCache);
           missingCarIds.forEach((carId) => {
-            // Only update if not already in cache
+            // chỉ cập nhật nếu không đã có trong cache
             if (!newCache.has(carId)) {
               const car = list.find(
                 (c) => Number(c.carId ?? c.id ?? c.Id) === Number(carId)
@@ -1139,7 +1137,7 @@ const ProfilePage = () => {
     return paidMaintenanceSet.has(n) || leaderPaidMaintenanceSet.has(n);
   };
 
-  // Helper function to calculate amount to pay based on ownership percentage
+  // hàm trợ giúp tính toán số tiền thanh toán dựa trên ownership percentage
   const isLeaderForCar = (carId) => {
     const leaderId = leadersCache.get(Number(carId));
     return Number(leaderId) === Number(userId);
@@ -1151,7 +1149,6 @@ const ProfilePage = () => {
     return carId ? (isLeaderForCar(carId) ? Number(totalAmount) : 0) : Number(totalAmount);
   };
 
-  // --- Lọc + tìm kiếm thanh toán ---
   const filteredPayments = useMemo(() => {
     const kw = paymentKeyword.trim().toLowerCase();
     return payments.filter((p) => {
@@ -1212,7 +1209,7 @@ const ProfilePage = () => {
     );
   };
 
-  // Handle complete payment
+  // xử lý thanh toán hoàn tất
   const handleCompletePayment = async (paymentId, orderId) => {
     if (!paymentId) {
       alert("Không tìm thấy mã thanh toán.");
@@ -1226,7 +1223,7 @@ const ProfilePage = () => {
     setProcessingPaymentId(paymentId);
 
     try {
-      // Try different endpoints to update payment status
+      // thử các endpoints khác để cập nhật trạng thái thanh toán
       const endpoints = [
         `/Payment/${paymentId}`,
         `/Payment/${paymentId}/complete`,
@@ -1254,7 +1251,7 @@ const ProfilePage = () => {
           console.log(`Success with endpoint: ${endpoint}`, response?.data);
           success = true;
 
-          // Update local state optimistically
+          // cập nhật trạng thái thanh toán local
           setPayments((prev) =>
             prev.map((p) => {
               const pId = p.originalPaymentId ?? p.id;
@@ -1279,7 +1276,7 @@ const ProfilePage = () => {
         throw lastError;
       }
 
-      // Refresh payments list
+      // làm mới danh sách thanh toán
       const response = await api.get("/Payment");
       const data = response.data?.data ?? response.data ?? [];
       if (Array.isArray(data)) {
@@ -1293,7 +1290,7 @@ const ProfilePage = () => {
       setProcessingPaymentId(null);
     }
   };
-  // Helper: check đã thanh toán hay chưa
+  // hàm trợ giúp kiểm tra đã thanh toán hay chưa
   const isPaymentPaid = (payment) => {
     if (!payment) return false;
     return (
@@ -1372,9 +1369,7 @@ const ProfilePage = () => {
           })
         );
       } catch {}
-
-      // Nếu anh vẫn muốn sync lại từ BE thì giữ đoạn này,
-      // còn nếu BE chưa cập nhật status thì có thể comment đi.
+    
       try {
         const refreshedPayments = await loadPayments();
         setPayments(refreshedPayments);
@@ -1418,7 +1413,7 @@ const ProfilePage = () => {
     );
   };
 
-  // GET /Form -> filter theo groupId, sau đó nạp kết quả từng form
+  // lọc theo groupId, sau đó nạp kết quả từng form
   const loadActivities = async (gid) => {
     setLoadingActivities(true);
     try {
@@ -1465,7 +1460,7 @@ const ProfilePage = () => {
     }
   };
 
-  // Tạo form -> POST /Form, rồi leader auto-vote đồng ý
+  // Tạo form Leader auto-vote đồng ý
   const createActivity = async (gid) => {
     const title = newActivity.title?.trim();
     if (!title) {
@@ -1526,7 +1521,7 @@ const ProfilePage = () => {
     }
   };
 
-  // GET /Form/{id}/results
+  // lấy kết quả form
   const refreshFormResults = async (formId) => {
     try {
       const r = await api.get(`/Form/${formId}/results`);
@@ -1546,7 +1541,6 @@ const ProfilePage = () => {
   // =========================
   const [deletingId, setDeletingId] = useState(null);
 
-  // DELETE /Form/{id}/delete  (không prefix /api)
   const deleteActivity = async (activityId) => {
     if (!activityId) return;
     const isLeader = groupLeaderId && Number(userId) === Number(groupLeaderId);
@@ -1573,7 +1567,7 @@ const ProfilePage = () => {
     }
   };
 
-  // POST /Vote – cho phép leader & member vote 1 lần
+  // cho phép leader & member vote 1 lần
   const voteActivity = async (activityId, agree) => {
     try {
       const cur = activities.find((a) => a.id === activityId);
