@@ -28,14 +28,14 @@ function getStoredAuth() {
   return { token, user, userId };
 }
 
-// Helper function to check if orderCode has been captured
+// tránh gọi API capture nhiều lần
 function hasOrderBeenCaptured(orderCode) {
   if (!orderCode) return false;
   const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
   return capturedOrders.includes(orderCode);
 }
 
-// Helper function to mark orderCode as captured
+// đánh dấu orderCode đã được capture lưu vào sessionStorage
 function markOrderAsCaptured(orderCode) {
   if (!orderCode) return;
   const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
@@ -54,13 +54,13 @@ const PaymentSuccessPage = () => {
   const [authState, setAuthState] = useState(() => getStoredAuth());
   const { userId } = authState;
 
-  // Use ref to track if capture has been called for this orderCode
+  // theo dõi lệnh capture đã gọi cho orderCode
   const hasCapturedRef = useRef(false);
 
   useEffect(() => {
     console.log("Payment Success - orderCode:", orderCode, "status:", status);
     
-    // Prevent multiple captures for the same orderCode
+    // tránh gọi API capture nhiều lần cho cùng một orderCode
     if (!status || !orderCode || hasCapturedRef.current || hasOrderBeenCaptured(orderCode)) {
       if (hasOrderBeenCaptured(orderCode)) {
         console.log(`OrderCode ${orderCode} has already been captured, skipping...`);
@@ -68,18 +68,16 @@ const PaymentSuccessPage = () => {
       return;
     }
 
-    // Mark as captured immediately to prevent duplicate calls
+    // orderCode được capture ngay lập tức để tránh gọi API capture
     hasCapturedRef.current = true;
     markOrderAsCaptured(orderCode);
 
-    // Call API to update payment status (webhook)
+    // gọi API để cập nhật trạng thái thanh toán
     const updatePaymentStatus = async () => {
       try {
-        // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
-        // The backend was treating "payos" as orderId in /Payment/capture/payos
         const captureEndpoint = `/Payment/capture/payos/${encodeURIComponent(orderCode)}?UserId=${encodeURIComponent(userId || '')}`;
 
-        // 1) Try POST to capture endpoint with query parameters
+        // gọi POST đến endpoint capture với query parameters
         try {
           console.log(`Trying POST ${captureEndpoint} ...`);
           const res = await api.post(captureEndpoint, {}, {
@@ -105,12 +103,11 @@ const PaymentSuccessPage = () => {
           userId: userId
         });
         
-        // Log the full error response for debugging
+        // lỗi full
         if (error?.response?.data) {
           console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
         }
-        // Không hiển thị error cho user vì đây là background update
-        // Reset the flag on error so it can be retried if needed
+        // test capture lại nếu lỗi
         hasCapturedRef.current = false;
         const capturedOrders = JSON.parse(sessionStorage.getItem("capturedOrders") || "[]");
         const index = capturedOrders.indexOf(orderCode);

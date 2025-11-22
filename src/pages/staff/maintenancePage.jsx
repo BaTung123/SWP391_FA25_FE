@@ -19,7 +19,7 @@ const STATUS_LABELS = {
   4: "Hoàn thành",
 };
 
-// Allowed options for selects in the edit modal
+// được phép để chọn trong chế độ chỉnh sửa
 const TYPE_OPTIONS = ["Bảo dưỡng định kỳ", "Sửa chữa", "Kiểm định", "Khẩn cấp"];
 
 const formatDate = (value) => {
@@ -61,7 +61,6 @@ const toInputDateValue = (value) => {
       return date.toISOString().split("T")[0];
     }
   } catch {
-    // ignore parsing error
   }
 
   if (typeof value === "string" && value.includes("/")) {
@@ -99,7 +98,7 @@ const normalizeMaintenanceRecord = (item) => {
 
   return {
     id: item.maintenanceId ?? item.id ?? Date.now(),
-    maintenanceId: item.maintenanceId ?? item.id, // Store original ID for API calls
+    maintenanceId: item.maintenanceId ?? item.id, // lưu ID gốc để gọi API
     carId: item.carId ?? item.car?.carId ?? item.car?.id,
     vehicle: {
       name:
@@ -115,7 +114,7 @@ const normalizeMaintenanceRecord = (item) => {
     },
     type: item.maintenanceType ?? item.type ?? "Khác",
     scheduledDate: formatDate(item.maintenanceDay ?? item.scheduledDate),
-    maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // Store original date for editing
+    maintenanceDay: item.maintenanceDay ?? item.scheduledDate, // lưu ngày gốc để chỉnh sửa
     status,
     description: item.description ?? "",
     statusCode: item.status,
@@ -149,7 +148,7 @@ const MaintenancePage = () => {
     () => buildDefaultMaintenanceState()
   );
 
-  // Build car options and ensure current car appears first
+  // tạo danh sách xe và đảm bảo xe hiện tại xuất hiện đầu tiên
   const editCarOptions = useMemo(() => {
     const toOption = (car) => {
       const id = car?.carId ?? car?.id;
@@ -164,7 +163,7 @@ const MaintenancePage = () => {
 
     const list = Array.isArray(cars) ? cars.map(toOption) : [];
 
-    // If current car (from edit state) is not in fetched options, prepend it
+    // nếu xe hiện tại không nằm trong danh sách xe thêm vào đầu
     const currentId = String(editMaintenance.carId ?? "");
     const hasCurrent = currentId
       ? list.some((opt) => opt.value === currentId)
@@ -184,7 +183,7 @@ const MaintenancePage = () => {
     return list;
   }, [cars, editMaintenance.carId, editingMaintenance]);
 
-  // Refresh maintenance list
+  // làm mới danh sách bảo dưỡng
   const refreshMaintenanceList = async () => {
     try {
       setLoading(true);
@@ -214,7 +213,7 @@ const MaintenancePage = () => {
     refreshMaintenanceList();
   }, []);
 
-  // Fetch cars for dropdown
+  // lấy danh sách xe
   useEffect(() => {
     const fetchCars = async () => {
       try {
@@ -231,7 +230,7 @@ const MaintenancePage = () => {
     fetchCars();
   }, []);
 
-  // --- Lọc + tìm kiếm ---
+  // tìm kiếm
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return maintenanceRecords.filter((r) => {
@@ -290,7 +289,7 @@ const MaintenancePage = () => {
         carId: Number(newMaintenance.carId),
         maintenanceType: newMaintenance.type,
         maintenanceDay: maintenanceDay,
-        status: 1, // Đã lên lịch
+        status: 1,
         description: newMaintenance.description,
         price: Number(newMaintenance.price) || 0,
       };
@@ -303,7 +302,7 @@ const MaintenancePage = () => {
       setModalError("");
       setIsModalOpen(false);
 
-      // Refresh maintenance list
+      // làm mới danh sách bảo dưỡng
       await refreshMaintenanceList();
     } catch (error) {
       console.error("Failed to create maintenance record", error);
@@ -324,9 +323,9 @@ const MaintenancePage = () => {
     setEditMaintenance({ ...editMaintenance, [e.target.name]: e.target.value });
   };
 
-  // Open edit modal
+  // mở modal chỉnh sửa
   const handleEditClick = (record) => {
-    // Normalize values to ensure selects show the current data
+    // chuẩn hóa giá trị để đảm bảo các select hiển thị dữ liệu hiện tại
     const normalizedType = TYPE_OPTIONS.includes(record.type)
       ? record.type
       : "Bảo dưỡng định kỳ";
@@ -353,7 +352,7 @@ const MaintenancePage = () => {
     setIsEditModalOpen(true);
   };
 
-  // Update maintenance
+  // cập nhật bảo dưỡng
   const handleUpdateMaintenance = async () => {
     if (
       !editMaintenance.carId ||
@@ -381,7 +380,7 @@ const MaintenancePage = () => {
         editingMaintenance?.scheduledDate ??
         new Date().toISOString();
 
-      // Prepare request body
+      // chuẩn hóa request body
       const requestBody = {
         carId: Number(editMaintenance.carId),
         maintenanceType: editMaintenance.type,
@@ -393,16 +392,16 @@ const MaintenancePage = () => {
 
       const maintenanceId = editingMaintenance.maintenanceId;
 
-      // Make PUT request to update endpoint
+      // gọi PUT đến endpoint cập nhật
       await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
 
-      // Reset form
+      // reset form
       setEditMaintenance(buildDefaultMaintenanceState());
       setEditingMaintenance(null);
       setModalError("");
       setIsEditModalOpen(false);
 
-      // Refresh maintenance list
+      // làm mới danh sách bảo dưỡng
       await refreshMaintenanceList();
     } catch (error) {
       console.error("Failed to update maintenance record", error);
@@ -415,6 +414,7 @@ const MaintenancePage = () => {
     }
   };
 
+  // hoàn thành bảo dưỡng
   const handleCompleteMaintenance = async (record) => {
     if (!record?.maintenanceId) return;
     try {

@@ -41,14 +41,14 @@ const PaymentCancelledPage = () => {
     console.log("Payment Cancelled - orderCode:", orderCode, "status:", status);
     
     if (status && orderCode) {
-      // Call API to update payment status (webhook)
+      // gọi API để cập nhật trạng thái thanh toán
       const updatePaymentStatus = async () => {
         try {
           // Encode query parameters properly - use /Payment/payos/capture to avoid routing conflict
           // The backend was treating "payos" as orderId in /Payment/capture/payos
           const captureEndpoint = `/Payment/capture/payos/OrderId=${encodeURIComponent(orderCode)}&UserId=${encodeURIComponent(userId || '')}`;
 
-          // 1) Try POST to capture endpoint with query parameters
+          // gọi POST đến endpoint capture với query parameters
           try {
             console.log(`Trying POST ${captureEndpoint} ...`);
             const res = await api.post(captureEndpoint, {}, {
@@ -74,11 +74,11 @@ const PaymentCancelledPage = () => {
             userId: userId
           });
           
-          // Log the full error response for debugging
+          // lỗi full
           if (error?.response?.data) {
             console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
           }
-          // Không hiển thị error cho user vì đây là background update
+          // test capture lại nếu lỗi
         }
       };
       
@@ -109,14 +109,7 @@ const PaymentCancelledPage = () => {
           Your payment has been cancelled. If you have any questions, please
           contact our support team.
         </p>
-        {/* <div className="bg-[#f8f9fa] p-5 rounded-[10px] mb-8">
-          <p className="my-2.5 text-[#555]">
-            Order Code: <span className="font-bold text-[#2c3e50]">{orderCode}</span>
-          </p>
-          <p className="my-2.5 text-[#555]">
-            Status: <span className="font-bold text-[#2c3e50]">{status}</span>
-          </p>
-        </div> */}
+        
         <Link
           to="/"
           className="inline-flex items-center gap-2 bg-gradient-to-r from-[#aaaaaa] to-[#888888] text-white px-8 py-3 rounded-[25px] no-underline font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_5px_15px_rgba(0,0,0,0.2)] hover:text-white"

@@ -9,6 +9,7 @@ const RegistercarPage = () => {
   const [carUserMap, setCarUserMap] = useState({}); // { [carId]: myCarUserId }
   const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: % của tôi }
   const [formData, setFormData] = useState({ vehicleId: "" });
+  const [userNameCache, setUserNameCache] = useState(new Map());
 
   // Calendar
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -404,15 +405,43 @@ const RegistercarPage = () => {
       const normAll = rawAll.map(normalizeSchedule).filter(Boolean);
 
       const others = normAll.filter((s) => {
-        const sameCar = s.carId ? Number(s.carId) === Number(carId) : true;
+        const hasCar = s.carId != null && Number.isFinite(Number(s.carId));
+        const sameCar = hasCar && Number(s.carId) === Number(carId);
         const notMine =
           (myCarUserId ? Number(s.ownerCarUserId) !== Number(myCarUserId) : true) &&
           (s.ownerUserId ? Number(s.ownerUserId) !== Number(userId) : true);
         return sameCar && notMine;
       });
+      let resolved = others;
+      const needIds = Array.from(
+        new Set(
+          resolved
+            .filter((x) => !x.ownerName && Number.isFinite(Number(x.ownerUserId)))
+            .map((x) => Number(x.ownerUserId))
+        )
+      );
+      if (needIds.length) {
+        try {
+          const rUsers = await api.get("/User");
+          const list = Array.isArray(rUsers.data) ? rUsers.data : rUsers.data?.data || [];
+          const map = new Map(userNameCache);
+          list.forEach((u) => {
+            const id = Number(u.userId ?? u.id);
+            if (Number.isFinite(id)) {
+              const name = u.fullName ?? u.userName ?? u.email ?? "User";
+              map.set(id, name);
+            }
+          });
+          setUserNameCache(map);
+          resolved = resolved.map((x) => ({
+            ...x,
+            ownerName: x.ownerName || map.get(Number(x.ownerUserId)) || x.ownerName,
+          }));
+        } catch {}
+      }
 
       const othersGrouped = {};
-      others.forEach((s) => {
+      resolved.forEach((s) => {
         if (!othersGrouped[s.key]) othersGrouped[s.key] = [];
         othersGrouped[s.key].push({
           startTime: s.startTime,
@@ -420,7 +449,7 @@ const RegistercarPage = () => {
           id: s.id,
           ownerCarUserId: s.ownerCarUserId,
           ownerUserId: s.ownerUserId,
-          ownerName: s.ownerName,
+          ownerName: s.ownerName || userNameCache.get(Number(s.ownerUserId)) || s.ownerName,
         });
       });
       setOthersSlotsByDate(othersGrouped);
