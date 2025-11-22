@@ -8,6 +8,7 @@ import {
   FaChevronRight,
   FaSearch,
   FaTools,
+  FaCheckCircle,
 } from "react-icons/fa";
 import api from "../../config/axios";
 
@@ -131,7 +132,9 @@ const MaintenancePage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState(null);
+  const [statusEditingMaintenance, setStatusEditingMaintenance] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -291,7 +294,7 @@ const MaintenancePage = () => {
         carId: Number(newMaintenance.carId),
         maintenanceType: newMaintenance.type,
         maintenanceDay: maintenanceDay,
-        status: 1, // Đã lên lịch
+        status: 1,
         description: newMaintenance.description,
         price: Number(newMaintenance.price) || 0,
       };
@@ -332,9 +335,9 @@ const MaintenancePage = () => {
       ? record.type
       : "Bảo dưỡng định kỳ";
     const normalizedStatus =
-      typeof record.statusCode === "number" && record.statusCode >= 0 && record.statusCode <= 3
+      typeof record.statusCode === "number" && record.statusCode >= 1 && record.statusCode <= 4
         ? record.statusCode
-        : 0;
+        : 1;
 
     const inputDate =
       toInputDateValue(record.maintenanceDay) ||
@@ -382,12 +385,12 @@ const MaintenancePage = () => {
         editingMaintenance?.scheduledDate ??
         new Date().toISOString();
 
-      // Prepare request body
+      // Prepare request body - keep original status
       const requestBody = {
         carId: Number(editMaintenance.carId),
         maintenanceType: editMaintenance.type,
         maintenanceDay: maintenanceDay,
-        status: Number(editMaintenance.status),
+        status: Number(editingMaintenance.statusCode ?? editingMaintenance.status ?? 1),
         description: editMaintenance.description,
         price: Number(editMaintenance.price) || 0,
       };
@@ -450,12 +453,68 @@ const MaintenancePage = () => {
     }
   };
 
+  // Open status edit modal - only for marking as completed
+  const handleStatusEditClick = (record) => {
+    setStatusEditingMaintenance(record);
+    setModalError("");
+    setIsStatusModalOpen(true);
+  };
+
+  // Update status to "Hoàn thành" (4) only
+  const handleUpdateStatus = async () => {
+    if (!statusEditingMaintenance?.maintenanceId) {
+      setModalError("Không tìm thấy thông tin bảo dưỡng cần cập nhật.");
+      return;
+    }
+
+    try {
+      setModalLoading(true);
+      setModalError("");
+
+      const maintenanceDay =
+        statusEditingMaintenance?.maintenanceDay ??
+        statusEditingMaintenance?.scheduledDate ??
+        new Date().toISOString();
+
+      // Prepare request body - keep all existing data, set status to 4 (Hoàn thành)
+      const requestBody = {
+        carId: Number(statusEditingMaintenance.carId),
+        maintenanceType: statusEditingMaintenance.type,
+        maintenanceDay: maintenanceDay,
+        status: 4,
+        description: statusEditingMaintenance.description || "",
+        price: Number(statusEditingMaintenance.price) || 0,
+      };
+
+      const maintenanceId = statusEditingMaintenance.maintenanceId;
+
+      // Make PUT request to update endpoint
+      await api.put(`/Maintenance/${maintenanceId}/update`, requestBody);
+
+      // Reset state
+      setStatusEditingMaintenance(null);
+      setModalError("");
+      setIsStatusModalOpen(false);
+
+      // Refresh maintenance list
+      await refreshMaintenanceList();
+    } catch (error) {
+      console.error("Failed to update maintenance status", error);
+      setModalError(
+        error.response?.data?.message ||
+        "Không thể đánh dấu hoàn thành. Vui lòng thử lại sau."
+      );
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusClasses = {
       "Đã lên lịch": "bg-yellow-100 text-yellow-800",
+      "Quá hạn": "bg-red-100 text-red-800",
       "Đang thực hiện": "bg-blue-100 text-blue-800",
       "Hoàn thành": "bg-green-100 text-green-800",
-      "Quá hạn": "bg-red-100 text-red-800",
     };
 
     const label = typeof status === "number" ? STATUS_LABELS[status] ?? status : status;
@@ -523,9 +582,9 @@ const MaintenancePage = () => {
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="Đã lên lịch">Đã lên lịch</option>
+              <option value="Quá hạn">Quá hạn</option>
               <option value="Đang thực hiện">Đang thực hiện</option>
               <option value="Hoàn thành">Hoàn thành</option>
-              <option value="Quá hạn">Quá hạn</option>
             </select>
 
             {/* Add Button */}
@@ -609,6 +668,13 @@ const MaintenancePage = () => {
                         title="Chỉnh sửa"
                       >
                         <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleStatusEditClick(record)}
+                        className="text-green-600 hover:text-green-900 p-1 transition-colors"
+                        title="Chỉnh sửa trạng thái"
+                      >
+                        <FaCheckCircle />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(record)}
@@ -800,23 +866,6 @@ const MaintenancePage = () => {
 
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setModalError("");
-                  setNewMaintenance({
-                    carId: "",
-                    type: "Bảo dưỡng định kỳ",
-                    scheduledDate: "",
-                    description: "",
-                    price: "",
-                  });
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-                disabled={modalLoading}
-              >
-                Hủy
-              </button>
-              <button
                 onClick={handleAddMaintenance}
                 disabled={modalLoading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -912,26 +961,6 @@ const MaintenancePage = () => {
               <div className="flex flex-col">
                 <div className="text-left">
                   <label className="text-sm text-gray-700">
-                    Trạng thái <span className="text-red-500">*</span>
-                  </label>
-                </div>
-                <select
-                  name="status"
-                  value={editMaintenance.status}
-                  onChange={handleEditInputChange}
-                  className="w-full px-3 py-2 mt-1 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  required
-                >
-                  <option value={0}>Đã lên lịch</option>
-                  <option value={1}>Đang thực hiện</option>
-                  <option value={2}>Hoàn thành</option>
-                  <option value={3}>Quá hạn</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col">
-                <div className="text-left">
-                  <label className="text-sm text-gray-700">
                     Giá tiền (VND) <span className="text-red-500">*</span>
                   </label>
                 </div>
@@ -989,6 +1018,72 @@ const MaintenancePage = () => {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {modalLoading ? "Đang xử lý..." : "Cập nhật"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal đánh dấu hoàn thành */}
+      {isStatusModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Đánh dấu hoàn thành
+              </h2>
+              <button
+                onClick={() => {
+                  setIsStatusModalOpen(false);
+                  setModalError("");
+                  setStatusEditingMaintenance(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                  {modalError}
+                </div>
+              )}
+
+              <div className="flex flex-col">
+                <div className="text-left mb-2">
+                  <label className="text-sm text-gray-700 font-medium">
+                    Thông tin bảo dưỡng
+                  </label>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm">
+                  <div className="text-gray-900 font-medium">
+                    {statusEditingMaintenance?.vehicle?.name ?? "N/A"}
+                  </div>
+                  <div className="text-gray-600 mt-1">
+                    Biển số: {statusEditingMaintenance?.vehicle?.license ?? "N/A"}
+                  </div>
+                  <div className="text-gray-600">
+                    Loại: {statusEditingMaintenance?.type ?? "N/A"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                <p className="text-sm text-blue-800">
+                  Bạn có chắc chắn muốn đánh dấu lịch bảo dưỡng này là <strong>Hoàn thành</strong>?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={handleUpdateStatus}
+                disabled={modalLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {modalLoading ? "Đang xử lý..." : "Đánh dấu hoàn thành"}
               </button>
             </div>
           </div>
