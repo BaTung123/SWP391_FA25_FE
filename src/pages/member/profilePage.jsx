@@ -2883,7 +2883,7 @@ const ProfilePage = () => {
               <div className="space-y-3">
                 <input
                   className="w-full border rounded px-3 py-2"
-                  placeholder="Tiêu đề (formTitle)"
+                  placeholder="Tiêu đề"
                   value={newActivity.title}
                   onChange={(e) =>
                     setNewActivity((s) => ({ ...s, title: e.target.value }))
@@ -2892,7 +2892,7 @@ const ProfilePage = () => {
                 <textarea
                   rows={4}
                   className="w-full border rounded px-3 py-2"
-                  placeholder="Mô tả (hiển thị nội bộ UI)"
+                  placeholder="Mô tả"
                   value={newActivity.description}
                   onChange={(e) =>
                     setNewActivity((s) => ({

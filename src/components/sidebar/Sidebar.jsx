@@ -48,37 +48,37 @@ const Sidebar = () => {
     {
       key: "/staff/vehicle-management",
       icon: <FaCar />,
-      label: "Vehicle Management",
+      label: "Quản Lý Xe",
       path: "/staff/vehicle-management",
     },
     {
       key: "/staff/group-management",
       icon: <FaUsers />,
-      label: "Group Management",
+      label: "Quản Lý Nhóm",
       path: "/staff/group-management"
     },
     {
       key: "/staff/booking-management",
       icon: <FaCalendarAlt />,
-      label: "Booking Management",
+      label: "Quản Lý Lịch Đặt Xe",
       path: "/staff/booking-management"
     },
     {
       key: "/staff/vote",
       icon: <FaRegClipboard />,
-      label: "Form Management",
+      label: "Quản Lý Yêu Cầu",
       path: "/staff/vote"
     },
     {
       key: "/staff/maintenance",
       icon: <FaCog />,
-      label: "Maintenance",
+      label: "Quản Lý Bảo Trì",
       path: "/staff/maintenance"
     },
     {
       key: "/staff/payment",
       icon: <FaCreditCard />,
-      label: "Payments",
+      label: "Quản Lý Thanh Toán",
       path: "/staff/payment"
     },
   ];
@@ -88,7 +88,7 @@ const Sidebar = () => {
     {
       key: "/profile",
       icon: <FaUser />,
-      label: "Profile",
+      label: "Thông Tin Cá Nhân",
       path: "/profile"
     }
   ];
@@ -97,7 +97,7 @@ const Sidebar = () => {
   const logoutItem = {
     key: "logout",
     icon: <FaSignOutAlt />,
-    label: "Logout",
+    label: "Đăng Xuất",
     path: "/",
     isLogout: true
   };
