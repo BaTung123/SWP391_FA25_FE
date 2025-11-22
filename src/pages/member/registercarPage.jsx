@@ -838,9 +838,9 @@ const RegistercarPage = () => {
                             valid ? "border-gray-200" : "border-red-300 bg-red-50"
                           }`}
                         >
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1  gap-4 ">
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                              <label className="block text-sm font-medium text-gray-700 mb-1 ">
                                 Giờ bắt đầu *
                               </label>
                               <input
