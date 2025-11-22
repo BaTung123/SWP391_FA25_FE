@@ -507,9 +507,9 @@ export default function GroupPage() {
 
   const handleSavePercent = async () => {
     const values = Object.values(ownershipMap).map((v) => Number(v || 0));
-    const invalid = values.some((v) => Number.isNaN(v) || v < 0 || v > 100);
+    const invalid = values.some((v) => Number.isNaN(v) || v < 1 || v > 99);
     if (invalid) {
-      const txt = "Giá trị phần trăm phải trong khoảng 0% đến 100%.";
+      const txt = "Mỗi thành viên phải từ 1% đến 99%.";
       message.error(txt);
       setPercentNotice({ type: "error", text: txt });
       return;
@@ -555,6 +555,7 @@ export default function GroupPage() {
       const txt = `Đã lưu phần trăm cho ${affected} thành viên.`;
       message.success(txt);
       setPercentNotice({ type: "success", text: txt });
+      setNotice({ type: "success", text: txt });
       setIsPercentModalVisible(false);
       await hydrateCarOwners(cars, users);
     } catch (e) {
@@ -939,19 +940,29 @@ export default function GroupPage() {
                           </div>
                           <Input
                             type="number"
-                            min={0}
-                            max={100}
+                            min={1}
+                            max={99}
+                            step={1}
+                            inputMode="numeric"
                             suffix="%"
                             value={ownershipMap[m.id] ?? ""}
-                            onChange={(e) =>
-                              setOwnershipMap((prev) => ({
-                                ...prev,
-                                [m.id]:
-                                  e.target.value === ""
-                                    ? ""
-                                    : Number(e.target.value),
-                              }))
-                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "") {
+                                setPercentNotice(null);
+                                setOwnershipMap((prev) => ({ ...prev, [m.id]: "" }));
+                                return;
+                              }
+                              let num = Math.floor(Number(val));
+                              if (!Number.isFinite(num)) num = 0;
+                              if (num > 99) num = 99;
+                              setOwnershipMap((prev) => ({ ...prev, [m.id]: num }));
+                              if (num < 1) {
+                                setPercentNotice({ type: "error", text: "Mỗi thành viên phải từ 1% đến 99%." });
+                              } else {
+                                setPercentNotice(null);
+                              }
+                            }}
                             style={{ width: 100 }}
                             className="ml-2"
                           />
