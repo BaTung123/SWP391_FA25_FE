@@ -248,6 +248,21 @@ const RegistercarPage = () => {
           }
         }
       }
+      // Khoảng cách tối thiểu 1 giờ với lịch của tôi
+      for (const ns of newSlots) {
+        for (const ms of myToday) {
+          const nsStart = hmToMin(ns.startTime);
+          const nsEnd = hmToMin(ns.endTime);
+          const msStart = hmToMin(ms.startTime);
+          const msEnd = hmToMin(ms.endTime);
+          const gap = nsEnd <= msStart ? msStart - nsEnd : nsStart >= msEnd ? nsStart - msEnd : 0;
+          if (gap < 60) {
+            return alert(
+              `Các khung giờ phải cách nhau tối thiểu 1 giờ: ${ns.startTime}–${ns.endTime} vs ${ms.startTime}–${ms.endTime}`
+            );
+          }
+        }
+      }
       // tránh trùng với đồng sở hữu
       const othersToday = othersSlotsByDate[k] || [];
       for (const ns of newSlots) {
@@ -257,6 +272,36 @@ const RegistercarPage = () => {
               `Trùng lịch đồng sở hữu: ${ns.startTime}–${ns.endTime} vs ${os.startTime}–${os.endTime}`
             );
           }
+        }
+      }
+      // Khoảng cách tối thiểu 1 giờ với lịch đồng sở hữu
+      for (const ns of newSlots) {
+        for (const os of othersToday) {
+          const nsStart = hmToMin(ns.startTime);
+          const nsEnd = hmToMin(ns.endTime);
+          const osStart = hmToMin(os.startTime);
+          const osEnd = hmToMin(os.endTime);
+          const gap = nsEnd <= osStart ? osStart - nsEnd : nsStart >= osEnd ? nsStart - osEnd : 0;
+          if (gap < 60) {
+            return alert(
+              `Các khung giờ phải cách nhau tối thiểu 1 giờ với đồng sở hữu: ${ns.startTime}–${ns.endTime} vs ${os.startTime}–${os.endTime}`
+            );
+          }
+        }
+      }
+
+      // Khoảng cách tối thiểu 1 giờ giữa các khung giờ mới của bạn
+      const sortedNew = newSlots
+        .slice()
+        .sort((a, b) => hmToMin(a.startTime) - hmToMin(b.startTime));
+      for (let i = 1; i < sortedNew.length; i++) {
+        const prev = sortedNew[i - 1];
+        const curr = sortedNew[i];
+        const gap = hmToMin(curr.startTime) - hmToMin(prev.endTime);
+        if (gap < 60) {
+          return alert(
+            `Các khung giờ mới phải cách nhau tối thiểu 1 giờ: ${prev.startTime}–${prev.endTime} và ${curr.startTime}–${curr.endTime}`
+          );
         }
       }
 
