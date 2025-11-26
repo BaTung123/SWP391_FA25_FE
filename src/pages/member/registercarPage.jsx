@@ -11,6 +11,7 @@ const RegistercarPage = () => {
   const [formData, setFormData] = useState({ vehicleId: "" });
   const [userNameCache, setUserNameCache] = useState(new Map());
   const [percentByCarUserId, setPercentByCarUserId] = useState(new Map());
+  const [ownersForCar, setOwnersForCar] = useState([]);
 
   // Calendar
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -493,6 +494,7 @@ const RegistercarPage = () => {
 
       // Bước 2: dựng tập carUserId của đồng sở hữu đối với xe đang chọn
       const ownerCarUserIdSet = new Set();
+      const owners = [];
       try {
         const chunkSize = 8;
         for (let i = 0; i < allUsers.length; i += chunkSize) {
@@ -509,14 +511,20 @@ const RegistercarPage = () => {
                 (c) => Number(c.carId ?? c.id) === Number(carId)
               );
               if (!match) return null;
-              return Number(
-                match.carUserId ?? match.CarUserId ?? match?.carUser?.carUserId
-              );
+              const cuid =
+                match.carUserId ?? match.CarUserId ?? match?.carUser?.carUserId;
+              if (!Number.isFinite(Number(cuid))) return null;
+              return { cuid: String(cuid), user: u };
             })
           );
           rs.forEach((x) => {
-            if (x.status === "fulfilled" && Number.isFinite(x.value))
-              ownerCarUserIdSet.add(Number(x.value));
+            if (x.status === "fulfilled" && x.value) {
+              ownerCarUserIdSet.add(Number(x.value.cuid));
+              owners.push({
+                ...x.value.user,
+                _carUserId: String(x.value.cuid),
+              });
+            }
           });
         }
       } catch {}
@@ -558,6 +566,9 @@ const RegistercarPage = () => {
       const othersGrouped = {};
       resolved.forEach((s) => {
         if (!othersGrouped[s.key]) othersGrouped[s.key] = [];
+        const owner = owners.find(
+          (o) => String(o._carUserId) === String(s.ownerCarUserId)
+        );
         othersGrouped[s.key].push({
           startTime: s.startTime,
           endTime: s.endTime,
@@ -565,11 +576,15 @@ const RegistercarPage = () => {
           ownerCarUserId: s.ownerCarUserId,
           ownerUserId: s.ownerUserId,
           ownerName:
+            owner?.fullName ||
+            owner?.name ||
+            owner?.userName ||
             s.ownerName ||
             userNameCache.get(Number(s.ownerUserId)) ||
             s.ownerName,
         });
       });
+      setOwnersForCar(owners);
       setOthersSlotsByDate(othersGrouped);
     } catch (e) {
       console.warn("loadSchedulesForCar error", e);
@@ -971,6 +986,10 @@ const RegistercarPage = () => {
                       <p className="text-sm font-semibold text-gray-900">
                         Lịch đồng sở hữu
                       </p>
+                      {/* {s.ownerName ? (
+                      <span className="ml-2 text-red-600/70">
+                      {s.ownerName}
+                      </span> */}
                     </div>
                     {othersToday.length === 0 ? (
                       <div className="text-sm text-gray-500">
@@ -989,11 +1008,6 @@ const RegistercarPage = () => {
                               className="px-3 py-2 rounded-md bg-red-50 border border-red-200 text-sm text-red-700"
                             >
                               {s.startTime} – {s.endTime}
-                              {s.ownerName ? (
-                                <span className="ml-2 text-red-600/70">
-                                  ({s.ownerName})
-                                </span>
-                              ) : null}
                             </li>
                             //thông tin lịch đồng sỡ hữu
                           ))}

@@ -393,7 +393,7 @@ const GroupVehicleBookingDashboard = () => {
                 <div className="flex flex-wrap gap-2">
                   {owners.map((u) => (
                     <Tag key={S(u.id ?? u.userId)} color="blue">
-                      {(u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`)} ({userPercent(u.id ?? u.userId) || 0}%)
+                      {(u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`)} 
                     </Tag>
                   ))}
                 </div>
@@ -403,6 +403,7 @@ const GroupVehicleBookingDashboard = () => {
             
 
             {/* Lượt đặt trong ngày */}
+            {/* ({userPercent(u.id ?? u.userId) || 0}%) */}
             {modalItems.length === 0 ? (
               <Empty description="Không có đặt lịch trong ngày này" />
             ) : (
