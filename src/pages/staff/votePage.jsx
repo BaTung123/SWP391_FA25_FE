@@ -25,6 +25,8 @@ const VotePage = () => {
   const itemsPerPage = 5;
 
   const [selectedForm, setSelectedForm] = useState(null);
+  const [percentByCarUserId, setPercentByCarUserId] = useState(new Map());
+  const [percentByUserId, setPercentByUserId] = useState({});
 
   // --- NEW: votedSummary dựa trên votedBy để biết agree/decline ---
   const votedSummary = useMemo(() => {
@@ -244,7 +246,7 @@ const VotePage = () => {
         }
       }
 
-      return { vehicleName, licensePlate, groupName };
+      return { vehicleName, licensePlate, groupName, carId };
     } catch {
       try {
         const gr = await api.get("/Group");
@@ -271,9 +273,9 @@ const VotePage = () => {
             } catch {}
           }
         }
-        return { vehicleName, licensePlate, groupName };
+        return { vehicleName, licensePlate, groupName, carId };
       } catch {
-        return { vehicleName: "", licensePlate: "", groupName: "" };
+        return { vehicleName: "", licensePlate: "", groupName: "", carId: null };
       }
     }
   };
@@ -318,6 +320,7 @@ const VotePage = () => {
             let vehicleName = "";
             let licensePlate = "";
             let groupName = "";
+            let carId = null;
 
             if (f.groupId) {
               members = await fetchGroupMembers(f.groupId);
@@ -325,6 +328,27 @@ const VotePage = () => {
               vehicleName = info.vehicleName || vehicleName;
               licensePlate = info.licensePlate || licensePlate;
               groupName = info.groupName || groupName;
+              carId = info.carId ?? null;
+              if (carId && members.length) {
+                const resolved = await Promise.all(
+                  members.map(async (m) => {
+                    const uid = safeNum(m.id ?? m.userId, NaN);
+                    if (!Number.isFinite(uid)) return m;
+                    try {
+                      const ur = await api.get(`/users/${uid}/cars`);
+                      const cars = Array.isArray(ur.data) ? ur.data : [];
+                      const found = cars.find(
+                        (c) => safeNum(c?.carId ?? c?.id) === safeNum(carId)
+                      );
+                      const cuid = found?.carUserId ?? found?.CarUserId ?? found?.id ?? found?.caruserId;
+                      return { ...m, _carUserId: String(cuid || "") };
+                    } catch {
+                      return { ...m };
+                    }
+                  })
+                );
+                members = resolved;
+              }
             }
 
             const totalMembers = members.length;
@@ -333,19 +357,20 @@ const VotePage = () => {
                 ? "Đã đánh giá"
                 : "Chờ đánh giá";
 
-            return {
-              ...f,
-              totalMembers,
-              votedUserIds: Array.from(new Set(votedIds)), // giữ nguyên trường cũ để tương thích
-              votedBy, // NEW: dùng trong modal để phân biệt Đã đánh giá / Đã từ chối
-              yes,
-              no,
-              status,
-              vehicleName,
-              licensePlate,
-              groupName,
-              members,
-            };
+              return {
+                ...f,
+                totalMembers,
+                votedUserIds: Array.from(new Set(votedIds)), // giữ nguyên trường cũ để tương thích
+                votedBy, // NEW: dùng trong modal để phân biệt Đã đánh giá / Đã từ chối
+                yes,
+                no,
+                status,
+                vehicleName,
+                licensePlate,
+                groupName,
+                carId,
+                members,
+              };
           })
         );
         resultRows.push(...rows);
@@ -374,6 +399,46 @@ const VotePage = () => {
     loadAllForms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const loadPercentOwnership = async () => {
+      try {
+        const r = await api.get("/PercentOwnership");
+        const list = Array.isArray(r?.data) ? r.data : r?.data?.data || [];
+        const map = new Map();
+        list.forEach((p) => {
+          const cuid = String(p.carUserId ?? p.CarUserId ?? p.caruserId ?? p.car_user_id ?? "");
+          const percentage = Number(p.percentage ?? p.Percentage ?? 0);
+          if (cuid) map.set(String(cuid), Number.isFinite(percentage) ? percentage : 0);
+        });
+        setPercentByCarUserId(map);
+      } catch {
+        setPercentByCarUserId(new Map());
+      }
+    };
+    loadPercentOwnership();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedForm) {
+      setPercentByUserId({});
+      return;
+    }
+    const obj = {};
+    (selectedForm.members || []).forEach((m) => {
+      const uid = String(m.id ?? m.userId ?? "");
+      const cuid = String(m._carUserId ?? "");
+      const p = cuid ? percentByCarUserId.get(String(cuid)) : undefined;
+      obj[uid] = Number.isFinite(Number(p)) ? Number(p) : null;
+    });
+    setPercentByUserId(obj);
+  }, [selectedForm, percentByCarUserId]);
+
+  const userPercent = (uid) => {
+    const key = String(uid ?? "");
+    const v = percentByUserId[key];
+    return Number.isFinite(Number(v)) ? Number(v) : 0;
+  };
 
   // ---------------- Filtering & paging ----------------
   const filtered = useMemo(() => {
@@ -619,7 +684,7 @@ const VotePage = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-md border border-gray-100 bg-gray-50"
                     >
                       <span className="text-sm text-gray-800">
-                        {m.fullName || m.name || m.email || `User #${m.id}`}
+                        {(m.fullName || m.name || m.email || `User #${m.id}`)} 
                       </span>
                       <span
                         className={`text-xs font-medium px-2 py-1 rounded-full ${cls}`}
@@ -630,6 +695,7 @@ const VotePage = () => {
                   );
                 })
               )}
+              {/* ({userPercent(m.id ?? m.userId) || 0}%) */}
 
               {votedSummary.extraVoters.length > 0 && (
                 <div className="mt-4 border border-blue-100 rounded-lg p-3 bg-blue-50/40">

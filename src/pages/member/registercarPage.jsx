@@ -10,6 +10,7 @@ const RegistercarPage = () => {
   const [ownershipMap, setOwnershipMap] = useState({}); // { [carId]: % của tôi }
   const [formData, setFormData] = useState({ vehicleId: "" });
   const [userNameCache, setUserNameCache] = useState(new Map());
+  const [percentByCarUserId, setPercentByCarUserId] = useState(new Map());
 
   // Calendar
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -71,7 +72,10 @@ const RegistercarPage = () => {
     ],
     []
   );
-  const dayNames = useMemo(() => ["CN", "T2", "T3", "T4", "T5", "T6", "T7"], []);
+  const dayNames = useMemo(
+    () => ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
+    []
+  );
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -148,7 +152,11 @@ const RegistercarPage = () => {
             const rawStatus =
               it.status ?? it.Status ?? it.isActive ?? it.IsActive ?? 1;
             const status =
-              typeof rawStatus === "boolean" ? (rawStatus ? 1 : 0) : Number(rawStatus);
+              typeof rawStatus === "boolean"
+                ? rawStatus
+                  ? 1
+                  : 0
+                : Number(rawStatus);
 
             return {
               _carId: carId,
@@ -173,23 +181,32 @@ const RegistercarPage = () => {
         setCarUserMap(cuMap);
 
         // % sở hữu
-        const pos = await api.get("/PercentOwnership").catch(() => ({ data: [] }));
-        const listPO = Array.isArray(pos.data) ? pos.data : pos.data?.data || [];
+        const pos = await api
+          .get("/PercentOwnership")
+          .catch(() => ({ data: [] }));
+        const listPO = Array.isArray(pos.data)
+          ? pos.data
+          : pos.data?.data || [];
         const percentMap = {};
+        const mapPO = new Map();
         listPO.forEach((p) => {
-          percentMap[Number(p.carUserId ?? p.CarUserId)] = Number(
-            p.percentage ?? p.Percentage ?? 0
-          );
+          const cuidNum = Number(p.carUserId ?? p.CarUserId);
+          const perc = Number(p.percentage ?? p.Percentage ?? 0);
+          percentMap[cuidNum] = perc;
+          const cuidStr = String(cuidNum);
+          if (cuidStr) mapPO.set(cuidStr, Number.isFinite(perc) ? perc : 0);
         });
         const ownMap = {};
         mapped.forEach((c) => {
           ownMap[c._carId] = percentMap[c._carUserId] ?? 100;
         });
         setOwnershipMap(ownMap);
+        setPercentByCarUserId(mapPO);
 
         // Chọn xe đầu tiên (hoặc xe đang hoạt động nếu có)
         if (mapped.length) {
-          const firstActive = mapped.find((c) => Number(c.status) === 1) ?? mapped[0];
+          const firstActive =
+            mapped.find((c) => Number(c.status) === 1) ?? mapped[0];
           const firstId = firstActive._carId;
           setFormData((s) => ({ ...s, vehicleId: firstId }));
           await loadSchedulesForCar(firstId, me0, cuMap);
@@ -255,7 +272,12 @@ const RegistercarPage = () => {
           const nsEnd = hmToMin(ns.endTime);
           const msStart = hmToMin(ms.startTime);
           const msEnd = hmToMin(ms.endTime);
-          const gap = nsEnd <= msStart ? msStart - nsEnd : nsStart >= msEnd ? nsStart - msEnd : 0;
+          const gap =
+            nsEnd <= msStart
+              ? msStart - nsEnd
+              : nsStart >= msEnd
+              ? nsStart - msEnd
+              : 0;
           if (gap < 60) {
             return alert(
               `Các khung giờ phải cách nhau tối thiểu 1 giờ: ${ns.startTime}–${ns.endTime} vs ${ms.startTime}–${ms.endTime}`
@@ -281,7 +303,12 @@ const RegistercarPage = () => {
           const nsEnd = hmToMin(ns.endTime);
           const osStart = hmToMin(os.startTime);
           const osEnd = hmToMin(os.endTime);
-          const gap = nsEnd <= osStart ? osStart - nsEnd : nsStart >= osEnd ? nsStart - osEnd : 0;
+          const gap =
+            nsEnd <= osStart
+              ? osStart - nsEnd
+              : nsStart >= osEnd
+              ? nsStart - osEnd
+              : 0;
           if (gap < 60) {
             return alert(
               `Các khung giờ phải cách nhau tối thiểu 1 giờ với đồng sở hữu: ${ns.startTime}–${ns.endTime} vs ${os.startTime}–${os.endTime}`
@@ -419,15 +446,18 @@ const RegistercarPage = () => {
       const userId = me0.userId ?? me0.id ?? me0.Id;
 
       // Lịch của TÔI
-      const rMy = await api.get(`/Schedule/user/${userId}`).catch(() => ({ data: [] }));
+      const rMy = await api
+        .get(`/Schedule/user/${userId}`)
+        .catch(() => ({ data: [] }));
       const rawMy = Array.isArray(rMy.data) ? rMy.data : rMy.data?.data || [];
       const normMy = rawMy
         .map(normalizeSchedule)
         .filter(Boolean)
         .filter(
           (s) =>
-            (myCarUserId ? Number(s.ownerCarUserId) === Number(myCarUserId) : true) &&
-            (s.carId ? Number(s.carId) === Number(carId) : true)
+            (myCarUserId
+              ? Number(s.ownerCarUserId) === Number(myCarUserId)
+              : true) && (s.carId ? Number(s.carId) === Number(carId) : true)
         );
 
       const myGrouped = {};
@@ -446,7 +476,9 @@ const RegistercarPage = () => {
 
       // Lịch của NGƯỜI KHÁC
       const rAll = await api.get(`/Schedule`).catch(() => ({ data: [] }));
-      const rawAll = Array.isArray(rAll.data) ? rAll.data : rAll.data?.data || [];
+      const rawAll = Array.isArray(rAll.data)
+        ? rAll.data
+        : rAll.data?.data || [];
       const normAll = rawAll.map(normalizeSchedule).filter(Boolean);
 
       // Fallback: nếu API thiếu carId trong Schedule, xác định cùng xe bằng ownerCarUserId thuộc tập đồng sở hữu của xe đang chọn
@@ -454,7 +486,9 @@ const RegistercarPage = () => {
       let allUsers = [];
       try {
         const rUsers = await api.get("/User");
-        allUsers = Array.isArray(rUsers.data) ? rUsers.data : rUsers.data?.data || [];
+        allUsers = Array.isArray(rUsers.data)
+          ? rUsers.data
+          : rUsers.data?.data || [];
       } catch {}
 
       // Bước 2: dựng tập carUserId của đồng sở hữu đối với xe đang chọn
@@ -467,15 +501,22 @@ const RegistercarPage = () => {
             batch.map(async (u) => {
               const uid = Number(u.userId ?? u.id);
               if (!Number.isFinite(uid)) return null;
-              const r = await api.get(`/users/${uid}/cars`).catch(() => ({ data: [] }));
+              const r = await api
+                .get(`/users/${uid}/cars`)
+                .catch(() => ({ data: [] }));
               const list = Array.isArray(r.data) ? r.data : r.data?.data || [];
-              const match = list.find((c) => Number(c.carId ?? c.id) === Number(carId));
+              const match = list.find(
+                (c) => Number(c.carId ?? c.id) === Number(carId)
+              );
               if (!match) return null;
-              return Number(match.carUserId ?? match.CarUserId ?? match?.carUser?.carUserId);
+              return Number(
+                match.carUserId ?? match.CarUserId ?? match?.carUser?.carUserId
+              );
             })
           );
           rs.forEach((x) => {
-            if (x.status === "fulfilled" && Number.isFinite(x.value)) ownerCarUserIdSet.add(Number(x.value));
+            if (x.status === "fulfilled" && Number.isFinite(x.value))
+              ownerCarUserIdSet.add(Number(x.value));
           });
         }
       } catch {}
@@ -483,11 +524,15 @@ const RegistercarPage = () => {
       // Bước 3: lọc lịch đồng sở hữu theo: cùng xe (carId trùng, hoặc ownerCarUserId thuộc tập đồng sở hữu) và không phải của tôi
       const others = normAll.filter((s) => {
         const notMine =
-          (myCarUserId ? Number(s.ownerCarUserId) !== Number(myCarUserId) : true) &&
+          (myCarUserId
+            ? Number(s.ownerCarUserId) !== Number(myCarUserId)
+            : true) &&
           (s.ownerUserId ? Number(s.ownerUserId) !== Number(userId) : true);
         const hasCar = s.carId != null && Number.isFinite(Number(s.carId));
         const sameCarById = hasCar && Number(s.carId) === Number(carId);
-        const sameCarByOwner = ownerCarUserIdSet.size > 0 && ownerCarUserIdSet.has(Number(s.ownerCarUserId));
+        const sameCarByOwner =
+          ownerCarUserIdSet.size > 0 &&
+          ownerCarUserIdSet.has(Number(s.ownerCarUserId));
         return notMine && (sameCarById || (!hasCar && sameCarByOwner));
       });
 
@@ -505,7 +550,8 @@ const RegistercarPage = () => {
         setUserNameCache(map);
         resolved = resolved.map((x) => ({
           ...x,
-          ownerName: x.ownerName || map.get(Number(x.ownerUserId)) || x.ownerName,
+          ownerName:
+            x.ownerName || map.get(Number(x.ownerUserId)) || x.ownerName,
         }));
       } catch {}
 
@@ -518,7 +564,10 @@ const RegistercarPage = () => {
           id: s.id,
           ownerCarUserId: s.ownerCarUserId,
           ownerUserId: s.ownerUserId,
-          ownerName: s.ownerName || userNameCache.get(Number(s.ownerUserId)) || s.ownerName,
+          ownerName:
+            s.ownerName ||
+            userNameCache.get(Number(s.ownerUserId)) ||
+            s.ownerName,
         });
       });
       setOthersSlotsByDate(othersGrouped);
@@ -593,7 +642,9 @@ const RegistercarPage = () => {
       await loadSchedulesForCar(carId);
 
       // Cập nhật UI tức thời (an toàn)
-      const key = selectedDateForTime ? toLocalDateKey(selectedDateForTime) : "";
+      const key = selectedDateForTime
+        ? toLocalDateKey(selectedDateForTime)
+        : "";
       setMySlotsByDate((prev) => {
         const list = (prev[key] || []).filter(
           (x) => (x.id ?? x.scheduleId ?? x.ScheduleId) !== Number(scheduleId)
@@ -609,10 +660,13 @@ const RegistercarPage = () => {
   // ================== DERIVED ==================
   // NOTE: phải đặt trước if (loading) để không vi phạm rules of hooks
   const selectedCar = useMemo(
-    () => cars.find((x) => String(x._carId) === String(formData.vehicleId)) || null,
+    () =>
+      cars.find((x) => String(x._carId) === String(formData.vehicleId)) || null,
     [cars, formData.vehicleId]
   );
-  const isSelectedCarActive = selectedCar ? Number(selectedCar.status) === 1 : true;
+  const isSelectedCarActive = selectedCar
+    ? Number(selectedCar.status) === 1
+    : true;
 
   // ================== UI ==================
   if (loading)
@@ -626,7 +680,10 @@ const RegistercarPage = () => {
     ? toLocalDateKey(selectedDateForTime)
     : "";
   const myToday = mySlotsByDate[selectedKey] || [];
-  const myUsed = myToday.reduce((t, s) => t + duration(s.startTime, s.endTime), 0);
+  const myUsed = myToday.reduce(
+    (t, s) => t + duration(s.startTime, s.endTime),
+    0
+  );
   const remain = Math.max(0, maxDaily() - myUsed);
   const othersToday = othersSlotsByDate[selectedKey] || [];
 
@@ -661,13 +718,24 @@ const RegistercarPage = () => {
                   }
                   className="p-2 rounded-lg hover:bg-gray-100"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
                   </svg>
                 </button>
                 <div className="text-center">
                   <h3 className="text-2xl font-bold text-gray-900">
-                    {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                    {monthNames[currentDate.getMonth()]}{" "}
+                    {currentDate.getFullYear()}
                   </h3>
                   <button
                     onClick={() => setCurrentDate(new Date())}
@@ -684,8 +752,18 @@ const RegistercarPage = () => {
                   }
                   className="p-2 rounded-lg hover:bg-gray-100"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </button>
               </div>
@@ -715,12 +793,16 @@ const RegistercarPage = () => {
                             ? "bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed"
                             : "bg-white hover:bg-indigo-50 hover:border-indigo-200 border-gray-100 cursor-pointer"
                           : "bg-gray-50 border-gray-100",
-                        isToday(day) ? "ring-2 ring-green-400 border-green-300" : "",
+                        isToday(day)
+                          ? "ring-2 ring-green-400 border-green-300"
+                          : "",
                         isSelected(day) ? "bg-indigo-50 border-indigo-300" : "",
                       ].join(" ")}
                     >
                       {day && (
-                        <span className="absolute top-2 left-2 text-sm font-medium">{day}</span>
+                        <span className="absolute top-2 left-2 text-sm font-medium">
+                          {day}
+                        </span>
                       )}
                     </button>
                   ))}
@@ -734,8 +816,18 @@ const RegistercarPage = () => {
             {/* PICK CAR */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <div className="flex items-center gap-2 mb-4">
-                <svg className="w-5 h-5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 13h18M5 16h14M6 10l1-2h10l1 2" />
+                <svg
+                  className="w-5 h-5 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 13h18M5 16h14M6 10l1-2h10l1 2"
+                  />
                 </svg>
                 <h2 className="text-lg font-semibold text-gray-900">Chọn xe</h2>
               </div>
@@ -757,7 +849,9 @@ const RegistercarPage = () => {
 
               {formData.vehicleId &&
                 (() => {
-                  const v = cars.find((x) => String(x._carId) === String(formData.vehicleId));
+                  const v = cars.find(
+                    (x) => String(x._carId) === String(formData.vehicleId)
+                  );
                   if (!v) return null;
                   return (
                     <div className="mt-4 rounded-lg bg-indigo-50 p-4">
@@ -769,13 +863,21 @@ const RegistercarPage = () => {
                       <div className="mt-1 text-sm">
                         Trạng thái:{" "}
                         {Number(v.status) === 1 ? (
-                          <span className="px-2 py-0.5 rounded bg-green-100 text-green-700">Hoạt động</span>
+                          <span className="px-2 py-0.5 rounded bg-green-100 text-green-700">
+                            Hoạt động
+                          </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded bg-red-100 text-red-700">Không hoạt động</span>
+                          <span className="px-2 py-0.5 rounded bg-red-100 text-red-700">
+                            Không hoạt động
+                          </span>
                         )}
                       </div>
                       {v.image && (
-                        <img className="w-full h-36 object-cover rounded-lg mt-2" src={v.image} alt={v.carName} />
+                        <img
+                          className="w-full h-36 object-cover rounded-lg mt-2"
+                          src={v.image}
+                          alt={v.carName}
+                        />
                       )}
                     </div>
                   );
@@ -785,8 +887,18 @@ const RegistercarPage = () => {
             {/* DAY DETAILS */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <div className="flex items-center gap-2 mb-4">
-                <svg className="w-5 h-5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg
+                  className="w-5 h-5 text-indigo-600"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
                 <h2 className="text-lg font-semibold text-gray-900">
                   {selectedDateForTime ? `Ngày ${selectedKey}` : "Đặt lịch"}
@@ -796,27 +908,36 @@ const RegistercarPage = () => {
               {/* Banner khi xe không hoạt động */}
               {selectedCar && !isSelectedCarActive && (
                 <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 text-sm">
-                  Xe đang được xử lý dịch vụ nên tạm thời <b>không thể đăng ký lịch mới</b>.
+                  Xe đang được xử lý dịch vụ nên tạm thời{" "}
+                  <b>không thể đăng ký lịch mới</b>.
                 </div>
               )}
 
               {!selectedDateForTime ? (
-                <p className="text-sm text-gray-500">Chọn 1 ngày trên lịch để xem & tạo khung giờ.</p>
+                <p className="text-sm text-gray-500">
+                  Chọn 1 ngày trên lịch để xem & tạo khung giờ.
+                </p>
               ) : (
                 <>
                   {/* MY SLOTS */}
                   <div className="mb-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-green-600" />
-                      <p className="text-sm font-semibold text-gray-900">Lịch của tôi</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Lịch của tôi
+                      </p>
                     </div>
                     {myToday.length === 0 ? (
-                      <div className="text-sm text-gray-500">Chưa có lịch trong ngày này.</div>
+                      <div className="text-sm text-gray-500">
+                        Chưa có lịch trong ngày này.
+                      </div>
                     ) : (
                       <ul className="space-y-2">
                         {myToday
                           .slice()
-                          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                          .sort((a, b) =>
+                            a.startTime.localeCompare(b.startTime)
+                          )
                           .map((s, i) => (
                             <li
                               key={s.id || i}
@@ -837,7 +958,8 @@ const RegistercarPage = () => {
                       </ul>
                     )}
                     <div className="mt-2 text-xs text-gray-600">
-                      Đã dùng: <b>{myUsed.toFixed(2)}h</b> • Còn lại hôm nay: <b>{remain.toFixed(2)}h</b>
+                      Đã dùng: <b>{myUsed.toFixed(2)}h</b> • Còn lại hôm nay:{" "}
+                      <b>{remain.toFixed(2)}h</b>
                     </div>
                     <hr className="my-4" />
                   </div>
@@ -846,15 +968,21 @@ const RegistercarPage = () => {
                   <div className="mb-5">
                     <div className="flex items-center gap-2 mb-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                      <p className="text-sm font-semibold text-gray-900">Lịch đồng sở hữu</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        Lịch đồng sở hữu
+                      </p>
                     </div>
                     {othersToday.length === 0 ? (
-                      <div className="text-sm text-gray-500">Không có lịch trùng trong ngày này.</div>
+                      <div className="text-sm text-gray-500">
+                        Không có lịch trùng trong ngày này.
+                      </div>
                     ) : (
                       <ul className="space-y-2">
                         {othersToday
                           .slice()
-                          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                          .sort((a, b) =>
+                            a.startTime.localeCompare(b.startTime)
+                          )
                           .map((s, i) => (
                             <li
                               key={s.id || i}
@@ -862,15 +990,20 @@ const RegistercarPage = () => {
                             >
                               {s.startTime} – {s.endTime}
                               {s.ownerName ? (
-                                <span className="ml-2 text-red-600/70">({s.ownerName})</span>
+                                <span className="ml-2 text-red-600/70">
+                                  ({s.ownerName})
+                                </span>
                               ) : null}
                             </li>
+                            //thông tin lịch đồng sỡ hữu
                           ))}
                       </ul>
                     )}
                     <hr className="my-4" />
                   </div>
-
+                  {/* <span className="ml-2 text-red-600/70">
+                    ({percentByCarUserId.get(String(s.ownerCarUserId)) ?? 0}%)
+                    </span> */}
                   {/* ADD NEW SLOTS */}
                   <div className="space-y-4">
                     {newSlots.map((slot, idx) => {
@@ -880,7 +1013,9 @@ const RegistercarPage = () => {
                         <div
                           key={idx}
                           className={`p-4 border rounded-lg ${
-                            valid ? "border-gray-200" : "border-red-300 bg-red-50"
+                            valid
+                              ? "border-gray-200"
+                              : "border-red-300 bg-red-50"
                           }`}
                         >
                           <div className="grid grid-cols-1  gap-4 ">
@@ -891,7 +1026,13 @@ const RegistercarPage = () => {
                               <input
                                 type="time"
                                 value={slot.startTime}
-                                onChange={(e) => updateNewSlot(idx, "startTime", e.target.value)}
+                                onChange={(e) =>
+                                  updateNewSlot(
+                                    idx,
+                                    "startTime",
+                                    e.target.value
+                                  )
+                                }
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                               />
                             </div>
@@ -902,7 +1043,9 @@ const RegistercarPage = () => {
                               <input
                                 type="time"
                                 value={slot.endTime}
-                                onChange={(e) => updateNewSlot(idx, "endTime", e.target.value)}
+                                onChange={(e) =>
+                                  updateNewSlot(idx, "endTime", e.target.value)
+                                }
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                               />
                             </div>
@@ -912,7 +1055,9 @@ const RegistercarPage = () => {
                               </label>
                               <div
                                 className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                                  valid ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100"
+                                  valid
+                                    ? "text-green-700 bg-green-100"
+                                    : "text-red-700 bg-red-100"
                                 }`}
                               >
                                 {d > 0 ? `${d.toFixed(2)}h` : "Chưa chọn"}
@@ -920,7 +1065,10 @@ const RegistercarPage = () => {
                             </div>
                           </div>
                           <div className="mt-3 flex justify-end">
-                            <button onClick={() => removeNewSlot(idx)} className="text-red-600 hover:text-red-700 text-sm">
+                            <button
+                              onClick={() => removeNewSlot(idx)}
+                              className="text-red-600 hover:text-red-700 text-sm"
+                            >
                               Xoá khung giờ
                             </button>
                           </div>
@@ -947,18 +1095,29 @@ const RegistercarPage = () => {
                       <p>
                         Tổng thời gian thêm mới:{" "}
                         <span className="font-semibold text-indigo-600">
-                          {newSlots.reduce((t, s) => t + duration(s.startTime, s.endTime), 0).toFixed(2)}h
+                          {newSlots
+                            .reduce(
+                              (t, s) => t + duration(s.startTime, s.endTime),
+                              0
+                            )
+                            .toFixed(2)}
+                          h
                         </span>
                       </p>
                       <p>
-                        Còn lại hôm nay: <span className="font-semibold text-gray-700">{remain.toFixed(2)}h</span>
+                        Còn lại hôm nay:{" "}
+                        <span className="font-semibold text-gray-700">
+                          {remain.toFixed(2)}h
+                        </span>
                       </p>
                     </div>
                     {/* KHÓA đặt lịch khi xe không hoạt động */}
                     <button
                       onClick={async () => {
                         if (!isSelectedCarActive) {
-                          alert("Xe đang được xử lý dịch vụ nên tạm thời không thể đăng ký lịch mới. Lịch cũ vẫn giữ.");
+                          alert(
+                            "Xe đang được xử lý dịch vụ nên tạm thời không thể đăng ký lịch mới. Lịch cũ vẫn giữ."
+                          );
                           return;
                         }
                         await confirmNewSlots();

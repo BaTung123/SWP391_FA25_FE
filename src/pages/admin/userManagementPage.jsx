@@ -16,6 +16,7 @@ import {
   Select,
   Empty,
   message,
+  Popconfirm,
 } from "antd";
 import {
   PlusOutlined,
@@ -24,6 +25,7 @@ import {
   TeamOutlined,
   CheckCircleOutlined,
   StopOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import api from "../../config/axios";
 
@@ -139,6 +141,26 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleDeleteUser = (userId) => {
+    setLoading(true);
+    setUsersRaw((prev) => prev.filter((u) => Number(u.id) !== Number(userId)));
+    return api
+      .delete(`/User/${userId}`)
+      .then(async () => {
+        await fetchUsers();
+        msgApi.success("Xoá người dùng thành công!");
+      })
+      .catch((e) => {
+        const msg =
+          e?.response?.data?.message ||
+          e?.response?.data?.error ||
+          "Không thể xoá người dùng. Vui lòng thử lại!";
+        setErrMsg(msg);
+        message.error(msg);
+      })
+      .finally(() => setLoading(false));
+  };
+
   // ===== Tìm kiếm & Lọc =====
   const filtered = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -209,41 +231,40 @@ export default function UserManagementPage() {
         <Tag color={record.roleNumber === 2 ? "geekblue" : "green"}>{text}</Tag>
       ),
     },
-    {
-      title: "Trạng thái",
-      dataIndex: "statusText",
-      key: "statusText",
-      align: "center",
-      width: 160,
-      render: (status) =>
-        status === "Hoạt động" ? (
-          <Tag color="success" icon={<CheckCircleOutlined />}>
-            Hoạt động
-          </Tag>
-        ) : (
-          <Tag color="error" icon={<StopOutlined />}>
-            Ngừng hoạt động
-          </Tag>
-        ),
-    },
+    // {
+    //   title: "Trạng thái",
+    //   dataIndex: "statusText",
+    //   key: "statusText",
+    //   align: "center",
+    //   width: 160,
+    //   render: (status) =>
+    //     status === "Hoạt động" ? (
+    //       <Tag color="success" icon={<CheckCircleOutlined />}>
+    //         Hoạt động
+    //       </Tag>
+    //     ) : (
+    //       <Tag color="error" icon={<StopOutlined />}>
+    //         Ngừng hoạt động
+    //       </Tag>
+    //     ),
+    // },
     {
       title: "Hành động",
       key: "action",
       align: "center",
       width: 150,
       render: (_, record) => (
-        <Tooltip
-          title={
-            record.statusText === "Hoạt động"
-              ? "Chuyển sang ngừng hoạt động (hiển thị local)"
-              : "Chuyển sang hoạt động (hiển thị local)"
-          }
+        <Popconfirm
+          title="Xác nhận xoá người dùng"
+          okText="Xoá"
+          cancelText="Huỷ"
+          okButtonProps={{ danger: true }}
+          onConfirm={() => handleDeleteUser(record.id)}
         >
-          <Switch
-            checked={record.statusText === "Hoạt động"}
-            onChange={() => toggleUserStatus(record.id)}
-          />
-        </Tooltip>
+          <Tooltip >
+            <Button type="text" danger icon={<DeleteOutlined />} />
+          </Tooltip>
+        </Popconfirm>
       ),
     },
   ];
@@ -306,7 +327,7 @@ export default function UserManagementPage() {
               icon={<PlusOutlined />}
               onClick={() => setIsModalOpen(true)}
             >
-              Thêm nhân viên
+              Thêm thành viên
             </Button>
           </Space>
         }

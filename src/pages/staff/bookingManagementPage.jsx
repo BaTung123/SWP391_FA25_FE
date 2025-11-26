@@ -66,6 +66,8 @@ const GroupVehicleBookingDashboard = () => {
 
   // Đồng sở hữu theo carId: Map<carIdStr, Owner[]>, mỗi owner có _carUserId
   const [ownersByCarId, setOwnersByCarId] = useState(new Map());
+  const [percentByCarUserId, setPercentByCarUserId] = useState(new Map());
+  const [percentByUserId, setPercentByUserId] = useState({});
 
   // Xe đang chọn
   const [selectedCarId, setSelectedCarId] = useState("");
@@ -120,6 +122,26 @@ const GroupVehicleBookingDashboard = () => {
       }
     };
     run();
+  }, []);
+
+  useEffect(() => {
+    const loadPercentOwnership = async () => {
+      try {
+        const r = await api.get("/PercentOwnership");
+        const list = Array.isArray(r?.data) ? r.data : r?.data?.data || [];
+        const map = new Map();
+        list.forEach((p) => {
+          const cuid = S(p.carUserId ?? p.CarUserId ?? p.caruserId ?? p.car_user_id);
+          const percentage = Number(p.percentage ?? p.Percentage ?? 0);
+          if (cuid) map.set(S(cuid), Number.isFinite(percentage) ? percentage : 0);
+        });
+        setPercentByCarUserId(map);
+      } catch (e) {
+        console.error(e);
+        setPercentByCarUserId(new Map());
+      }
+    };
+    loadPercentOwnership();
   }, []);
 
   /* -------- khi đổi xe: dựng danh sách đồng sở hữu từ GET /users/{uid}/cars -------- */
@@ -195,6 +217,24 @@ const GroupVehicleBookingDashboard = () => {
     if (!selectedCarId || carUserIdSet.size === 0) return [];
     return schedules.filter((s) => carUserIdSet.has(s.__carUserId));
   }, [schedules, selectedCarId, carUserIdSet]);
+
+  useEffect(() => {
+    const ownersList = ownersByCarId.get(selectedCarId) || [];
+    const obj = {};
+    ownersList.forEach((u) => {
+      const uid = S(u.id ?? u.userId);
+      const cuid = S(u._carUserId);
+      const p = percentByCarUserId.get(cuid);
+      obj[uid] = Number.isFinite(Number(p)) ? Number(p) : null;
+    });
+    setPercentByUserId(obj);
+  }, [ownersByCarId, selectedCarId, percentByCarUserId]);
+
+  const userPercent = (uid) => {
+    const key = S(uid);
+    const v = percentByUserId[key];
+    return Number.isFinite(Number(v)) ? Number(v) : 0;
+  };
 
   // Thống kê
   const totalBookings = filteredSchedules.length;
@@ -353,12 +393,14 @@ const GroupVehicleBookingDashboard = () => {
                 <div className="flex flex-wrap gap-2">
                   {owners.map((u) => (
                     <Tag key={S(u.id ?? u.userId)} color="blue">
-                      {u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`}
+                      {(u.fullName || u.name || u.userName || `User#${S(u.id ?? u.userId)}`)} ({userPercent(u.id ?? u.userId) || 0}%)
                     </Tag>
                   ))}
                 </div>
+                
               )}
             </div>
+            
 
             {/* Lượt đặt trong ngày */}
             {modalItems.length === 0 ? (
@@ -384,6 +426,7 @@ const GroupVehicleBookingDashboard = () => {
                           <div className="font-semibold text-gray-900">
                             {name} {isOwner ? <Tag color="green">Đồng sở hữu</Tag> : <Tag>Khách</Tag>}
                           </div>
+                    
                           <div className="text-sm text-gray-600">
                             Bắt đầu: {new Date(it._start).toLocaleString("vi-VN")}
                           </div>
@@ -402,6 +445,9 @@ const GroupVehicleBookingDashboard = () => {
                             {it._status}
                           </span>
                         </div>
+                              {/* <div className="text-xs text-indigo-700">
+                            Phần trăm: {percentByCarUserId.get(S(it.__carUserId)) ?? 0}%
+                          </div> */}
                       </div>
                     );
                   })}
